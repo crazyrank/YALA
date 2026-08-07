@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+.expo-shared/
+.env
+.env.local
+.env.development
+.env.production
+dist/
+build/
+web-build/
+coverage/
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
