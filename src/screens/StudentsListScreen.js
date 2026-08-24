@@ -4,22 +4,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { api } from '../api/client';
 import OfflineMarquee from '../components/OfflineMarquee';
+import SyncIssueBanner from '../components/SyncIssueBanner';
 
-/**
- * Search is local-first: queries the SQLite mirror immediately (works
- * fully offline), then reconciles with the server in the background
- * when online. This is the "instant local operations" pillar in
- * practice — a Head Teacher never waits on a network round-trip just to
- * find a student they already have locally.
- *
- * Search itself is scoped server-side already (the local mirror only
- * ever contains students within this device's assigned classes, per
- * Build Spec Section 8), so no extra scoping logic is needed here — the
- * mirror IS the scope.
- */
 export default function StudentsListScreen({ navigation }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [pullError, setPullError] = useState(null);
 
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
@@ -57,14 +47,17 @@ export default function StudentsListScreen({ navigation }) {
              admission_no=excluded.admission_no, full_name=excluded.full_name,
              division=excluded.division, class_level=excluded.class_level, arm=excluded.arm,
              status=excluded.status, sync_version=excluded.sync_version, updated_at=excluded.updated_at
-           WHERE students.local_dirty = 0`, // never clobber unsynced local edits
+           WHERE students.local_dirty = 0`,
           [s.id, s.admission_no, s.full_name, s.division || 'secondary', s.class_level, s.arm,
             s.status, s.sync_version, new Date().toISOString(), new Date().toISOString()]
         );
       }
       runLocalSearch(query);
-    } catch {
-      // Offline or server unreachable — local results still stand.
+      setPullError(null);
+    } catch (err) {
+      if (!err.isNetworkError) {
+        setPullError(err.message || 'Could not reach the server.');
+      }
     }
   };
 
@@ -76,6 +69,7 @@ export default function StudentsListScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <OfflineMarquee />
+      <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
