@@ -13,6 +13,8 @@ import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
 import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
+import CreateAccountScreen from '../screens/CreateAccountScreen';
+import ManageStaffScreen from '../screens/ManageStaffScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +30,27 @@ function DashboardHome({ navigation }) {
     );
   }
   return <StudentsListScreen navigation={navigation} />;
+}
+
+function AddStaffButton({ navigation }) {
+  const { user } = useAuth();
+  const canCreate = user?.role === 'director' || user?.role === 'principal';
+  if (!canCreate) return null;
+
+  return (
+    <Pressable onPress={() => navigation.navigate('ManageStaff')} hitSlop={12} style={styles.addStaffButton}>
+      <Text style={styles.addStaffText}>Staff</Text>
+    </Pressable>
+  );
+}
+
+function HeaderActions({ navigation }) {
+  return (
+    <>
+      <AddStaffButton navigation={navigation} />
+      <LogoutButton />
+    </>
+  );
 }
 
 function LogoutButton() {
@@ -66,13 +89,15 @@ export default function RootNavigator() {
             <Stack.Screen
               name="Students"
               component={DashboardHome}
-              options={{ title: 'Students', headerRight: () => <LogoutButton /> }}
+              options={({ navigation }) => ({ title: 'Students', headerRight: () => <HeaderActions navigation={navigation} /> })}
             />
             <Stack.Screen name="StudentDetail" component={StudentDetailScreen} options={{ title: 'Student' }} />
             <Stack.Screen name="RegisterStudent" component={RegisterStudentScreen} options={{ title: 'Register Student' }} />
             <Stack.Screen name="Conflicts" component={ConflictsScreen} options={{ title: 'Conflicts' }} />
             <Stack.Screen name="MergeQueue" component={MergeQueueScreen} options={{ title: 'Duplicate Registrations' }} />
             <Stack.Screen name="CameraCapture" component={CameraCaptureScreen} options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+            <Stack.Screen name="CreateAccount" component={CreateAccountScreen} options={{ title: 'Create Account' }} />
+            <Stack.Screen name="ManageStaff" component={ManageStaffScreen} options={{ title: 'Manage Staff' }} />
           </>
         )}
       </Stack.Navigator>
@@ -83,4 +108,6 @@ export default function RootNavigator() {
 const styles = StyleSheet.create({
   logoutButton: { marginRight: 12, paddingVertical: 4, paddingHorizontal: 8 },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  addStaffButton: { flexDirection: 'row', marginRight: 4, paddingVertical: 4, paddingHorizontal: 8 },
+  addStaffText: { color: '#c9a24b', fontSize: 13, fontWeight: '700' },
 });
