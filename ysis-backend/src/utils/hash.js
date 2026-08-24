@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const config = require('../config');
 
@@ -13,7 +13,7 @@ async function verifyPassword(plain, hash) {
 // For password-reset temp credentials: generate a short, readable code,
 // store only its hash (same discipline as users.password_hash).
 function generateTempCredential() {
-  // 8-character, unambiguous alphabet (no 0/O/1/I confusion) — easy to
+  // 8-character, unambiguous alphabet (no 0/O/1/I confusion) - easy to
   // read aloud from a Principal's screen to a Head Teacher.
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let code = '';
