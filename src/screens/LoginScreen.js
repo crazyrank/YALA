@@ -3,11 +3,12 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Keyboa
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, unlock } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [fingerprintBusy, setFingerprintBusy] = useState(false);
 
   const handleLogin = async () => {
     setError(null);
@@ -26,6 +27,23 @@ export default function LoginScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFingerprintLogin = async () => {
+    setError(null);
+    setFingerprintBusy(true);
+    try {
+      const result = await unlock();
+      if (!result.unlocked) {
+        if (result.reason === 'NO_BIOMETRIC_HARDWARE') {
+          setError('No fingerprint or PIN set up on this device. Please sign in with your password.');
+        } else {
+          setError('Could not verify fingerprint. Please try again or sign in with your password.');
+        }
+      }
+    } finally {
+      setFingerprintBusy(false);
     }
   };
 
@@ -58,6 +76,20 @@ export default function LoginScreen() {
       <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color="#0d1f33" /> : <Text style={styles.buttonText}>Sign In</Text>}
       </Pressable>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <Pressable style={styles.fingerprintButton} onPress={handleFingerprintLogin} disabled={fingerprintBusy}>
+        {fingerprintBusy ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.fingerprintButtonText}>Sign in with fingerprint</Text>
+        )}
+      </Pressable>
     </KeyboardAvoidingView>
   );
 }
@@ -72,4 +104,11 @@ const styles = StyleSheet.create({
   error: { color: '#e0a05a', fontSize: 12.5, marginBottom: 10, textAlign: 'center' },
   button: { backgroundColor: '#c9a24b', paddingVertical: 14, borderRadius: 8, marginTop: 8 },
   buttonText: { textAlign: 'center', color: '#0d1f33', fontWeight: '700', fontSize: 15 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#2a3f57' },
+  dividerText: { color: '#7a8ea3', fontSize: 12, marginHorizontal: 10 },
+  fingerprintButton: {
+    borderWidth: 1, borderColor: '#6fd3c7', paddingVertical: 14, borderRadius: 8,
+  },
+  fingerprintButtonText: { textAlign: 'center', color: '#6fd3c7', fontWeight: '600', fontSize: 14 },
 });

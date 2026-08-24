@@ -38,8 +38,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const requirePasswordLogin = useCallback(() => {
-    // Used when biometric hardware isn't available/enrolled, or the
-    // refresh token has genuinely expired server-side.
     setStatus('needsFirstLogin');
   }, []);
 

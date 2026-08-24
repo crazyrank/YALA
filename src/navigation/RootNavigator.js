@@ -1,4 +1,5 @@
 import React from 'react';
+import { Pressable, Text, Alert, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -15,13 +16,6 @@ import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 
 const Stack = createNativeStackNavigator();
 
-/**
- * The blocking conflict check (Build Spec Section 17, locked decision:
- * "blocking. An open conflict stops the Principal from moving on to
- * other dashboard actions") only applies to Principal/Director — a Head
- * Teacher's dashboard is never blocked by conflicts they have no
- * authority to resolve anyway.
- */
 function DashboardHome({ navigation }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
@@ -34,6 +28,23 @@ function DashboardHome({ navigation }) {
     );
   }
   return <StudentsListScreen navigation={navigation} />;
+}
+
+function LogoutButton() {
+  const { logout } = useAuth();
+
+  const confirmLogout = () => {
+    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => logout() },
+    ]);
+  };
+
+  return (
+    <Pressable onPress={confirmLogout} hitSlop={12} style={styles.logoutButton}>
+      <Text style={styles.logoutText}>Sign out</Text>
+    </Pressable>
+  );
 }
 
 export default function RootNavigator() {
@@ -52,7 +63,11 @@ export default function RootNavigator() {
         )}
         {status === 'authenticated' && (
           <>
-            <Stack.Screen name="Students" component={DashboardHome} options={{ title: 'Students' }} />
+            <Stack.Screen
+              name="Students"
+              component={DashboardHome}
+              options={{ title: 'Students', headerRight: () => <LogoutButton /> }}
+            />
             <Stack.Screen name="StudentDetail" component={StudentDetailScreen} options={{ title: 'Student' }} />
             <Stack.Screen name="RegisterStudent" component={RegisterStudentScreen} options={{ title: 'Register Student' }} />
             <Stack.Screen name="Conflicts" component={ConflictsScreen} options={{ title: 'Conflicts' }} />
@@ -64,3 +79,8 @@ export default function RootNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  logoutButton: { marginRight: 12, paddingVertical: 4, paddingHorizontal: 8 },
+  logoutText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+});
