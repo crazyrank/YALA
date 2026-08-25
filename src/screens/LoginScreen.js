@@ -1,33 +1,74 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Image,
   StatusBar,
   ScrollView,
+  Animated,
 } from 'react-native';
+
 import { useAuth } from '../context/AuthContext';
+import styles from './LoginStyles';
 
 export default function LoginScreen() {
   const { login, unlock } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [fingerprintBusy, setFingerprintBusy] = useState(false);
+  const [bioLoading, setBioLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [focused, setFocused] = useState('');
+
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(25)).current;
+  const errorAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slide, {
+        toValue: 0,
+        friction: 8,
+        tension: 55,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const clearError = () => {
+    setError('');
+    errorAnim.setValue(0);
+  };
+
+  const showError = (message) => {
+    setError(message);
+    errorAnim.setValue(0);
+
+    Animated.spring(errorAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const handleLogin = async () => {
-    setError(null);
+    clearError();
 
     if (!email.trim() || !password) {
-      setError('Enter your email and password to continue.');
+      showError('Enter your email and password to continue.');
       return;
     }
 
@@ -36,225 +77,245 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
     } catch (err) {
-      if (err.isNetworkError) {
-        setError(
-          'An internet connection is required for your first password sign-in.'
-        );
-      } else {
-        setError(
-          err.message ||
-            'We could not sign you in. Please check your details.'
-        );
-      }
+      showError(
+        err.isNetworkError
+          ? 'An internet connection is required for your first sign-in.'
+          : err.message || 'We could not sign you in. Check your details.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFingerprintLogin = async () => {
-    setError(null);
-    setFingerprintBusy(true);
+  const handleBiometric = async () => {
+    clearError();
+    setBioLoading(true);
 
     try {
       const result = await unlock();
 
       if (!result.unlocked) {
-        if (result.reason === 'NO_BIOMETRIC_HARDWARE') {
-          setError(
-            'No fingerprint or device PIN is available. Sign in with your password.'
-          );
-        } else {
-          setError(
-            'Verification was unsuccessful. Please try again or use your password.'
-          );
-        }
+        showError(
+          result.reason === 'NO_BIOMETRIC_HARDWARE'
+            ? 'No fingerprint or device PIN is available.'
+            : 'Verification was unsuccessful. Please try again.'
+        );
       }
-    } catch (err) {
-      setError(
-        'Fingerprint verification could not be completed. Please use your password.'
-      );
+    } catch {
+      showError('Fingerprint verification could not be completed.');
     } finally {
-      setFingerprintBusy(false);
+      setBioLoading(false);
     }
   };
 
+  const emailBox = [
+    styles.inputBox,
+    focused === 'email' && styles.inputFocus,
+  ];
+
+  const passwordBox = [
+    styles.inputBox,
+    focused === 'password' && styles.inputFocus,
+  ];
+
   return (
     <KeyboardAvoidingView
-      style={styles.safe}
+      style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F6F7F9"
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#F7F8FA" />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.container}>
+        <Animated.View
+          style={[
+            styles.container,
+            {
+              opacity: fade,
+              transform: [{ translateY: slide }],
+            },
+          ]}
+        >
+          <View style={styles.brand}>
+            <View style={styles.logoWrap}>
+              <Image
+                source={require('../../assets/yala-matrix-schools-logo.jpg')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
 
-          {/* TOP BRAND */}
-          <View style={styles.brandArea}>
-            <Image
-              source={require('../../assets/yala-matrix-schools-logo.jpg')}
-              style={styles.schoolLogo}
-              resizeMode="contain"
-            />
-
-            <View style={styles.brandTextArea}>
-              <Text style={styles.brandTitle}>
-                YALAMATRIX
-              </Text>
-
-              <Text style={styles.brandSubtitle}>
+            <View>
+              <Text style={styles.brandName}>YALAMATRIX</Text>
+              <Text style={styles.brandSub}>
                 SCHOOL INFORMATION SYSTEM
               </Text>
             </View>
           </View>
 
-          {/* WELCOME */}
-          <View style={styles.introduction}>
-            <Text style={styles.eyebrow}>
-              SECURE ACCESS
-            </Text>
+          <View style={styles.intro}>
+            <View style={styles.badge}>
+              <View style={styles.dot} />
+              <Text style={styles.badgeText}>SECURE ACCESS</Text>
+            </View>
 
-            <Text style={styles.title}>
-              Welcome back.
-            </Text>
+            <Text style={styles.title}>Welcome back.</Text>
 
             <Text style={styles.subtitle}>
               Sign in to access your school management workspace.
             </Text>
           </View>
 
-          {/* LOGIN CARD */}
           <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sign in</Text>
+            <Text style={styles.cardSub}>
+              Enter your account details below.
+            </Text>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>
-                EMAIL ADDRESS
-              </Text>
+            <Text style={styles.label}>EMAIL ADDRESS</Text>
 
+            <View style={emailBox}>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#98A2B3"
+                placeholder="name@yalamatrix.edu"
+                placeholderTextColor="#A0A8B3"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
-                textContentType="emailAddress"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  clearError();
+                }}
+                onFocus={() => setFocused('email')}
+                onBlur={() => setFocused('')}
               />
             </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>
-                PASSWORD
-              </Text>
+            <Text style={styles.label}>PASSWORD</Text>
 
+            <View style={passwordBox}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter your password"
-                placeholderTextColor="#98A2B3"
-                secureTextEntry
+                placeholderTextColor="#A0A8B3"
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  clearError();
+                }}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused('')}
               />
+
+              <Pressable
+                onPress={() => setShowPassword((value) => !value)}
+                hitSlop={10}
+              >
+                <Text style={styles.show}>
+                  {showPassword ? 'HIDE' : 'SHOW'}
+                </Text>
+              </Pressable>
             </View>
 
-            {error && (
-              <View style={styles.errorBox}>
-                <View style={styles.errorMark}>
-                  <Text style={styles.errorMarkText}>
-                    !
-                  </Text>
+            {error ? (
+              <Animated.View
+                style={[
+                  styles.error,
+                  {
+                    opacity: errorAnim,
+                    transform: [
+                      {
+                        translateY: errorAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-8, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <View style={styles.errorIcon}>
+                  <Text style={styles.errorMark}>!</Text>
                 </View>
 
-                <Text style={styles.errorText}>
-                  {error}
-                </Text>
-              </View>
-            )}
+                <Text style={styles.errorText}>{error}</Text>
+              </Animated.View>
+            ) : null}
 
             <Pressable
-              style={({ pressed }) => [
-                styles.loginButton,
-                pressed && styles.loginButtonPressed,
-                loading && styles.disabledButton,
-              ]}
               onPress={handleLogin}
               disabled={loading}
+              style={({ pressed }) => [
+                styles.login,
+                pressed && styles.pressed,
+                loading && styles.disabled,
+              ]}
             >
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.loginText}>Signing in...</Text>
+                </>
               ) : (
                 <>
-                  <Text style={styles.loginButtonText}>
-                    Sign in
-                  </Text>
-
-                  <Text style={styles.loginArrow}>
-                    →
-                  </Text>
+                  <Text style={styles.loginText}>Sign in</Text>
+                  <Text style={styles.arrow}>→</Text>
                 </>
               )}
             </Pressable>
 
-            {/* DIVIDER */}
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>
-                QUICK ACCESS
-              </Text>
-              <View style={styles.dividerLine} />
+              <View style={styles.line} />
+              <Text style={styles.dividerText}>QUICK ACCESS</Text>
+              <View style={styles.line} />
             </View>
 
-            {/* BIOMETRIC */}
             <Pressable
+              onPress={handleBiometric}
+              disabled={bioLoading}
               style={({ pressed }) => [
-                styles.fingerprintButton,
-                pressed && styles.fingerprintPressed,
+                styles.bio,
+                pressed && styles.bioPressed,
               ]}
-              onPress={handleFingerprintLogin}
-              disabled={fingerprintBusy}
             >
-              {fingerprintBusy ? (
-                <ActivityIndicator color="#101828" />
+              {bioLoading ? (
+                <>
+                  <ActivityIndicator color="#0B1F33" size="small" />
+                  <Text style={styles.bioLoading}>Verifying...</Text>
+                </>
               ) : (
                 <>
-                  <View style={styles.fingerprintIcon}>
-                    <View style={styles.fingerprintInner} />
+                  <View style={styles.bioIcon}>
+                    <View style={styles.bioInner} />
                   </View>
 
-                  <View style={styles.fingerprintTextArea}>
-                    <Text style={styles.fingerprintTitle}>
-                      Use device authentication
+                  <View style={styles.bioInfo}>
+                    <Text style={styles.bioTitle}>
+                      Device authentication
                     </Text>
 
-                    <Text style={styles.fingerprintSubtitle}>
+                    <Text style={styles.bioSub}>
                       Fingerprint or device PIN
                     </Text>
                   </View>
 
-                  <Text style={styles.fingerprintArrow}>
-                    →
-                  </Text>
+                  <Text style={styles.bioArrow}>→</Text>
                 </>
               )}
             </Pressable>
           </View>
 
-          {/* FOOTER */}
           <View style={styles.footer}>
-            <Text style={styles.footerTitle}>
-              YALA
-            </Text>
+            <View style={styles.footerLine} />
+
+            <Text style={styles.footerTitle}>YALA</Text>
 
             <Text style={styles.footerText}>
               Offline-first school information system
@@ -264,296 +325,8 @@ export default function LoginScreen() {
               Yalamatrix Schools • Okitipupa
             </Text>
           </View>
-
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-  },
-
-  scrollContent: {
-    flexGrow: 1,
-  },
-
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 20,
-  },
-
-  brandArea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  schoolLogo: {
-    width: 62,
-    height: 62,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-  },
-
-  brandTextArea: {
-    marginLeft: 12,
-  },
-
-  brandTitle: {
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: '#101828',
-  },
-
-  brandSubtitle: {
-    marginTop: 3,
-    fontSize: 7.5,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#98A2B3',
-  },
-
-  introduction: {
-    marginTop: 42,
-    marginBottom: 24,
-  },
-
-  eyebrow: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.7,
-    color: '#667085',
-    marginBottom: 10,
-  },
-
-  title: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '900',
-    letterSpacing: -1,
-    color: '#101828',
-  },
-
-  subtitle: {
-    marginTop: 10,
-    maxWidth: 350,
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#667085',
-  },
-
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
-    shadowColor: '#101828',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-
-  field: {
-    marginBottom: 17,
-  },
-
-  label: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    color: '#475467',
-    marginBottom: 7,
-  },
-
-  input: {
-    height: 52,
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    borderRadius: 13,
-    paddingHorizontal: 15,
-    fontSize: 14,
-    color: '#101828',
-    backgroundColor: '#FCFCFD',
-  },
-
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
-    padding: 11,
-    marginBottom: 14,
-  },
-
-  errorMark: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 9,
-  },
-
-  errorMarkText: {
-    color: '#B42318',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-
-  errorText: {
-    flex: 1,
-    color: '#B42318',
-    fontSize: 11.5,
-    lineHeight: 17,
-  },
-
-  loginButton: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#101828',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  loginButtonPressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-  disabledButton: {
-    opacity: 0.65,
-  },
-
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  loginArrow: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    marginLeft: 12,
-    fontWeight: '300',
-  },
-
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#EAECF0',
-  },
-
-  dividerText: {
-    marginHorizontal: 10,
-    color: '#98A2B3',
-    fontSize: 7.5,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-
-  fingerprintButton: {
-    minHeight: 68,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FCFCFD',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-
-  fingerprintPressed: {
-    backgroundColor: '#F2F4F7',
-  },
-
-  fingerprintIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F2F4F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-  },
-
-  fingerprintInner: {
-    width: 16,
-    height: 21,
-    borderWidth: 2,
-    borderColor: '#101828',
-    borderRadius: 10,
-  },
-
-  fingerprintTextArea: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  fingerprintTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#101828',
-  },
-
-  fingerprintSubtitle: {
-    marginTop: 3,
-    fontSize: 10,
-    color: '#98A2B3',
-  },
-
-  fingerprintArrow: {
-    fontSize: 19,
-    color: '#667085',
-  },
-
-  footer: {
-    alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 24,
-  },
-
-  footerTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: '#101828',
-  },
-
-  footerText: {
-    marginTop: 4,
-    fontSize: 9,
-    color: '#98A2B3',
-  },
-
-  footerSchool: {
-    marginTop: 3,
-    fontSize: 8,
-    color: '#B0B7C3',
-  },
-});

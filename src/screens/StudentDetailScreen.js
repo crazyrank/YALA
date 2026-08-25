@@ -1,42 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  TextInput,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
 
-/**
- * Shows a "this record was merged" notice the FIRST time it opens a
- * student whose local copy was the discarded side of an admission-number
- * reconciliation (Build Spec Section 6, locked decision: never a silent
- * overwrite). The notice is dismissed by tapping OK, which clears the
- * merged_notice_pending flag locally.
- */
 export default function StudentDetailScreen({ route, navigation }) {
   const { studentId } = route.params;
   const { user } = useAuth();
+
   const [student, setStudent] = useState(null);
   const [photoUri, setPhotoUri] = useState(null);
   const [showCorrectionInput, setShowCorrectionInput] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
 
-  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const isAdmin =
+    user?.role === 'principal' || user?.role === 'director';
 
-  useFocusEffect(
-    useCallback(() => {
-      loadStudent();
-    }, [studentId])
-  );
-
-  const loadStudent = async () => {
+  const loadStudent = useCallback(async () => {
     const db = await getDb();
-    const row = await db.getFirstAsync('SELECT * FROM students WHERE id = ?', [studentId]);
+
+    const row = await db.getFirstAsync(
+      'SELECT * FROM students WHERE id = ?',
+      [studentId]
+    );
+
     setStudent(row);
 
     if (row?.merged_notice_pending) {
       Alert.alert(
         'Record Updated',
-        'This student\'s record was reconciled by the Principal after being entered on two devices. The details shown now are the confirmed, correct version.',
-        [{ text: 'OK', onPress: () => clearMergedNotice() }]
+        'This student’s record was reconciled by the Principal after being entered on two devices. The details shown now are the confirmed, correct version.',
+        [
+          {
+            text: 'OK',
+            onPress: async () => {
+              await db.runAsync(
+                'UPDATE students SET merged_notice_pending = 0 WHERE id = ?',
+                [studentId]
+              );
+            },
+          },
+        ]
       );
     }
 
@@ -44,22 +57,17 @@ export default function StudentDetailScreen({ route, navigation }) {
       'SELECT * FROM student_photos WHERE student_id = ? AND is_current = 1',
       [studentId]
     );
-    if (photo) setPhotoUri(photo.local_uri || photo.storage_url);
-    else setPhotoUri(null);
-  };
 
-  const clearMergedNotice = async () => {
-    const db = await getDb();
-    await db.runAsync('UPDATE students SET merged_notice_pending = 0 WHERE id = ?', [studentId]);
-  };
+    setPhotoUri(photo?.local_uri || photo?.storage_url || null);
+  }, [studentId]);
 
-  const handleCapturePhoto = async () => {
-    // Exactly ONE photo per student, permanent once uploaded (Build Spec
-    // Section 7, locked decision). A Head Teacher cannot replace an
-    // existing photo — only navigate to the camera here if there isn't
-    // one yet. The server enforces this too (photoService), this is just
-    // the first line so a Head Teacher isn't sent through the capture
-    // flow only to be rejected after the fact.
+  useFocusEffect(
+    useCallback(() => {
+      loadStudent();
+    }, [loadStudent])
+  );
+
+  const handleCapturePhoto = () => {
     if (photoUri && !isAdmin) {
       Alert.alert(
         'Photo already on file',
@@ -69,126 +77,502 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
 
     if (photoUri && isAdmin) {
-      // Principal replacing an existing photo — reason required, matching
-      // the mandatory-reason pattern used for permission delegation.
       setShowCorrectionInput(true);
       return;
     }
 
-    navigation.navigate('CameraCapture', { studentId, isCorrection: false });
+    navigation.navigate('CameraCapture', {
+      studentId,
+      isCorrection: false,
+    });
   };
 
   const handleConfirmCorrection = () => {
     if (correctionReason.trim().length < 5) {
-      Alert.alert('Reason needed', 'Please explain why this photo needs to be replaced.');
+      Alert.alert(
+        'Reason needed',
+        'Please explain why this photo needs to be replaced.'
+      );
       return;
     }
+
     setShowCorrectionInput(false);
+
     navigation.navigate('CameraCapture', {
       studentId,
       isCorrection: true,
       correctionReason: correctionReason.trim(),
     });
+
     setCorrectionReason('');
   };
 
-  if (!student) return null;
+  if (!student) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>Loading student...</Text>
+      </View>
+    );
+  }
+
+  const status = student.status || 'active';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.photoSection}>
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photo} />
-        ) : (
-          <Pressable style={styles.photoPlaceholder} onPress={handleCapturePhoto}>
-            <Text style={styles.photoPlaceholderText}>Tap to take passport photo</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* PROFILE HEADER */}
+      <View style={styles.profileCard}>
+        <View style={styles.photoWrapper}>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.photo} />
+          ) : (
+            <Pressable
+              style={styles.photoPlaceholder}
+              onPress={handleCapturePhoto}
+            >
+              <Text style={styles.photoIcon}>+</Text>
+              <Text style={styles.photoPlaceholderText}>
+                Add photo
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        <Text style={styles.name}>{student.full_name}</Text>
+
+        <Text style={styles.admissionNo}>
+          {student.admission_no}
+        </Text>
+
+        <View style={styles.statusBadge}>
+          <View style={styles.statusDot} />
+          <Text style={styles.statusText}>
+            {status.toUpperCase()}
+          </Text>
+        </View>
+
+        {photoUri && (
+          <Pressable
+            style={styles.photoAction}
+            onPress={handleCapturePhoto}
+          >
+            <Text style={styles.photoActionText}>
+              {isAdmin ? 'Replace passport photo' : 'Photo on file'}
+            </Text>
           </Pressable>
         )}
+      </View>
 
-        {photoUri && isAdmin && !showCorrectionInput && (
-          <Pressable style={styles.correctionLink} onPress={handleCapturePhoto}>
-            <Text style={styles.correctionLinkText}>Replace photo (Principal)</Text>
-          </Pressable>
-        )}
+      {/* PHOTO CORRECTION */}
+      {showCorrectionInput && (
+        <View style={styles.correctionBox}>
+          <Text style={styles.sectionEyebrow}>
+            PHOTO CORRECTION
+          </Text>
 
-        {showCorrectionInput && (
-          <View style={styles.correctionBox}>
-            <Text style={styles.correctionLabel}>Why does this photo need to be replaced?</Text>
-            <TextInput
-              style={styles.correctionInput}
-              placeholder="e.g. Wrong student's photo was uploaded"
-              value={correctionReason}
-              onChangeText={setCorrectionReason}
-              multiline
-            />
-            <View style={styles.correctionButtonRow}>
-              <Pressable style={styles.correctionCancel} onPress={() => setShowCorrectionInput(false)}>
-                <Text style={styles.correctionCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.correctionConfirm} onPress={handleConfirmCorrection}>
-                <Text style={styles.correctionConfirmText}>Continue to Camera</Text>
-              </Pressable>
-            </View>
+          <Text style={styles.correctionTitle}>
+            Why should this photo be replaced?
+          </Text>
+
+          <TextInput
+            style={styles.correctionInput}
+            placeholder="e.g. Wrong student's photo was uploaded"
+            placeholderTextColor="#98A2B3"
+            value={correctionReason}
+            onChangeText={setCorrectionReason}
+            multiline
+          />
+
+          <View style={styles.correctionActions}>
+            <Pressable
+              style={styles.cancelButton}
+              onPress={() => {
+                setShowCorrectionInput(false);
+                setCorrectionReason('');
+              }}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.continueButton}
+              onPress={handleConfirmCorrection}
+            >
+              <Text style={styles.continueText}>
+                Continue
+              </Text>
+            </Pressable>
           </View>
-        )}
-      </View>
-
-      <Text style={styles.name}>{student.full_name}</Text>
-      <Text style={styles.admissionNo}>{student.admission_no}</Text>
-
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Class</Text>
-        <Text style={styles.detailValue}>{student.class_level}{student.arm ? ` ${student.arm}` : ''}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Status</Text>
-        <Text style={styles.detailValue}>{student.status}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Guardian</Text>
-        <Text style={styles.detailValue}>{student.guardian_name || '—'}</Text>
-      </View>
-      <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>Guardian Phone</Text>
-        <Text style={styles.detailValue}>{student.guardian_phone || '—'}</Text>
-      </View>
-
-      {student.local_dirty === 1 && (
-        <Text style={styles.dirtyNote}>This record has changes waiting to sync.</Text>
+        </View>
       )}
+
+      {/* ACADEMIC INFORMATION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>
+          ACADEMIC INFORMATION
+        </Text>
+
+        <View style={styles.infoCard}>
+          <InfoRow
+            label="Class"
+            value={student.class_level || '—'}
+          />
+
+          <InfoRow
+            label="Arm"
+            value={student.arm || '—'}
+          />
+
+          <InfoRow
+            label="Division"
+            value={student.division || 'Secondary'}
+            last
+          />
+        </View>
+      </View>
+
+      {/* GUARDIAN INFORMATION */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>
+          GUARDIAN INFORMATION
+        </Text>
+
+        <View style={styles.infoCard}>
+          <InfoRow
+            label="Guardian"
+            value={student.guardian_name || '—'}
+          />
+
+          <InfoRow
+            label="Phone"
+            value={student.guardian_phone || '—'}
+            last
+          />
+        </View>
+      </View>
+
+      {/* SYNC STATUS */}
+      {student.local_dirty === 1 && (
+        <View style={styles.syncNotice}>
+          <View style={styles.syncIcon}>
+            <Text style={styles.syncIconText}>!</Text>
+          </View>
+
+          <View style={styles.syncContent}>
+            <Text style={styles.syncTitle}>
+              Changes waiting to sync
+            </Text>
+
+            <Text style={styles.syncText}>
+              This record has local changes that will be synchronized when the connection is available.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          YALA • Yalamatrix Schools
+        </Text>
+      </View>
     </ScrollView>
   );
 }
 
+function InfoRow({ label, value, last }) {
+  return (
+    <View style={[styles.infoRow, last && styles.infoRowLast]}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 20, alignItems: 'center' },
-  photoSection: { marginBottom: 20, alignItems: 'center' },
-  photo: { width: 140, height: 140, borderRadius: 8, backgroundColor: '#eee' },
+  container: {
+    flex: 1,
+    backgroundColor: '#F6F7F9',
+  },
+
+  content: {
+    padding: 18,
+    paddingBottom: 35,
+  },
+
+  loading: {
+    flex: 1,
+    backgroundColor: '#F6F7F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingText: {
+    color: '#667085',
+    fontSize: 13,
+  },
+
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    padding: 22,
+    alignItems: 'center',
+  },
+
+  photoWrapper: {
+    marginBottom: 14,
+  },
+
+  photo: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: '#F2F4F7',
+    borderWidth: 4,
+    borderColor: '#F2F4F7',
+  },
+
   photoPlaceholder: {
-    width: 140, height: 140, borderRadius: 8, backgroundColor: '#f4f2ec',
-    justifyContent: 'center', alignItems: 'center', padding: 10,
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: '#F2F4F7',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  photoPlaceholderText: { fontSize: 11, color: '#7a8a99', textAlign: 'center' },
-  correctionLink: { marginTop: 8 },
-  correctionLinkText: { color: '#a83f3f', fontSize: 11.5, fontWeight: '600' },
-  correctionBox: { width: '100%', backgroundColor: '#fbf0e6', borderRadius: 8, padding: 14, marginTop: 12 },
-  correctionLabel: { fontSize: 12, fontWeight: '600', color: '#8a5a1f', marginBottom: 8 },
+
+  photoIcon: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: '#667085',
+  },
+
+  photoPlaceholderText: {
+    marginTop: 2,
+    fontSize: 10,
+    color: '#667085',
+    fontWeight: '600',
+  },
+
+  name: {
+    fontSize: 23,
+    lineHeight: 29,
+    fontWeight: '900',
+    color: '#101828',
+    textAlign: 'center',
+  },
+
+  admissionNo: {
+    marginTop: 5,
+    fontSize: 12,
+    color: '#667085',
+    letterSpacing: 0.4,
+  },
+
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#ECFDF3',
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#12B76A',
+    marginRight: 6,
+  },
+
+  statusText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    color: '#027A48',
+  },
+
+  photoAction: {
+    marginTop: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+
+  photoActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475467',
+  },
+
+  section: {
+    marginTop: 24,
+  },
+
+  sectionEyebrow: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    color: '#667085',
+    marginBottom: 9,
+  },
+
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    paddingHorizontal: 16,
+  },
+
+  infoRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F4F7',
+  },
+
+  infoRowLast: {
+    borderBottomWidth: 0,
+  },
+
+  infoLabel: {
+    fontSize: 12,
+    color: '#667085',
+  },
+
+  infoValue: {
+    maxWidth: '58%',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#101828',
+    textAlign: 'right',
+  },
+
+  correctionBox: {
+    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: 16,
+  },
+
+  correctionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#101828',
+    marginBottom: 10,
+  },
+
   correctionInput: {
-    backgroundColor: '#fff', borderRadius: 6, padding: 10, fontSize: 13, minHeight: 60, textAlignVertical: 'top',
+    minHeight: 80,
+    backgroundColor: '#FCFCFD',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+    color: '#101828',
+    textAlignVertical: 'top',
   },
-  correctionButtonRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  correctionCancel: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  correctionCancelText: { color: '#8a5a1f', fontSize: 12.5 },
-  correctionConfirm: { flex: 1, backgroundColor: '#c9873f', borderRadius: 6, paddingVertical: 10 },
-  correctionConfirmText: { textAlign: 'center', color: '#fff', fontWeight: '600', fontSize: 12.5 },
-  name: { fontSize: 20, fontWeight: '700', color: '#16324f', textAlign: 'center' },
-  admissionNo: { fontSize: 13, color: '#7a8a99', marginBottom: 20 },
-  detailRow: {
-    flexDirection: 'row', justifyContent: 'space-between', width: '100%',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee',
+
+  correctionActions: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 10,
   },
-  detailLabel: { fontSize: 13, color: '#7a8a99' },
-  detailValue: { fontSize: 13, color: '#16324f', fontWeight: '600' },
-  dirtyNote: { fontSize: 11.5, color: '#8a6a1f', marginTop: 16, textAlign: 'center' },
+
+  cancelButton: {
+    flex: 1,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F2F4F7',
+  },
+
+  cancelText: {
+    color: '#475467',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  continueButton: {
+    flex: 1,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#101828',
+  },
+
+  continueText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  syncNotice: {
+    marginTop: 22,
+    flexDirection: 'row',
+    backgroundColor: '#FFFAEB',
+    borderWidth: 1,
+    borderColor: '#FEDF89',
+    borderRadius: 15,
+    padding: 13,
+  },
+
+  syncIcon: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: '#FEF0C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  syncIconText: {
+    color: '#B54708',
+    fontWeight: '900',
+    fontSize: 12,
+  },
+
+  syncContent: {
+    flex: 1,
+  },
+
+  syncTitle: {
+    color: '#7A2E0E',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+
+  syncText: {
+    marginTop: 3,
+    color: '#B54708',
+    fontSize: 10.5,
+    lineHeight: 16,
+  },
+
+  footer: {
+    alignItems: 'center',
+    marginTop: 28,
+  },
+
+  footerText: {
+    fontSize: 9,
+    color: '#98A2B3',
+    letterSpacing: 0.4,
+  },
 });
