@@ -16,6 +16,7 @@ import { api } from '../api/client';
 import { exportStudentsToCsv } from '../services/csvExport';
 import OfflineMarquee from '../components/OfflineMarquee';
 import SyncIssueBanner from '../components/SyncIssueBanner';
+import DashboardStatCard from '../components/DashboardStatCard';
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -251,7 +252,7 @@ export default function StudentsListScreen({ navigation }) {
               </View>
             </View>
 
-            <View style={styles.searchArea}>
+            <View style={styles.statsGrid}><DashboardStatCard icon="👥" value={results.length} title="STUDENTS" subtitle="Registered" color="#3157D5" bg="#EAF2FF" /><DashboardStatCard icon="✓" value={results.filter(s => s.status === "active").length} title="ACTIVE" subtitle="Currently active" color="#087443" bg="#EAFBF2" /><DashboardStatCard icon="🎓" value={new Set(results.map(s => s.class_level).filter(Boolean)).size} title="CLASSES" subtitle="Represented" color="#6941C6" bg="#F2EDFF" /><DashboardStatCard icon="✨" value={results.length} title="RECENT" subtitle="Student records" color="#B54708" bg="#FFF4E5" /></View><View style={styles.quickSection}><Text style={styles.quickTitle}>Quick Actions</Text><View style={styles.quickGrid}><Pressable style={[styles.quickBtn,{backgroundColor:"#3157D5"}]} onPress={()=>navigation.navigate("RegisterStudent")}><Text style={styles.quickIcon}>+</Text><Text style={styles.quickBtnText}>Register Student</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#087443"}]} onPress={()=>setQuery("")}><Text style={styles.quickIcon}>⌕</Text><Text style={styles.quickBtnText}>Find Student</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#6941C6"}]} onPress={()=>{}}><Text style={styles.quickIcon}>🎓</Text><Text style={styles.quickBtnText}>View Classes</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#B54708"}]} onPress={handleExport}><Text style={styles.quickIcon}>↑</Text><Text style={styles.quickBtnText}>Export Records</Text></Pressable></View></View><View style={styles.systemCard}><View style={styles.systemIcon}><Text>🔄</Text></View><View style={styles.systemInfo}><Text style={styles.systemTitle}>System Status</Text><Text style={styles.systemSub}>Your student records are stored safely on this device.</Text></View><View style={styles.systemBadge}><View style={styles.onlineDot}/><Text style={styles.systemBadgeText}>READY</Text></View></View><View style={styles.searchArea}>
               <View style={styles.searchBox}>
                 <Text style={styles.searchIcon}>
                   ⌕
@@ -462,7 +463,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  searchArea: {
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 10 },
+
+  quickSection: { marginBottom: 16 }, quickTitle: { fontSize: 15, fontWeight: "900", color: "#101828", marginBottom: 9 }, quickGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }, quickBtn: { width: "48.5%", minHeight: 62, borderRadius: 15, padding: 11, marginBottom: 9 }, quickIcon: { color: "#fff", fontSize: 18, marginBottom: 5 }, quickBtnText: { color: "#fff", fontSize: 10, fontWeight: "800" }, systemCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#EAECF0" }, systemIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: "#EAF2FF", alignItems: "center", justifyContent: "center", marginRight: 10 }, systemInfo: { flex: 1 }, systemTitle: { color: "#101828", fontSize: 12, fontWeight: "900" }, systemSub: { color: "#667085", fontSize: 8.5, lineHeight: 13, marginTop: 3 }, systemBadge: { backgroundColor: "#ECFDF3", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5, flexDirection: "row", alignItems: "center" }, onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#12B76A", marginRight: 4 }, systemBadgeText: { color: "#027A48", fontSize: 7, fontWeight: "900" }, searchArea: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 22,
@@ -741,3 +744,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
