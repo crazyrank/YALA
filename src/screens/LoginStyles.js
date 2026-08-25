@@ -1,9 +1,12 @@
 import { StyleSheet } from 'react-native';
+import { type, fontFamily } from '../theme/typography';
+import { spacing, radius, shadow } from '../theme/spacing';
 
-export default StyleSheet.create({
+// Theme-aware styles: pass the active `colors` object (light or dark) in.
+export const createLoginStyles = (colors) => StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: colors.background,
   },
 
   scroll: {
@@ -12,9 +15,9 @@ export default StyleSheet.create({
 
   container: {
     flex: 1,
-    paddingHorizontal: 22,
-    paddingTop: 28,
-    paddingBottom: 20,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
   },
 
   brand: {
@@ -23,187 +26,190 @@ export default StyleSheet.create({
   },
 
   logoWrap: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    width: 56,
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    elevation: 2,
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.raised,
   },
 
   logo: {
-    width: 45,
-    height: 45,
+    width: 44,
+    height: 44,
   },
 
   brandName: {
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: 1.8,
-    color: '#0B1F33',
+    ...type.h3,
+    fontFamily: fontFamily.display,
+    fontSize: 20,
+    letterSpacing: 1.4,
+    color: colors.ink,
   },
 
   brandSub: {
     marginTop: 3,
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#8A94A3',
+    ...type.overline,
+    fontSize: 9,
+    color: colors.textMuted,
   },
 
   intro: {
-    marginTop: 38,
-    marginBottom: 20,
+    marginTop: spacing.xxxl + 4,
+    marginBottom: spacing.xl,
   },
 
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 9,
+    marginBottom: spacing.sm + 2,
   },
 
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#C9A24B',
-    marginRight: 7,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.gold,
+    marginRight: spacing.sm - 1,
   },
 
   badgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    color: '#667085',
+    ...type.overline,
+    fontSize: 10.5,
+    color: colors.textSecondary,
   },
 
   title: {
-    fontSize: 32,
-    lineHeight: 37,
-    fontWeight: '900',
-    letterSpacing: -1,
-    color: '#0B1F33',
+    ...type.display,
+    fontSize: 34,
+    lineHeight: 39,
+    color: colors.ink,
   },
 
   subtitle: {
-    marginTop: 8,
+    marginTop: spacing.sm + 2,
     maxWidth: 330,
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#667085',
+    ...type.body,
+    fontSize: 15,
+    color: colors.textSecondary,
   },
 
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 19,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: '#E7E9ED',
-    elevation: 3,
+    borderColor: colors.border,
+    ...shadow.card,
   },
 
   cardTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#0B1F33',
+    ...type.h2,
+    fontSize: 21,
+    color: colors.ink,
   },
 
   cardSub: {
-    marginTop: 3,
-    marginBottom: 20,
-    fontSize: 11,
-    color: '#8A94A3',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+    ...type.bodySmall,
+    fontSize: 13,
+    color: colors.textMuted,
   },
 
   label: {
-    marginBottom: 7,
-    marginTop: 3,
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    color: '#475467',
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    ...type.label,
+    fontSize: 11.5,
+    color: colors.textSecondary,
   },
 
   inputBox: {
-    height: 51,
-    borderWidth: 1,
-    borderColor: '#D5D9E0',
-    borderRadius: 12,
-    backgroundColor: '#FAFBFC',
+    height: 56,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
-    marginBottom: 14,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md + 2,
+  },
+
+  inputIcon: {
+    marginRight: spacing.sm,
   },
 
   inputFocus: {
-    borderColor: '#C9A24B',
-    backgroundColor: '#FFFDF8',
+    borderColor: colors.gold,
+    backgroundColor: colors.goldTint,
+    ...shadow.goldGlow,
   },
 
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0B1F33',
+    ...type.bodyMedium,
+    fontSize: 15.5,
+    color: colors.ink,
   },
 
   show: {
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    color: '#0B1F33',
+    ...type.label,
+    fontSize: 11,
+    color: colors.ink,
   },
 
   error: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F4',
+    backgroundColor: colors.errorBg,
     borderWidth: 1,
     borderColor: '#F3C7C3',
-    borderRadius: 11,
-    padding: 10,
-    marginBottom: 13,
+    borderRadius: radius.md - 1,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
   },
 
   errorIcon: {
-    width: 21,
-    height: 21,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#FDE2E0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
-  },
-
-  errorMark: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#B42318',
+    marginRight: spacing.sm,
   },
 
   errorText: {
     flex: 1,
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: '600',
-    color: '#B42318',
+    ...type.bodySmall,
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 12.5,
+    color: colors.error,
   },
 
   login: {
-    height: 53,
-    borderRadius: 13,
-    backgroundColor: '#0B1F33',
+    height: 58,
+    borderRadius: radius.lg - 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    ...shadow.button,
+  },
+
+  loginGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
 
   pressed: {
-    opacity: 0.85,
+    opacity: 0.88,
     transform: [{ scale: 0.985 }],
   },
 
@@ -212,131 +218,117 @@ export default StyleSheet.create({
   },
 
   loginText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    ...type.button,
+    fontSize: 16,
+    color: colors.textInverse,
   },
 
-  arrow: {
-    marginLeft: 12,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#C9A24B',
+  arrowWrap: {
+    marginLeft: spacing.sm + 2,
   },
 
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 18,
+    marginVertical: spacing.lg + 2,
   },
 
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E8EAEE',
+    backgroundColor: colors.border,
   },
 
   dividerText: {
-    marginHorizontal: 9,
-    fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 1,
-    color: '#98A2B3',
+    marginHorizontal: spacing.sm + 1,
+    ...type.overline,
+    fontSize: 9.5,
+    color: colors.textMuted,
   },
 
   bio: {
-    minHeight: 64,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#D5D9E0',
-    borderRadius: 13,
-    backgroundColor: '#FAFBFC',
+    minHeight: 68,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.lg - 1,
+    backgroundColor: colors.surfaceAlt,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   bioPressed: {
-    backgroundColor: '#F0F2F5',
+    backgroundColor: colors.goldTint,
+    borderColor: colors.gold,
   },
 
   bioIcon: {
-    width: 37,
-    height: 37,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: '#D5D9E0',
-    backgroundColor: '#F2F4F7',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  bioInner: {
-    width: 15,
-    height: 20,
-    borderWidth: 2,
-    borderColor: '#0B1F33',
-    borderRadius: 9,
-  },
-
   bioInfo: {
     flex: 1,
-    marginLeft: 11,
+    marginLeft: spacing.md - 1,
   },
 
   bioTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0B1F33',
+    ...type.bodyMedium,
+    fontSize: 13.5,
+    fontFamily: fontFamily.bodySemibold,
+    color: colors.ink,
   },
 
   bioSub: {
     marginTop: 2,
-    fontSize: 9,
-    color: '#98A2B3',
-  },
-
-  bioArrow: {
-    fontSize: 19,
-    color: '#667085',
+    ...type.caption,
+    fontSize: 10.5,
+    color: colors.textMuted,
   },
 
   bioLoading: {
-    marginLeft: 9,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0B1F33',
+    marginLeft: spacing.sm + 1,
+    ...type.bodyMedium,
+    fontSize: 13,
+    color: colors.ink,
   },
 
   footer: {
     alignItems: 'center',
     marginTop: 'auto',
-    paddingTop: 24,
+    paddingTop: spacing.xxl,
   },
 
   footerLine: {
-    width: 30,
+    width: 32,
     height: 3,
     borderRadius: 2,
-    backgroundColor: '#C9A24B',
-    marginBottom: 8,
+    backgroundColor: colors.gold,
+    marginBottom: spacing.sm,
   },
 
   footerTitle: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: '#0B1F33',
+    ...type.overline,
+    fontSize: 10.5,
+    letterSpacing: 2.4,
+    color: colors.ink,
   },
 
   footerText: {
     marginTop: 3,
-    fontSize: 8,
-    color: '#8A94A3',
+    ...type.caption,
+    fontSize: 10.5,
+    color: colors.textMuted,
   },
 
   footerSchool: {
     marginTop: 2,
-    fontSize: 7,
+    ...type.caption,
+    fontSize: 9.5,
     color: '#B0B7C3',
   },
 });

@@ -136,6 +136,16 @@ export async function hasPendingChanges() {
 
 /** Start listening for connectivity changes and auto-trigger sync on reconnect. */
 export function startAutoSyncListener() {
+  if (typeof Network.addNetworkStateListener !== 'function') {
+    // Not available on this expo-network version/platform. Sync still runs
+    // on app launch and after every queueOperation call, so this only
+    // disables the "auto-resync the instant wifi comes back" behavior.
+    console.warn(
+      'Network.addNetworkStateListener unavailable — skipping live reconnect listener.'
+    );
+    return { remove: () => {} };
+  }
+
   return Network.addNetworkStateListener((state) => {
     if (state.isConnected && state.isInternetReachable) {
       triggerSync();

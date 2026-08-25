@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,19 @@ import {
   ScrollView,
   Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import { useAuth } from '../context/AuthContext';
-import styles from './LoginStyles';
+import { gradients } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { createLoginStyles } from './LoginStyles';
 
 export default function LoginScreen() {
   const { login, unlock } = useAuth();
+  const { colors, scheme } = useTheme();
+  const styles = useMemo(() => createLoginStyles(colors), [colors]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,7 +42,7 @@ export default function LoginScreen() {
     Animated.parallel([
       Animated.timing(fade, {
         toValue: 1,
-        duration: 500,
+        duration: 550,
         useNativeDriver: true,
       }),
       Animated.spring(slide, {
@@ -55,6 +62,7 @@ export default function LoginScreen() {
   const showError = (message) => {
     setError(message);
     errorAnim.setValue(0);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
 
     Animated.spring(errorAnim, {
       toValue: 1,
@@ -72,6 +80,7 @@ export default function LoginScreen() {
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setLoading(true);
 
     try {
@@ -89,6 +98,7 @@ export default function LoginScreen() {
 
   const handleBiometric = async () => {
     clearError();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setBioLoading(true);
 
     try {
@@ -123,7 +133,10 @@ export default function LoginScreen() {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F7F8FA" />
+      <StatusBar
+        barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -178,10 +191,16 @@ export default function LoginScreen() {
             <Text style={styles.label}>EMAIL ADDRESS</Text>
 
             <View style={emailBox}>
+              <Feather
+                name="mail"
+                size={18}
+                color={focused === 'email' ? colors.goldDark : colors.textMuted}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="name@yalamatrix.edu"
-                placeholderTextColor="#A0A8B3"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
@@ -198,10 +217,16 @@ export default function LoginScreen() {
             <Text style={styles.label}>PASSWORD</Text>
 
             <View style={passwordBox}>
+              <Feather
+                name="lock"
+                size={18}
+                color={focused === 'password' ? colors.goldDark : colors.textMuted}
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your password"
-                placeholderTextColor="#A0A8B3"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -218,9 +243,11 @@ export default function LoginScreen() {
                 onPress={() => setShowPassword((value) => !value)}
                 hitSlop={10}
               >
-                <Text style={styles.show}>
-                  {showPassword ? 'HIDE' : 'SHOW'}
-                </Text>
+                <Feather
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
               </Pressable>
             </View>
 
@@ -242,7 +269,7 @@ export default function LoginScreen() {
                 ]}
               >
                 <View style={styles.errorIcon}>
-                  <Text style={styles.errorMark}>!</Text>
+                  <Ionicons name="alert" size={13} color={colors.error} />
                 </View>
 
                 <Text style={styles.errorText}>{error}</Text>
@@ -258,15 +285,26 @@ export default function LoginScreen() {
                 loading && styles.disabled,
               ]}
             >
+              <LinearGradient
+                colors={gradients.navy}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.loginGradient}
+              />
+
               {loading ? (
                 <>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={styles.loginText}>Signing in...</Text>
+                  <ActivityIndicator color={colors.textInverse} size="small" />
+                  <Text style={[styles.loginText, { marginLeft: 10 }]}>
+                    Signing in...
+                  </Text>
                 </>
               ) : (
                 <>
                   <Text style={styles.loginText}>Sign in</Text>
-                  <Text style={styles.arrow}>→</Text>
+                  <View style={styles.arrowWrap}>
+                    <Feather name="arrow-right" size={19} color={colors.goldLight} />
+                  </View>
                 </>
               )}
             </Pressable>
@@ -287,13 +325,13 @@ export default function LoginScreen() {
             >
               {bioLoading ? (
                 <>
-                  <ActivityIndicator color="#0B1F33" size="small" />
+                  <ActivityIndicator color={colors.ink} size="small" />
                   <Text style={styles.bioLoading}>Verifying...</Text>
                 </>
               ) : (
                 <>
                   <View style={styles.bioIcon}>
-                    <View style={styles.bioInner} />
+                    <Ionicons name="finger-print" size={22} color={colors.textInverse} />
                   </View>
 
                   <View style={styles.bioInfo}>
@@ -306,7 +344,7 @@ export default function LoginScreen() {
                     </Text>
                   </View>
 
-                  <Text style={styles.bioArrow}>→</Text>
+                  <Feather name="chevron-right" size={20} color={colors.textSecondary} />
                 </>
               )}
             </Pressable>
