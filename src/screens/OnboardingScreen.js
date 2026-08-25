@@ -1,18 +1,21 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
   Image,
   Pressable,
   SafeAreaView,
   StatusBar,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
-const { width, height } = Dimensions.get('window');
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../theme/ThemeContext';
+import { gradients } from '../theme/colors';
+import { createOnboardingStyles, SCREEN_WIDTH } from './OnboardingStyles';
 
 const SLIDES = [
   {
@@ -25,7 +28,7 @@ const SLIDES = [
     id: 'creator',
     eyebrow: 'THE STORY BEHIND YALA',
     title: 'Built by Samuel Sunday Rankin.',
-    body: 'A B.Sc. Chemistry graduate of the University of Uyo, Uyo, Akwa Ibom State, created YALA as an NYSC Community Development Service project.',
+    body: 'A Corps member who served at Yalamatrix Schools, holding a B.Sc. in Pure and Applied Chemistry from the University of Uyo, built YALA and presented it to the school as his NYSC Community Development Service project.',
   },
   {
     id: 'purpose',
@@ -35,13 +38,28 @@ const SLIDES = [
   },
 ];
 
+const PURPOSE_ITEMS = [
+  { icon: 'users', title: 'STUDENTS', text: 'Organized student information' },
+  { icon: 'book-open', title: 'ACADEMICS', text: 'Records that stay accessible' },
+  { icon: 'wifi-off', title: 'OFFLINE', text: 'Work without depending on internet' },
+];
+
 export default function OnboardingScreen() {
   const { finishOnboarding } = useAuth();
+  const { colors, scheme } = useTheme();
+  const styles = useMemo(() => createOnboardingStyles(colors), [colors]);
 
   const [index, setIndex] = useState(0);
+  const scrollRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
+  const goToIndex = (target) => {
+    scrollRef.current?.scrollTo({ x: target * SCREEN_WIDTH, animated: true });
+    setIndex(target);
+  };
+
   const finish = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     await finishOnboarding();
   };
 
@@ -51,31 +69,33 @@ export default function OnboardingScreen() {
       return;
     }
 
-    setIndex((current) => current + 1);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    goToIndex(index + 1);
   };
 
   const skip = async () => {
     await finish();
   };
 
-  const slide = SLIDES[index];
+  const onMomentumScrollEnd = (event) => {
+    const nextIndex = Math.round(
+      event.nativeEvent.contentOffset.x / SCREEN_WIDTH
+    );
+    setIndex(nextIndex);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F6F7F9"
+        barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
       />
 
       <View style={styles.container}>
-
-        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.logo}>YALA</Text>
-            <Text style={styles.logoSubtitle}>
-              SCHOOL INFORMATION SYSTEM
-            </Text>
+            <Text style={styles.logoSubtitle}>SCHOOL INFORMATION SYSTEM</Text>
           </View>
 
           {index < SLIDES.length - 1 && (
@@ -92,158 +112,166 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        {/* MAIN */}
-        <Animated.View
-          style={styles.main}
+        <Animated.ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          style={styles.pager}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={onMomentumScrollEnd}
         >
+          <View style={styles.page}>
+            <View style={styles.heroWrap}>
+              <LinearGradient
+                colors={gradients.navy}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroGlow}
+              />
 
-          {/* HERO IMAGE */}
-          {index === 0 && (
-            <View style={styles.heroArea}>
-              <View style={styles.heroBackground} />
-
-              <View style={styles.imageFrame}>
+              <View style={styles.heroFrame}>
                 <Image
                   source={require('../../assets/samuel-sunday-rankin.png')}
-                  style={styles.profileImage}
+                  style={styles.heroImage}
                   resizeMode="cover"
                 />
               </View>
 
-              <View style={styles.imageBadge}>
-                <Text style={styles.imageBadgeSmall}>
-                  BUILT WITH PURPOSE
-                </Text>
-                <Text style={styles.imageBadgeMain}>
-                  YALA
-                </Text>
-              </View>
+              <LinearGradient
+                colors={gradients.gold}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroBadge}
+              >
+                <Text style={styles.heroBadgeSmall}>BUILT WITH PURPOSE</Text>
+                <Text style={styles.heroBadgeMain}>YALA</Text>
+              </LinearGradient>
             </View>
-          )}
 
-          {/* CREATOR VISUAL */}
-          {index === 1 && (
-            <View style={styles.creatorVisual}>
-              <View style={styles.creatorCircle}>
-                <Text style={styles.creatorInitial}>SR</Text>
-              </View>
+            <View style={styles.eyebrowChip}>
+              <Text style={styles.eyebrowText}>{SLIDES[0].eyebrow}</Text>
+            </View>
 
-              <View style={styles.creatorLine} />
+            <Text style={styles.title}>{SLIDES[0].title}</Text>
+            <Text style={styles.body}>{SLIDES[0].body}</Text>
+          </View>
 
-              <Text style={styles.creatorLabel}>
-                SAMUEL SUNDAY RANKIN
+          <View style={styles.page}>
+            <View style={styles.creatorWrap}>
+              <LinearGradient
+                colors={gradients.gold}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
+              >
+                <View style={styles.avatarInner}>
+                  <Image
+                    source={require('../../assets/samuel-sunday-rankin.png')}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              </LinearGradient>
+
+              <Text style={styles.creatorName}>SAMUEL SUNDAY RANKIN</Text>
+              <Text style={styles.creatorCreds}>
+                B.SC. PURE & APPLIED CHEMISTRY • UNIVERSITY OF UYO
               </Text>
-
-              <Text style={styles.creatorSubLabel}>
-                B.Sc. CHEMISTRY • UNIVERSITY OF UYO
-              </Text>
             </View>
-          )}
 
-          {/* PURPOSE VISUAL */}
-          {index === 2 && (
-            <View style={styles.purposeVisual}>
-              <View style={styles.purposeCard}>
-                <Text style={styles.purposeNumber}>01</Text>
-                <Text style={styles.purposeTitle}>
-                  STUDENTS
-                </Text>
-                <Text style={styles.purposeText}>
-                  Organized student information
-                </Text>
-              </View>
-
-              <View style={styles.purposeCard}>
-                <Text style={styles.purposeNumber}>02</Text>
-                <Text style={styles.purposeTitle}>
-                  ACADEMICS
-                </Text>
-                <Text style={styles.purposeText}>
-                  Records that stay accessible
-                </Text>
-              </View>
-
-              <View style={styles.purposeCard}>
-                <Text style={styles.purposeNumber}>03</Text>
-                <Text style={styles.purposeTitle}>
-                  OFFLINE
-                </Text>
-                <Text style={styles.purposeText}>
-                  Work without depending on internet
-                </Text>
-              </View>
+            <View style={styles.eyebrowChip}>
+              <Text style={styles.eyebrowText}>{SLIDES[1].eyebrow}</Text>
             </View>
-          )}
 
-          {/* TEXT */}
-          <View style={styles.textArea}>
-            <Text style={styles.eyebrow}>
-              {slide.eyebrow}
-            </Text>
+            <Text style={styles.title}>{SLIDES[1].title}</Text>
+            <Text style={styles.body}>{SLIDES[1].body}</Text>
 
-            <Text style={styles.title}>
-              {slide.title}
-            </Text>
+            <View style={styles.cdsCard}>
+              <View style={styles.cdsIcon}>
+                <Feather name="award" size={16} color={colors.goldDark} />
+              </View>
 
-            <Text style={styles.body}>
-              {slide.body}
-            </Text>
-
-            {index === 1 && (
-              <View style={styles.cdsNote}>
+              <View style={styles.cdsTextWrap}>
                 <Text style={styles.cdsTitle}>
                   NYSC COMMUNITY DEVELOPMENT SERVICE
                 </Text>
-
                 <Text style={styles.cdsText}>
-                  Developed during service at Yalamatrix Schools,
-                  Okitipupa, as a practical contribution toward
-                  digital school administration.
+                  Developed while serving as a Corps member at Yalamatrix
+                  Schools, Okitipupa, and presented to the school as a
+                  practical contribution toward digital school
+                  administration.
                 </Text>
               </View>
-            )}
+            </View>
           </View>
-        </Animated.View>
 
-        {/* FOOTER */}
-        <View style={styles.footer}>
+          <View style={styles.page}>
+            <View style={styles.purposeWrap}>
+              {PURPOSE_ITEMS.map((item) => (
+                <View key={item.title} style={styles.purposeCard}>
+                  <LinearGradient
+                    colors={gradients.navy}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.purposeIcon}
+                  >
+                    <Feather name={item.icon} size={19} color={colors.textInverse} />
+                  </LinearGradient>
 
-          <View style={styles.progressRow}>
-            <View style={styles.progressTrack}>
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${((index + 1) / SLIDES.length) * 100}%`,
-                  },
-                ]}
-              />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.purposeTitle}>{item.title}</Text>
+                    <Text style={styles.purposeText}>{item.text}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
 
-            <Text style={styles.progressText}>
-              0{index + 1} / 0{SLIDES.length}
-            </Text>
+            <View style={styles.eyebrowChip}>
+              <Text style={styles.eyebrowText}>{SLIDES[2].eyebrow}</Text>
+            </View>
+
+            <Text style={styles.title}>{SLIDES[2].title}</Text>
+            <Text style={styles.body}>{SLIDES[2].body}</Text>
+          </View>
+        </Animated.ScrollView>
+
+        <View style={styles.footer}>
+          <View style={styles.dotsRow}>
+            {SLIDES.map((slide, i) => (
+              <View
+                key={slide.id}
+                style={[styles.dot, i === index && styles.dotActive]}
+              />
+            ))}
           </View>
 
           <Pressable
             onPress={next}
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.buttonPressed,
-            ]}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           >
-            <Text style={styles.buttonText}>
-              {index === SLIDES.length - 1
-                ? 'Enter YALA'
-                : 'Continue'}
+            <LinearGradient
+              colors={gradients.navy}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ctaGradient}
+            />
+
+            <Text style={styles.ctaText}>
+              {index === SLIDES.length - 1 ? 'Enter YALA' : 'Continue'}
             </Text>
 
-            <Text style={styles.arrow}>
-              →
-            </Text>
+            <View style={styles.arrowCircle}>
+              <Feather name="arrow-right" size={16} color={colors.textInverse} />
+            </View>
           </Pressable>
 
-          <Text style={styles.footerText}>
+          <Text style={styles.footerCaption}>
             Offline-first • Private • Yalamatrix Schools
           </Text>
         </View>
@@ -251,316 +279,3 @@ export default function OnboardingScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-  },
-
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-    paddingHorizontal: 24,
-  },
-
-  header: {
-    height: 70,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  logo: {
-    fontSize: 23,
-    fontWeight: '900',
-    letterSpacing: 3,
-    color: '#101828',
-  },
-
-  logoSubtitle: {
-    marginTop: 3,
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    color: '#98A2B3',
-  },
-
-  skipButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-
-  skipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#667085',
-  },
-
-  pressed: {
-    opacity: 0.5,
-  },
-
-  main: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-
-  heroArea: {
-    height: height * 0.43,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    marginBottom: 24,
-  },
-
-  heroBackground: {
-    position: 'absolute',
-    width: width * 0.76,
-    height: height * 0.36,
-    borderRadius: 42,
-    backgroundColor: '#E9EDF2',
-    transform: [{ rotate: '-4deg' }],
-  },
-
-  imageFrame: {
-    width: width * 0.68,
-    height: height * 0.40,
-    borderRadius: 38,
-    overflow: 'hidden',
-    backgroundColor: '#DDE2E8',
-  },
-
-  profileImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  imageBadge: {
-    position: 'absolute',
-    right: width * 0.05,
-    bottom: 8,
-    backgroundColor: '#101828',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-  },
-
-  imageBadgeSmall: {
-    color: '#98A2B3',
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 1.3,
-  },
-
-  imageBadgeMain: {
-    marginTop: 2,
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-
-  creatorVisual: {
-    height: height * 0.34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 28,
-  },
-
-  creatorCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: '#101828',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  creatorInitial: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-
-  creatorLine: {
-    width: 1,
-    height: 46,
-    backgroundColor: '#D0D5DD',
-    marginTop: 12,
-  },
-
-  creatorLabel: {
-    marginTop: 12,
-    color: '#101828',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-
-  creatorSubLabel: {
-    marginTop: 6,
-    color: '#98A2B3',
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-  },
-
-  purposeVisual: {
-    height: height * 0.34,
-    justifyContent: 'center',
-    marginBottom: 28,
-  },
-
-  purposeCard: {
-    minHeight: 62,
-    marginBottom: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  purposeNumber: {
-    width: 36,
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#98A2B3',
-  },
-
-  purposeTitle: {
-    width: 75,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    color: '#101828',
-  },
-
-  purposeText: {
-    flex: 1,
-    fontSize: 11,
-    lineHeight: 16,
-    color: '#667085',
-  },
-
-  textArea: {
-    paddingHorizontal: 2,
-  },
-
-  eyebrow: {
-    color: '#667085',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginBottom: 10,
-  },
-
-  title: {
-    color: '#101828',
-    fontSize: 31,
-    lineHeight: 37,
-    fontWeight: '850',
-    letterSpacing: -0.8,
-  },
-
-  body: {
-    marginTop: 12,
-    color: '#667085',
-    fontSize: 15,
-    lineHeight: 23,
-    maxWidth: 370,
-  },
-
-  cdsNote: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E4E7EC',
-  },
-
-  cdsTitle: {
-    color: '#101828',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-
-  cdsText: {
-    marginTop: 5,
-    color: '#667085',
-    fontSize: 10.5,
-    lineHeight: 16,
-  },
-
-  footer: {
-    paddingBottom: 18,
-    paddingTop: 16,
-  },
-
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 13,
-  },
-
-  progressTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E4E7EC',
-    overflow: 'hidden',
-  },
-
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#101828',
-    borderRadius: 2,
-  },
-
-  progressText: {
-    marginLeft: 12,
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#98A2B3',
-  },
-
-  button: {
-    height: 56,
-    borderRadius: 17,
-    backgroundColor: '#101828',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  buttonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.985 }],
-  },
-
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  arrow: {
-    marginLeft: 12,
-    color: '#FFFFFF',
-    fontSize: 21,
-    fontWeight: '300',
-  },
-
-  footerText: {
-    marginTop: 10,
-    textAlign: 'center',
-    fontSize: 9,
-    color: '#98A2B3',
-    letterSpacing: 0.2,
-  },
-});
