@@ -12,6 +12,8 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
+import { queueOperation } from '../services/syncEngine';
+import { getNextClass, isAtMaxClass } from '../utils/classProgression';
 
 export default function StudentDetailScreen({ route, navigation }) {
   const { studentId } = route.params;
@@ -21,6 +23,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [photoUri, setPhotoUri] = useState(null);
   const [showCorrectionInput, setShowCorrectionInput] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
+  const [promoting, setPromoting] = useState(false);
 
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
@@ -105,6 +108,59 @@ export default function StudentDetailScreen({ route, navigation }) {
     });
 
     setCorrectionReason('');
+  };
+
+  const handlePromote = () => {
+    const nextClass = getNextClass(student.class_level);
+    if (!nextClass) return;
+
+    Alert.alert(
+      'Promote student',
+      `Move ${student.full_name} from ${student.class_level} to ${nextClass}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Promote',
+          onPress: async () => {
+            setPromoting(true);
+            try {
+              const db = await getDb();
+              const now = new Date().toISOString();
+              const basedOnVersion = student.sync_version;
+
+              // Local commit first (Principle 2): update instantly so the
+              // screen reflects the promotion even if offline, then queue
+              // the same change for the server to apply/verify.
+              await db.runAsync(
+                `UPDATE students
+                 SET class_level = ?, status = 'promoted', sync_version = sync_version + 1,
+                     updated_at = ?, local_dirty = 1
+                 WHERE id = ?`,
+                [nextClass, now, studentId]
+              );
+
+              await queueOperation({
+                opType: 'promote_student',
+                entityId: studentId,
+                payload: {
+                  based_on_version: basedOnVersion,
+                  changes: { class_level: nextClass, status: 'promoted' },
+                },
+              });
+
+              await loadStudent();
+            } catch (error) {
+              Alert.alert(
+                'Could not promote',
+                'Something went wrong saving this promotion. Please try again.'
+              );
+            } finally {
+              setPromoting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (!student) {
@@ -233,6 +289,37 @@ export default function StudentDetailScreen({ route, navigation }) {
           />
         </View>
       </View>
+
+      {/* PROMOTION */}
+      {isAdmin && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>
+            PROMOTION
+          </Text>
+
+          <View style={styles.infoCard}>
+            {isAtMaxClass(student.class_level) ? (
+              <View style={styles.promoteRow}>
+                <Text style={styles.maxClassText}>
+                  Highest class reached (SS3)
+                </Text>
+              </View>
+            ) : (
+              <Pressable
+                style={styles.promoteButton}
+                onPress={handlePromote}
+                disabled={promoting}
+              >
+                <Text style={styles.promoteButtonText}>
+                  {promoting
+                    ? 'Promoting…'
+                    : `Promote to ${getNextClass(student.class_level) || 'next class'}`}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* GUARDIAN INFORMATION */}
       <View style={styles.section}>
@@ -456,6 +543,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#101828',
     textAlign: 'right',
+  },
+
+  promoteRow: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  maxClassText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#667085',
+  },
+
+  promoteButton: {
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  promoteButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#101828',
   },
 
   correctionBox: {
