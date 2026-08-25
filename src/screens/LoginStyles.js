@@ -48,7 +48,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     fontFamily: fontFamily.display,
     fontSize: 20,
     letterSpacing: 1.4,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   brandSub: {
@@ -87,7 +87,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     ...type.display,
     fontSize: 34,
     lineHeight: 39,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   subtitle: {
@@ -110,7 +110,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
   cardTitle: {
     ...type.h2,
     fontSize: 21,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   cardSub: {
@@ -156,13 +156,13 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     height: '100%',
     ...type.bodyMedium,
     fontSize: 15.5,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   show: {
     ...type.label,
     fontSize: 11,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   error: {
@@ -280,7 +280,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     ...type.bodyMedium,
     fontSize: 13.5,
     fontFamily: fontFamily.bodySemibold,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   bioSub: {
@@ -294,7 +294,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     marginLeft: spacing.sm + 1,
     ...type.bodyMedium,
     fontSize: 13,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   footer: {
@@ -315,7 +315,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     ...type.overline,
     fontSize: 10.5,
     letterSpacing: 2.4,
-    color: colors.ink,
+    color: colors.textPrimary,
   },
 
   footerText: {
@@ -329,6 +329,6 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     marginTop: 2,
     ...type.caption,
     fontSize: 9.5,
-    color: '#B0B7C3',
+    color: colors.textMuted,
   },
 });
