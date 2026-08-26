@@ -24,19 +24,19 @@ import DashboardStatCard from '../components/DashboardStatCard';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily, type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
-import { gradients } from '../theme/colors';
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `\( {parts[0][0]} \){parts[parts.length - 1][0]}`.toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function tap(style = Haptics.ImpactFeedbackStyle.Light) {
   Haptics.impactAsync(style).catch(() => {});
 }
 
+/** Pressable with a smooth spring scale + haptic tap, used everywhere for a premium feel. */
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -92,9 +92,11 @@ function StudentCard({ item, navigation, colors }) {
         <Text style={[styles.studentName, { color: colors.textPrimary }]} numberOfLines={1}>
           {item.full_name}
         </Text>
+
         <Text style={[styles.admission, { color: colors.textSecondary }]}>
           {item.admission_no || 'No admission number'}
         </Text>
+
         <Text style={[styles.classText, { color: colors.textMuted }]}>
           {item.class_level || 'Class not assigned'}
           {item.arm ? ` • ${item.arm}` : ''}
@@ -123,7 +125,8 @@ function StudentCard({ item, navigation, colors }) {
             {(item.status || 'ACTIVE').toUpperCase()}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={{ marginTop: 8 }} />
+
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} style={{ marginTop: 8 }} />
       </View>
     </Squish>
   );
@@ -143,6 +146,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
     const term = `%${text}%`;
+
     let rows;
 
     if (classLevel && text.trim()) {
@@ -151,7 +155,8 @@ export default function StudentsListScreen({ navigation, route }) {
          FROM students
          WHERE class_level = ?
            AND (full_name LIKE ? OR admission_no LIKE ?)
-         ORDER BY full_name ASC LIMIT 50`,
+         ORDER BY full_name ASC
+         LIMIT 50`,
         [classLevel, term, term]
       );
     } else if (classLevel) {
@@ -159,24 +164,29 @@ export default function StudentsListScreen({ navigation, route }) {
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
          WHERE class_level = ?
-         ORDER BY full_name ASC LIMIT 50`,
+         ORDER BY full_name ASC
+         LIMIT 50`,
         [classLevel]
       );
     } else if (text.trim()) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
-         WHERE full_name LIKE ? OR admission_no LIKE ?
-         ORDER BY full_name ASC LIMIT 50`,
+         WHERE full_name LIKE ?
+            OR admission_no LIKE ?
+         ORDER BY full_name ASC
+         LIMIT 50`,
         [term, term]
       );
     } else {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
-         ORDER BY full_name ASC LIMIT 50`
+         ORDER BY full_name ASC
+         LIMIT 50`
       );
     }
+
     setResults(rows);
   }, [classLevel]);
 
@@ -201,12 +211,20 @@ export default function StudentsListScreen({ navigation, route }) {
              updated_at=excluded.updated_at
            WHERE students.local_dirty = 0`,
           [
-            s.id, s.admission_no, s.full_name, s.division || 'secondary',
-            s.class_level, s.arm, s.status, s.sync_version,
-            new Date().toISOString(), new Date().toISOString(),
+            s.id,
+            s.admission_no,
+            s.full_name,
+            s.division || 'secondary',
+            s.class_level,
+            s.arm,
+            s.status,
+            s.sync_version,
+            new Date().toISOString(),
+            new Date().toISOString(),
           ]
         );
       }
+
       await runLocalSearch(query);
       setPullError(null);
     } catch (err) {
@@ -241,6 +259,7 @@ export default function StudentsListScreen({ navigation, route }) {
     if (exporting) return;
     setExporting(true);
     tap();
+
     try {
       const count = await exportStudentsToCsv();
       if (count === 0) {
@@ -253,9 +272,7 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
-  const displayedResults = (query || showAll) ? results : results.slice(0, 5);
-  const activeCount = results.filter((s) => s.status === 'active').length;
-  const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
+  const displayedResults = (query || showAll) ? results : results.slice(0, 3);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -274,187 +291,183 @@ export default function StudentsListScreen({ navigation, route }) {
         ]}
         ListHeaderComponent={
           <View>
-            <LinearGradient
-              colors={gradients.navy}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.hero}
-            >
-              <Text style={styles.heroEyebrow}>
-                {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
-              </Text>
-              <Text style={styles.heroTitle}>
-                {classLevel ? `${classLevel} Students` : 'Students'}
-              </Text>
-              <Text style={styles.heroSub}>
-                {classLevel ? `Records for ${classLevel}` : 'Manage and access student records'}
-              </Text>
-              <View style={styles.heroMeta}>
-                <View style={styles.heroMetaPill}>
-                  <Text style={styles.heroMetaNum}>{results.length}</Text>
-                  <Text style={styles.heroMetaLabel}>SHOWING</Text>
-                </View>
+            <View style={styles.header}>
+              <View>
+                <Text style={[type.overline, styles.eyebrow, { color: colors.textMuted }]}>
+                  {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+                </Text>
+                <Text style={[type.display, styles.title, { color: colors.textPrimary }]}>
+                  {classLevel ? `${classLevel} Students` : 'Students'}
+                </Text>
+                <Text style={[type.bodySmall, { color: colors.textSecondary, marginTop: 5 }]}>
+                  {classLevel ? `Students in ${classLevel}.` : 'Manage and access student records.'}
+                </Text>
               </View>
-            </LinearGradient>
 
-            <View style={styles.bodyPad}>
-              {!classLevel && (
-                <>
-                  <View style={styles.statsGrid}>
-                    <DashboardStatCard
-                      icon="people"
-                      value={results.length}
-                      title="Students"
-                      subtitle="Registered"
-                      color={colors.inkSoft}
-                      bg={colors.surface}
-                      delay={0}
-                    />
-                    <DashboardStatCard
-                      icon="checkmark-circle"
-                      value={activeCount}
-                      title="Active"
-                      subtitle="Currently enrolled"
-                      color={colors.success}
-                      bg={colors.surface}
-                      delay={50}
-                    />
-                    <DashboardStatCard
-                      icon="school"
-                      value={classCount}
-                      title="Classes"
-                      subtitle="Represented"
-                      color={colors.goldDark}
-                      bg={colors.surface}
-                      delay={100}
-                    />
-                    <DashboardStatCard
-                      icon="layers"
-                      value={results.length}
-                      title="Records"
-                      subtitle="On this device"
-                      color="#5B3A8E"
-                      bg={colors.surface}
-                      delay={150}
-                    />
-                  </View>
+              <View style={[styles.countBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.countNumber, { color: colors.textPrimary }]}>{results.length}</Text>
+                <Text style={[styles.countLabel, { color: colors.textMuted }]}>SHOWING</Text>
+              </View>
+            </View>
 
-                  <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>
+            {!classLevel && (
+              <>
+                <View style={styles.statsGrid}>
+                  <DashboardStatCard
+                    icon="people"
+                    value={results.length}
+                    title="STUDENTS"
+                    subtitle="Registered"
+                    color={colors.inkSoft}
+                    bg="#EAF0F6"
+                    delay={0}
+                  />
+                  <DashboardStatCard
+                    icon="checkmark-circle"
+                    value={results.filter((s) => s.status === 'active').length}
+                    title="ACTIVE"
+                    subtitle="Currently active"
+                    color={colors.success}
+                    bg={colors.successBg}
+                    delay={60}
+                  />
+                  <DashboardStatCard
+                    icon="school"
+                    value={new Set(results.map((s) => s.class_level).filter(Boolean)).size}
+                    title="CLASSES"
+                    subtitle="Represented"
+                    color={colors.goldDark}
+                    bg={colors.goldTint}
+                    delay={120}
+                  />
+                  <DashboardStatCard
+                    icon="sparkles"
+                    value={results.length}
+                    title="RECENT"
+                    subtitle="Student records"
+                    color="#5B3A8E"
+                    bg="#F1EAFB"
+                    delay={180}
+                  />
+                </View>
+
+                <View style={styles.quickSection}>
+                  <Text style={[type.h3, styles.quickTitle, { color: colors.textPrimary }]}>
                     Quick Actions
                   </Text>
-                  <View style={styles.actionRow}>
+
+                  <View style={styles.quickGrid}>
                     <Squish
-                      style={[styles.primaryAction, { backgroundColor: colors.ink }]}
+                      style={[styles.quickBtn, { backgroundColor: colors.ink }]}
                       onPress={() => navigation.navigate('RegisterStudent')}
                     >
-                      <Ionicons name="person-add" size={18} color={colors.gold} />
-                      <Text style={styles.primaryActionText}>Register Student</Text>
+                      <Ionicons name="person-add" size={15} color={colors.gold} />
+                      <Text style={[styles.quickBtnText, { color: '#FFFFFF' }]} numberOfLines={1}>Register</Text>
                     </Squish>
-                  </View>
-                  <View style={styles.secondaryRow}>
+
                     <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={() => navigation.navigate('ClassesTab')}
+                      style={[styles.quickBtn, { backgroundColor: '#EAF0F6' }]}
+                      onPress={() => setQuery('')}
                     >
-                      <Ionicons name="school-outline" size={16} color={colors.inkSoft} />
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Classes</Text>
+                      <Ionicons name="search" size={15} color={colors.inkSoft} />
+                      <Text style={[styles.quickBtnText, { color: colors.inkSoft }]} numberOfLines={1}>Find</Text>
                     </Squish>
+
                     <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      style={[styles.quickBtn, { backgroundColor: colors.gold }]}
+                      onPress={() => navigation.navigate('Classes')}
+                    >
+                      <Ionicons name="school" size={15} color={colors.ink} />
+                      <Text style={[styles.quickBtnText, { color: colors.ink }]} numberOfLines={1}>Classes</Text>
+                    </Squish>
+
+                    <Squish
+                      style={[styles.quickBtn, { backgroundColor: colors.goldTint }]}
                       onPress={handleExport}
                       disabled={exporting}
                     >
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download-outline" size={16} color={colors.goldDark} />
+                        <Ionicons name="download" size={15} color={colors.goldDark} />
                       )}
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
+                      <Text style={[styles.quickBtnText, { color: colors.goldDark }]} numberOfLines={1}>Export</Text>
                     </Squish>
                   </View>
-                </>
-              )}
+                </View>
 
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
-                <TextInput
-                  value={query}
-                  onChangeText={handleChange}
-                  placeholder="Search name or admission no."
-                  placeholderTextColor={colors.textMuted}
-                  style={[styles.searchInput, { color: colors.textPrimary }]}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  clearButtonMode="while-editing"
-                />
-                {query.length > 0 && (
-                  <Pressable onPress={() => handleChange('')} hitSlop={10}>
-                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-                  </Pressable>
-                )}
-              </View>
 
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                  {query ? 'Search results' : 'Student records'}
-                </Text>
+              </>
+            )}
+
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                {query ? 'Search results' : 'Student records'}
+              </Text>
+
+              <View style={styles.sectionRight}>
                 <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
                   {results.length} record{results.length === 1 ? '' : 's'}
                 </Text>
+
+                <Squish
+                  style={[styles.exportButton, { backgroundColor: colors.goldTint }]}
+                  onPress={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color={colors.goldDark} />
+                  ) : (
+                    <Text style={[styles.exportButtonText, { color: colors.goldDark }]}>Export CSV</Text>
+                  )}
+                </Squish>
               </View>
             </View>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.listPad}>
-            <StudentCard item={item} navigation={navigation} colors={colors} />
-          </View>
+          <StudentCard item={item} navigation={navigation} colors={colors} />
         )}
         ListFooterComponent={
-          !query && results.length > 5 ? (
-            <View style={styles.listPad}>
-              <Squish
-                style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setShowAll((prev) => !prev)}
-              >
-                <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
-                  {showAll ? 'See less' : `See more (${results.length - 5})`}
-                </Text>
-                <Ionicons
-                  name={showAll ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={colors.textPrimary}
-                />
-              </Squish>
-            </View>
+          !query && results.length > 3 ? (
+            <Squish
+              style={[styles.seeMoreBtn, { borderColor: colors.border }]}
+              onPress={() => setShowAll((prev) => !prev)}
+            >
+              <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
+                {showAll ? 'See less' : `See more (${results.length - 3})`}
+              </Text>
+              <Ionicons
+                name={showAll ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={colors.textPrimary}
+              />
+            </Squish>
           ) : null
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: '#EAF0F6' }]}>
               <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
             </View>
+
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
               {query ? 'No student found' : 'No students yet'}
             </Text>
+
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {query
-                ? 'No matching student was found in the local records. Try a name or admission number.'
+                ? 'No matching student was found in the local records. You can search using a name or admission number.'
                 : 'Student records assigned to your account will appear here.'}
             </Text>
+
             {query.length > 0 ? (
               <Squish
                 style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                 onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
               >
                 <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>
-                  Register with this name
+                  Enter admission number manually
                 </Text>
               </Squish>
             ) : (
@@ -474,156 +487,159 @@ export default function StudentsListScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { paddingBottom: 36 },
+  listContent: { paddingHorizontal: 18, paddingBottom: 30 },
   emptyListContent: { flexGrow: 1 },
-  hero: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  heroEyebrow: {
-    fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: '#C9A24B',
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: -1,
-    color: '#FFFFFF',
-  },
-  heroSub: {
-    fontFamily: fontFamily.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255,255,255,0.72)',
-    marginTop: 6,
-  },
-  heroMeta: { flexDirection: 'row', marginTop: 18 },
-  heroMetaPill: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingTop: 22,
+    paddingBottom: 20,
+  },
+
+  eyebrow: { marginBottom: 6 },
+  title: { marginTop: 2 },
+
+  countBox: {
+    minWidth: 68,
+    height: 64,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 12,
   },
-  heroMetaNum: {
-    fontFamily: fontFamily.display,
-    fontSize: 16,
-    color: '#FFFFFF',
-    marginRight: 8,
-  },
-  heroMetaLabel: {
-    fontFamily: fontFamily.bodyBold,
-    fontSize: 10,
-    letterSpacing: 0.8,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  bodyPad: { paddingHorizontal: 18, paddingTop: 18 },
-  listPad: { paddingHorizontal: 18 },
-  statsGrid: {
+  countNumber: { fontFamily: fontFamily.display, fontSize: 21 },
+  countLabel: { fontFamily: fontFamily.bodyBold, fontSize: 6.5, letterSpacing: 1, marginTop: 2 },
+
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
+
+  quickSection: { marginBottom: 16 },
+  quickTitle: { marginBottom: 10 },
+  quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 8,
   },
-  sectionLabel: {
-    fontFamily: fontFamily.heading,
-    fontSize: 16,
+  quickBtn: {
+    minWidth: 88,
+    minHeight: 56,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginRight: 10,
     marginBottom: 10,
-    marginTop: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.raised,
   },
-  actionRow: { marginBottom: 10 },
-  primaryAction: {
+  quickBtnText: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10.5,
+    marginTop: 5,
+    textAlign: 'center',
+  },
+
+  systemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    padding: 13,
+    marginBottom: 18,
+    borderWidth: 1,
+    ...shadow.raised,
+  },
+  systemIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  systemInfo: { flex: 1 },
+  systemTitle: { fontFamily: fontFamily.bodyBold, fontSize: 13 },
+  systemSub: { fontFamily: fontFamily.body, fontSize: 10.5, lineHeight: 15, marginTop: 3 },
+  systemBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  systemBadgeText: { fontFamily: fontFamily.bodyBold, fontSize: 8, letterSpacing: 0.3 },
+
+  searchArea: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
+  searchBox: {
+    flex: 1,
     height: 52,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  searchInput: { flex: 1, height: 50, fontSize: 13, paddingVertical: 0 },
+
+  registerButton: {
+    height: 52,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    marginLeft: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.button,
   },
-  primaryActionText: {
-    fontFamily: fontFamily.bodyBold,
-    fontSize: 15,
+  registerText: {
     color: '#FFFFFF',
-    marginLeft: 10,
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 12.5,
+    marginLeft: 5,
   },
-  secondaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-  },
-  secondaryAction: {
-    width: '48%',
-    height: 48,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.raised,
-  },
-  secondaryActionText: {
-    fontFamily: fontFamily.bodySemibold,
-    fontSize: 13,
-    marginLeft: 8,
-  },
-  searchBox: {
-    height: 50,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    marginBottom: 18,
-  },
-  searchInput: {
-    flex: 1,
-    height: 48,
-    fontFamily: fontFamily.body,
-    fontSize: 15,
-    paddingVertical: 0,
-  },
+
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitle: { fontFamily: fontFamily.heading, fontSize: 16 },
-  sectionHint: { fontFamily: fontFamily.body, fontSize: 12 },
+  sectionTitle: { fontFamily: fontFamily.heading, fontSize: 15 },
+  sectionHint: { fontFamily: fontFamily.body, fontSize: 10.5 },
+  sectionRight: { flexDirection: 'row', alignItems: 'center' },
+  exportButton: { marginLeft: 10, paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.sm },
+  exportButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 10, letterSpacing: 0.3 },
+
   seeMoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: radius.md,
-    paddingVertical: 14,
+    paddingVertical: 12,
     marginTop: 4,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   seeMoreText: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 13,
+    fontSize: 12.5,
     marginRight: 6,
   },
+
   studentCard: {
-    minHeight: 86,
+    minHeight: 84,
     borderRadius: radius.lg,
     borderWidth: 1,
     marginBottom: 10,
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     ...shadow.raised,
   },
+
   avatar: {
     width: 48,
     height: 48,
@@ -638,20 +654,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0.4,
   },
+
   studentInfo: { flex: 1, minWidth: 0 },
-  studentName: { fontFamily: fontFamily.heading, fontSize: 15 },
-  admission: { fontFamily: fontFamily.body, fontSize: 12, marginTop: 3 },
-  classText: { fontFamily: fontFamily.bodySemibold, fontSize: 11, marginTop: 5 },
+  studentName: { fontFamily: fontFamily.heading, fontSize: 14.5 },
+  admission: { fontFamily: fontFamily.body, fontSize: 11, marginTop: 3 },
+  classText: { fontFamily: fontFamily.bodySemibold, fontSize: 10, marginTop: 5 },
+
   rightArea: { alignItems: 'flex-end', marginLeft: 8 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  statusText: { fontFamily: fontFamily.bodyBold, fontSize: 9, letterSpacing: 0.4 },
+  statusDot: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
+  statusText: { fontFamily: fontFamily.bodyBold, fontSize: 7, letterSpacing: 0.5 },
+
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -660,9 +679,9 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -670,29 +689,22 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fontFamily.heading, fontSize: 18, textAlign: 'center' },
   emptyText: {
     fontFamily: fontFamily.body,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12.5,
+    lineHeight: 19,
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 310,
   },
-  fallbackButton: {
-    borderRadius: radius.md,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginTop: 18,
-  },
-  fallbackButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 13 },
+
+  fallbackButton: { borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 12, marginTop: 18 },
+  fallbackButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 11.5 },
+
   emptyRegisterButton: {
     borderRadius: radius.md,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 13,
     marginTop: 18,
     ...shadow.button,
   },
-  emptyRegisterText: {
-    color: '#FFFFFF',
-    fontFamily: fontFamily.bodyBold,
-    fontSize: 13,
-  },
+  emptyRegisterText: { color: '#FFFFFF', fontFamily: fontFamily.bodyBold, fontSize: 12 },
 });
