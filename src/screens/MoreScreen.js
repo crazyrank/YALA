@@ -8,6 +8,8 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -70,6 +72,7 @@ export default function MoreScreen({ navigation }) {
   const { colors } = useTheme();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
   const [uploading, setUploading] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const confirmLogout = () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -131,156 +134,216 @@ export default function MoreScreen({ navigation }) {
     }
   };
 
-  const handleChangePhoto = () => {
-    Alert.alert('Profile picture', 'Choose a source', [
+  const openChangeMenu = () => {
+    Alert.alert('Change profile picture', 'Choose a source', [
       { text: 'Take photo', onPress: () => pickAndSave(true) },
       { text: 'Choose from library', onPress: () => pickAndSave(false) },
-      ...(user?.photo_url
-        ? [
-            {
-              text: 'Remove photo',
-              style: 'destructive',
-              onPress: async () => {
-                try {
-                  await removeProfilePhoto();
-                } catch (e) {
-                  Alert.alert('Error', e.message || 'Could not remove photo.');
-                }
-              },
-            },
-          ]
-        : []),
       { text: 'Cancel', style: 'cancel' },
     ]);
+  };
+
+  const handleAvatarPress = () => {
+    const hasPhoto = !!(user?.photo_url || user?.avatar_url);
+    if (!hasPhoto) {
+      openChangeMenu();
+      return;
+    }
+    Alert.alert('Profile picture', undefined, [
+      { text: 'View photo', onPress: () => setViewerOpen(true) },
+      { text: 'Change photo', onPress: openChangeMenu },
+      {
+        text: 'Remove photo',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await removeProfilePhoto();
+          } catch (e) {
+            Alert.alert('Error', e.message || 'Could not remove photo.');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleChangePhoto = () => {
+    const hasPhoto = !!(user?.photo_url || user?.avatar_url);
+    if (hasPhoto) {
+      handleAvatarPress();
+    } else {
+      openChangeMenu();
+    }
   };
 
   const photoUri = user?.photo_url || user?.avatar_url || null;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-    >
-      <View
-        style={[
-          styles.profile,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
+    <>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
       >
-        <Pressable
-          onPress={handleChangePhoto}
-          disabled={uploading}
-          style={styles.avatarWrap}
+        <View
+          style={[
+            styles.profile,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
         >
+          <Pressable
+            onPress={handleAvatarPress}
+            disabled={uploading}
+            style={styles.avatarWrap}
+          >
+            {photoUri ? (
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.avatarImg}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: colors.ink }]}>
+                <Text style={styles.avatarText}>
+                  {getInitials(user?.full_name || user?.email || 'U')}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.cameraBadge, { backgroundColor: colors.gold }]}>
+              {uploading ? (
+                <ActivityIndicator size="small" color="#0A1930" />
+              ) : (
+                <Ionicons name="camera" size={14} color="#0A1930" />
+              )}
+            </View>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[styles.name, { color: colors.textPrimary }]}
+              numberOfLines={1}
+            >
+              {user?.full_name || 'Staff'}
+            </Text>
+            <Text style={[styles.role, { color: colors.goldDark }]}>
+              {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
+            </Text>
+            <Text style={[styles.tapHint, { color: colors.textMuted }]}>
+              Tap photo to view or change
+            </Text>
+          </View>
+        </View>
+
+        <Text style={[styles.section, { color: colors.textMuted }]}>PROFILE</Text>
+
+        <MenuRow
+          icon="camera"
+          label="Change profile picture"
+          subtitle="Upload, view, or remove your photo"
+          color={colors.inkSoft}
+          onPress={handleChangePhoto}
+        />
+
+        <Text style={[styles.section, { color: colors.textMuted }]}>MANAGE</Text>
+
+        {isAdmin && (
+          <MenuRow
+            icon="people"
+            label="Manage Staff"
+            subtitle="Create and manage accounts"
+            color={colors.inkSoft}
+            onPress={() => navigation.navigate('ManageStaff')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
+            icon="warning"
+            label="Conflicts"
+            subtitle="Resolve sync conflicts"
+            color={colors.warning}
+            onPress={() => navigation.navigate('Conflicts')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
+            icon="git-merge"
+            label="Duplicate Registrations"
+            subtitle="Merge queue"
+            color="#5B3A8E"
+            onPress={() => navigation.navigate('MergeQueue')}
+          />
+        )}
+
+        <MenuRow
+          icon="person-add"
+          label="Register Student"
+          subtitle="Add a new student record"
+          color={colors.inkSoft}
+          onPress={() => navigation.navigate('RegisterTab')}
+        />
+
+        <Text
+          style={[styles.section, { color: colors.textMuted, marginTop: 18 }]}
+        >
+          ACCOUNT
+        </Text>
+
+        <MenuRow
+          icon="log-out-outline"
+          label="Sign out"
+          subtitle="End this session"
+          color={colors.error}
+          danger
+          onPress={confirmLogout}
+        />
+      </ScrollView>
+
+      <Modal
+        visible={viewerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerOpen(false)}
+      >
+        <View style={styles.viewerBackdrop}>
+          <Pressable
+            style={styles.viewerClose}
+            onPress={() => setViewerOpen(false)}
+            hitSlop={12}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </Pressable>
           {photoUri ? (
             <Image
               source={{ uri: photoUri }}
-              style={styles.avatarImg}
-              resizeMode="cover"
+              style={styles.viewerImage}
+              resizeMode="contain"
             />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: colors.ink }]}>
-              <Text style={styles.avatarText}>
-                {getInitials(user?.full_name || user?.email || 'U')}
-              </Text>
-            </View>
-          )}
-          <View style={[styles.cameraBadge, { backgroundColor: colors.gold }]}>
-            {uploading ? (
-              <ActivityIndicator size="small" color="#0A1930" />
-            ) : (
-              <Ionicons name="camera" size={14} color="#0A1930" />
-            )}
+          ) : null}
+          <View style={styles.viewerActions}>
+            <Pressable
+              style={styles.viewerBtn}
+              onPress={() => {
+                setViewerOpen(false);
+                openChangeMenu();
+              }}
+            >
+              <Text style={styles.viewerBtnText}>Change</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.viewerBtn, styles.viewerBtnGhost]}
+              onPress={() => setViewerOpen(false)}
+            >
+              <Text style={styles.viewerBtnText}>Close</Text>
+            </Pressable>
           </View>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[styles.name, { color: colors.textPrimary }]}
-            numberOfLines={1}
-          >
-            {user?.full_name || 'Staff'}
-          </Text>
-          <Text style={[styles.role, { color: colors.goldDark }]}>
-            {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
-          </Text>
-          <Text style={[styles.tapHint, { color: colors.textMuted }]}>
-            Tap photo to change
-          </Text>
         </View>
-      </View>
-
-      <Text style={[styles.section, { color: colors.textMuted }]}>PROFILE</Text>
-
-      <MenuRow
-        icon="camera"
-        label="Change profile picture"
-        subtitle="Upload or take a new photo"
-        color={colors.inkSoft}
-        onPress={handleChangePhoto}
-      />
-
-      <Text style={[styles.section, { color: colors.textMuted }]}>MANAGE</Text>
-
-      {isAdmin && (
-        <MenuRow
-          icon="people"
-          label="Manage Staff"
-          subtitle="Create and manage accounts"
-          color={colors.inkSoft}
-          onPress={() => navigation.navigate('ManageStaff')}
-        />
-      )}
-
-      {isAdmin && (
-        <MenuRow
-          icon="warning"
-          label="Conflicts"
-          subtitle="Resolve sync conflicts"
-          color={colors.warning}
-          onPress={() => navigation.navigate('Conflicts')}
-        />
-      )}
-
-      {isAdmin && (
-        <MenuRow
-          icon="git-merge"
-          label="Duplicate Registrations"
-          subtitle="Merge queue"
-          color="#5B3A8E"
-          onPress={() => navigation.navigate('MergeQueue')}
-        />
-      )}
-
-      <MenuRow
-        icon="person-add"
-        label="Register Student"
-        subtitle="Add a new student record"
-        color={colors.inkSoft}
-        onPress={() => navigation.navigate('RegisterStudent')}
-      />
-
-      <Text
-        style={[styles.section, { color: colors.textMuted, marginTop: 18 }]}
-      >
-        ACCOUNT
-      </Text>
-
-      <MenuRow
-        icon="log-out-outline"
-        label="Sign out"
-        subtitle="End this session"
-        color={colors.error}
-        danger
-        onPress={confirmLogout}
-      />
-    </ScrollView>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 18, paddingBottom: 40 },
-
   profile: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -339,14 +402,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-
   section: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 11,
     letterSpacing: 1.2,
     marginBottom: 10,
   },
-
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,5 +435,49 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.body,
     fontSize: 12,
     marginTop: 2,
+  },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10,25,48,0.94)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  viewerClose: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerImage: {
+    width: Dimensions.get('window').width - 40,
+    height: Dimensions.get('window').width - 40,
+    borderRadius: 16,
+    backgroundColor: '#16324F',
+  },
+  viewerActions: {
+    flexDirection: 'row',
+    marginTop: 28,
+  },
+  viewerBtn: {
+    backgroundColor: '#C9A24B',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginHorizontal: 6,
+  },
+  viewerBtnGhost: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  viewerBtnText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 15,
   },
 });

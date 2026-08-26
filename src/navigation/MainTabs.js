@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import StudentsListScreen from '../screens/StudentsListScreen';
 import ClassesScreen from '../screens/ClassesScreen';
 import MoreScreen from '../screens/MoreScreen';
+import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictBlocker from '../components/ConflictBlocker';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -51,14 +52,9 @@ export default function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.inkSoft,
-        },
+        headerStyle: { backgroundColor: colors.inkSoft },
         headerTintColor: '#FFFFFF',
-        headerTitleStyle: {
-          fontFamily: fontFamily.heading,
-          fontSize: 17,
-        },
+        headerTitleStyle: { fontFamily: fontFamily.heading, fontSize: 17 },
         tabBarActiveTintColor: colors.gold,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
@@ -83,11 +79,7 @@ export default function MainTabs() {
           title: 'Yala Matrix Schools',
           tabBarLabel: 'Students',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'people' : 'people-outline'}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -99,32 +91,20 @@ export default function MainTabs() {
           title: 'Classes',
           tabBarLabel: 'Classes',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'school' : 'school-outline'}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? 'school' : 'school-outline'} size={24} color={color} />
           ),
         }}
       />
 
       <Tab.Screen
         name="RegisterTab"
-        component={View}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('RegisterStudent');
-          },
-        })}
+        component={RegisterStudentScreen}
         options={{
-          title: 'Register',
+          title: 'Register Student',
           tabBarLabel: '',
           tabBarIcon: () => null,
           tabBarButton: (props) => (
-            <RegisterTabButton
-              onPress={() => props.onPress?.()}
-            />
+            <RegisterTabButton onPress={props.onPress} />
           ),
         }}
       />
@@ -136,11 +116,7 @@ export default function MainTabs() {
           title: 'More',
           tabBarLabel: 'More',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'grid' : 'grid-outline'}
-              size={22}
-              color={color}
-            />
+            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
           ),
         }}
       />

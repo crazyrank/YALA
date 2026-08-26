@@ -18,8 +18,9 @@ const ONBOARDING_SEEN_KEY = 'ysis_onboarding_seen';
 const USER_CACHE_KEY = 'ysis_user_cache';
 
 async function withLocalPhoto(user) {
-  if (!user?.id) return user;
-  const localUri = await getStoredProfilePhotoUri(user.id);
+  if (!user) return user;
+  const id = user.id || 'default';
+  const localUri = await getStoredProfilePhotoUri(id);
   if (localUri) {
     return { ...user, photo_url: localUri };
   }
@@ -98,17 +99,14 @@ export function AuthProvider({ children }) {
     setStatus('needsFirstLogin');
   }, []);
 
-  /**
-   * All roles (director, principal, head_teacher) may set/change
-   * their own profile photo. Stored on-device; ready to sync later.
-   */
   const updateProfilePhoto = useCallback(
     async (sourceUri) => {
-      if (!user?.id) {
+      if (!user) {
         throw new Error('Not signed in.');
       }
-      const dest = await saveProfilePhoto(user.id, sourceUri);
-      const next = { ...user, photo_url: dest };
+      const id = user.id || 'default';
+      const dest = await saveProfilePhoto(id, sourceUri);
+      const next = { ...user, id, photo_url: dest };
       setUser(next);
       await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(next));
       return dest;
@@ -117,8 +115,9 @@ export function AuthProvider({ children }) {
   );
 
   const removeProfilePhoto = useCallback(async () => {
-    if (!user?.id) return;
-    await clearStoredProfilePhoto(user.id);
+    if (!user) return;
+    const id = user.id || 'default';
+    await clearStoredProfilePhoto(id);
     const next = { ...user };
     delete next.photo_url;
     setUser(next);
