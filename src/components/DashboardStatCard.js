@@ -59,7 +59,7 @@ export default function DashboardStatCard({
 
       <Text style={[styles.value, { color }]}>{value}</Text>
 
-      <Text style={[styles.title, { color: colors.textPrimary }]}>
+      <Text style={[styles.title, { color }]}>
         {title}
       </Text>
 

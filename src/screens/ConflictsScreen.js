@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../api/client';
 
@@ -70,6 +71,23 @@ export default function ConflictsScreen({ navigation }) {
           </View>
         </View>
       )}
+      ListHeaderComponent={
+        <View style={styles.statusCard}>
+          <View style={styles.statusIcon}>
+            <Ionicons name="sync" size={18} color="#16324f" />
+          </View>
+          <View style={styles.statusInfo}>
+            <Text style={styles.statusTitle}>System Status</Text>
+            <Text style={styles.statusSub}>
+              Your student records are stored safely on this device.
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusBadgeText}>READY</Text>
+          </View>
+        </View>
+      }
       ListEmptyComponent={!loading && <Text style={styles.empty}>No open conflicts.</Text>}
     />
   );
@@ -78,6 +96,36 @@ export default function ConflictsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f2ec' },
   card: { backgroundColor: '#fff', borderRadius: 10, padding: 16, marginBottom: 14 },
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 18,
+  },
+  statusIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: '#f8f6f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  statusInfo: { flex: 1 },
+  statusTitle: { fontSize: 13, fontWeight: '700', color: '#16324f' },
+  statusSub: { fontSize: 11, color: '#7a8a99', marginTop: 3, lineHeight: 15 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E7F7EF',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1E9E63', marginRight: 5 },
+  statusBadgeText: { fontSize: 8, fontWeight: '700', color: '#1E9E63', letterSpacing: 0.3 },
   studentName: { fontSize: 16, fontWeight: '700', color: '#16324f' },
   admissionNo: { fontSize: 12, color: '#7a8a99', marginBottom: 8 },
   summary: { fontSize: 13, color: '#3a4a5a', marginBottom: 12 },

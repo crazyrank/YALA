@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -28,6 +29,32 @@ export default function RegisterStudentScreen({ route, navigation }) {
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState([]);
+
+  const handleLookupChange = async (text) => {
+    setLookupQuery(text);
+    if (!text.trim()) {
+      setLookupResults([]);
+      return;
+    }
+    try {
+      const db = await getDb();
+      const term = `%${text}%`;
+      const rows = await db.getAllAsync(
+        `SELECT id, admission_no, full_name, class_level, arm
+         FROM students
+         WHERE full_name LIKE ? OR admission_no LIKE ?
+         ORDER BY full_name ASC
+         LIMIT 5`,
+        [term, term]
+      );
+      setLookupResults(rows);
+    } catch (err) {
+      setLookupResults([]);
+    }
+  };
 
   const handleSave = async () => {
     if (
@@ -132,6 +159,49 @@ export default function RegisterStudentScreen({ route, navigation }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* FIND EXISTING STUDENT */}
+        <View style={styles.lookupCard}>
+          <Text style={styles.lookupLabel}>Find existing student</Text>
+          <View style={styles.lookupBox}>
+            <Ionicons name="search" size={17} color="#667085" style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.lookupInput}
+              placeholder="Search by name or admission number"
+              placeholderTextColor="#98A2B3"
+              value={lookupQuery}
+              onChangeText={handleLookupChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {lookupQuery.length > 0 && (
+              <Pressable onPress={() => handleLookupChange('')} hitSlop={10}>
+                <Ionicons name="close-circle" size={17} color="#98A2B3" />
+              </Pressable>
+            )}
+          </View>
+
+          {lookupResults.length > 0 && (
+            <View style={styles.lookupResults}>
+              {lookupResults.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.lookupResultRow}
+                  onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
+                >
+                  <View>
+                    <Text style={styles.lookupResultName}>{item.full_name}</Text>
+                    <Text style={styles.lookupResultSub}>
+                      {item.admission_no || 'No admission number'}
+                      {item.class_level ? ` • ${item.class_level}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* HEADER */}
         <View style={styles.header}>
           <Text style={styles.eyebrow}>STUDENT RECORDS</Text>
@@ -388,6 +458,58 @@ const styles = StyleSheet.create({
     letterSpacing: 1.7,
     color: '#667085',
     marginBottom: 8,
+  },
+
+  lookupCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    borderRadius: 13,
+    padding: 14,
+    marginBottom: 20,
+  },
+  lookupLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#667085',
+    marginBottom: 8,
+  },
+  lookupBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F6F7F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  lookupInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#101828',
+    paddingVertical: 0,
+  },
+  lookupResults: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
+  },
+  lookupResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F4F7',
+  },
+  lookupResultName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#101828',
+  },
+  lookupResultSub: {
+    fontSize: 11,
+    color: '#667085',
+    marginTop: 2,
   },
 
   title: {

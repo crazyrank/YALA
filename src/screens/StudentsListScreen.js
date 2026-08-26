@@ -51,12 +51,15 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
     onPress && onPress();
   };
 
+  const flatStyle = StyleSheet.flatten(style) || {};
+
   return (
     <Pressable
       onPressIn={pressIn}
       onPressOut={pressOut}
       onPress={handlePress}
       disabled={disabled}
+      style={{ width: flatStyle.width }}
       {...rest}
     >
       <Animated.View style={[style, { transform: [{ scale }] }]}>
@@ -138,6 +141,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const [pullError, setPullError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
@@ -268,13 +272,15 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
+  const displayedResults = (query || showAll) ? results : results.slice(0, 3);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <OfflineMarquee />
       <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
 
       <FlatList
-        data={results}
+        data={displayedResults}
         keyExtractor={(item) => String(item.id)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.ink} />
@@ -348,7 +354,6 @@ export default function StudentsListScreen({ navigation, route }) {
                 <View style={styles.quickSection}>
                   <Text style={[type.h3, styles.quickTitle, { color: colors.textPrimary }]}>
                     Quick Actions
-                    Quick Actions
                   </Text>
 
                   <View style={styles.quickGrid}>
@@ -356,24 +361,24 @@ export default function StudentsListScreen({ navigation, route }) {
                       style={[styles.quickBtn, { backgroundColor: colors.ink }]}
                       onPress={() => navigation.navigate('RegisterStudent')}
                     >
-                      <Ionicons name="person-add" size={20} color={colors.gold} />
-                      <Text style={[styles.quickBtnText, { color: '#FFFFFF' }]}>Register Student</Text>
+                      <Ionicons name="person-add" size={15} color={colors.gold} />
+                      <Text style={[styles.quickBtnText, { color: '#FFFFFF' }]} numberOfLines={1}>Register</Text>
                     </Squish>
 
                     <Squish
                       style={[styles.quickBtn, { backgroundColor: '#EAF0F6' }]}
                       onPress={() => setQuery('')}
                     >
-                      <Ionicons name="search" size={20} color={colors.inkSoft} />
-                      <Text style={[styles.quickBtnText, { color: colors.inkSoft }]}>Find Student</Text>
+                      <Ionicons name="search" size={15} color={colors.inkSoft} />
+                      <Text style={[styles.quickBtnText, { color: colors.inkSoft }]} numberOfLines={1}>Find</Text>
                     </Squish>
 
                     <Squish
                       style={[styles.quickBtn, { backgroundColor: colors.gold }]}
                       onPress={() => navigation.navigate('Classes')}
                     >
-                      <Ionicons name="school" size={20} color={colors.ink} />
-                      <Text style={[styles.quickBtnText, { color: colors.ink }]}>View Classes</Text>
+                      <Ionicons name="school" size={15} color={colors.ink} />
+                      <Text style={[styles.quickBtnText, { color: colors.ink }]} numberOfLines={1}>Classes</Text>
                     </Squish>
 
                     <Squish
@@ -384,58 +389,16 @@ export default function StudentsListScreen({ navigation, route }) {
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download" size={20} color={colors.goldDark} />
+                        <Ionicons name="download" size={15} color={colors.goldDark} />
                       )}
-                      <Text style={[styles.quickBtnText, { color: colors.goldDark }]}>Export Records</Text>
+                      <Text style={[styles.quickBtnText, { color: colors.goldDark }]} numberOfLines={1}>Export</Text>
                     </Squish>
                   </View>
                 </View>
 
-                <View style={[styles.systemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={[styles.systemIcon, { backgroundColor: '#EAF0F6' }]}>
-                    <Ionicons name="sync" size={18} color={colors.inkSoft} />
-                  </View>
-                  <View style={styles.systemInfo}>
-                    <Text style={[styles.systemTitle, { color: colors.textPrimary }]}>System Status</Text>
-                    <Text style={[styles.systemSub, { color: colors.textSecondary }]}>
-                      Your student records are stored safely on this device.
-                    </Text>
-                  </View>
-                  <View style={[styles.systemBadge, { backgroundColor: colors.successBg }]}>
-                    <View style={[styles.onlineDot, { backgroundColor: colors.success }]} />
-                    <Text style={[styles.systemBadgeText, { color: colors.success }]}>READY</Text>
-                  </View>
-                </View>
+
               </>
             )}
-
-            <View style={styles.searchArea}>
-              <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Ionicons name="search" size={19} color={colors.textMuted} style={{ marginRight: 8 }} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.textPrimary, fontFamily: fontFamily.bodyMedium }]}
-                  placeholder="Search students or admission number"
-                  placeholderTextColor={colors.textMuted}
-                  value={query}
-                  onChangeText={handleChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {query.length > 0 && (
-                  <Pressable onPress={() => handleChange('')} hitSlop={10}>
-                    <Ionicons name="close-circle" size={19} color={colors.textMuted} />
-                  </Pressable>
-                )}
-              </View>
-
-              <Squish
-                style={[styles.registerButton, { backgroundColor: colors.ink }]}
-                onPress={() => navigation.navigate('RegisterStudent')}
-              >
-                <Ionicons name="add" size={19} color={colors.gold} />
-                <Text style={styles.registerText}>Register</Text>
-              </Squish>
-            </View>
 
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
@@ -465,6 +428,23 @@ export default function StudentsListScreen({ navigation, route }) {
         renderItem={({ item }) => (
           <StudentCard item={item} navigation={navigation} colors={colors} />
         )}
+        ListFooterComponent={
+          !query && results.length > 3 ? (
+            <Squish
+              style={[styles.seeMoreBtn, { borderColor: colors.border }]}
+              onPress={() => setShowAll((prev) => !prev)}
+            >
+              <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
+                {showAll ? 'See less' : `See more (${results.length - 3})`}
+              </Text>
+              <Ionicons
+                name={showAll ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={colors.textPrimary}
+              />
+            </Squish>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={[styles.emptyIcon, { backgroundColor: '#EAF0F6' }]}>
@@ -537,16 +517,29 @@ const styles = StyleSheet.create({
 
   quickSection: { marginBottom: 16 },
   quickTitle: { marginBottom: 10 },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
   quickBtn: {
-    width: '48.5%',
-    minHeight: 68,
-    borderRadius: radius.lg,
-    padding: 13,
+    minWidth: 88,
+    minHeight: 56,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginRight: 10,
     marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...shadow.raised,
   },
-  quickBtnText: { fontFamily: fontFamily.bodyBold, fontSize: 11, marginTop: 8 },
+  quickBtnText: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10.5,
+    marginTop: 5,
+    textAlign: 'center',
+  },
 
   systemCard: {
     flexDirection: 'row',
@@ -618,6 +611,22 @@ const styles = StyleSheet.create({
   sectionRight: { flexDirection: 'row', alignItems: 'center' },
   exportButton: { marginLeft: 10, paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.sm },
   exportButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 10, letterSpacing: 0.3 },
+
+  seeMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  seeMoreText: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 12.5,
+    marginRight: 6,
+  },
 
   studentCard: {
     minHeight: 84,
