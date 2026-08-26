@@ -1,4 +1,4 @@
-import * as Network from 'expo-network';
+import NetInfo from '@react-native-community/netinfo';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, getNextSequenceNo } from '../db';
@@ -53,7 +53,7 @@ export async function queueOperation({ opType, entityId, payload }) {
 export async function triggerSync() {
   if (syncInFlight) return;
 
-  const netState = await Network.getNetworkStateAsync();
+  const netState = await NetInfo.fetch();
   if (!netState.isConnected || !netState.isInternetReachable) {
     notify({ state: 'offline' });
     return;
@@ -136,19 +136,21 @@ export async function hasPendingChanges() {
 
 /** Start listening for connectivity changes and auto-trigger sync on reconnect. */
 export function startAutoSyncListener() {
-  if (typeof Network.addNetworkStateListener !== 'function') {
-    // Not available on this expo-network version/platform. Sync still runs
-    // on app launch and after every queueOperation call, so this only
-    // disables the "auto-resync the instant wifi comes back" behavior.
-    console.warn(
-      'Network.addNetworkStateListener unavailable — skipping live reconnect listener.'
-    );
-    return { remove: () => {} };
-  }
+  let wasOffline = false;
 
-  return Network.addNetworkStateListener((state) => {
-    if (state.isConnected && state.isInternetReachable) {
+  const unsubscribe = NetInfo.addEventListener((state) => {
+    const isOnline = !!(state.isConnected && state.isInternetReachable);
+
+    if (!isOnline) {
+      wasOffline = true;
+      return;
+    }
+
+    if (isOnline && wasOffline) {
+      wasOffline = false;
       triggerSync();
     }
   });
+
+  return { remove: unsubscribe };
 }
