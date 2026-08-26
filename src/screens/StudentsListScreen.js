@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Modal,
+  Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +27,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily, type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
 import { gradients } from '../theme/colors';
+import { useAuth } from '../context/AuthContext';
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -39,7 +42,6 @@ function tap(style = Haptics.ImpactFeedbackStyle.Light) {
 
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
-
   const pressIn = () => {
     Animated.spring(scale, { toValue: scaleTo, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
   };
@@ -50,9 +52,7 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
     if (haptic) tap();
     onPress && onPress();
   };
-
   const flatStyle = StyleSheet.flatten(style) || {};
-
   return (
     <Pressable
       onPressIn={pressIn}
@@ -72,7 +72,6 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
 function StudentCard({ item, navigation, colors }) {
   const initials = getInitials(item.full_name);
   const isActive = item.status === 'active';
-
   return (
     <Squish
       style={[styles.studentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -87,7 +86,6 @@ function StudentCard({ item, navigation, colors }) {
       >
         <Text style={styles.avatarText}>{initials}</Text>
       </LinearGradient>
-
       <View style={styles.studentInfo}>
         <Text style={[styles.studentName, { color: colors.textPrimary }]} numberOfLines={1}>
           {item.full_name}
@@ -100,7 +98,6 @@ function StudentCard({ item, navigation, colors }) {
           {item.arm ? ` • ${item.arm}` : ''}
         </Text>
       </View>
-
       <View style={styles.rightArea}>
         <View
           style={[
@@ -131,8 +128,10 @@ function StudentCard({ item, navigation, colors }) {
 
 export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
+  const { user, logout } = useAuth();
   const classLevel = route?.params?.classLevel || '';
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [pullError, setPullError] = useState(null);
@@ -144,7 +143,6 @@ export default function StudentsListScreen({ navigation, route }) {
     const db = await getDb();
     const term = `%${text}%`;
     let rows;
-
     if (classLevel && text.trim()) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
@@ -157,8 +155,7 @@ export default function StudentsListScreen({ navigation, route }) {
     } else if (classLevel) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE class_level = ?
+         FROM students WHERE class_level = ?
          ORDER BY full_name ASC LIMIT 50`,
         [classLevel]
       );
@@ -173,8 +170,7 @@ export default function StudentsListScreen({ navigation, route }) {
     } else {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         ORDER BY full_name ASC LIMIT 50`
+         FROM students ORDER BY full_name ASC LIMIT 50`
       );
     }
     setResults(rows);
@@ -184,7 +180,6 @@ export default function StudentsListScreen({ navigation, route }) {
     try {
       const response = await api.get('/students?page=1');
       const db = await getDb();
-
       for (const s of response.students || []) {
         await db.runAsync(
           `INSERT INTO students
@@ -280,15 +275,45 @@ export default function StudentsListScreen({ navigation, route }) {
               end={{ x: 1, y: 1 }}
               style={styles.hero}
             >
-              <Text style={styles.heroEyebrow}>
-                {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
-              </Text>
-              <Text style={styles.heroTitle}>
-                {classLevel ? `${classLevel} Students` : 'Students'}
-              </Text>
-              <Text style={styles.heroSub}>
-                {classLevel ? `Records for ${classLevel}` : 'Manage and access student records'}
-              </Text>
+              <View style={styles.heroTopRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.heroEyebrow}>
+                    {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+                  </Text>
+                  <Text style={styles.heroTitle}>
+                    {classLevel ? `${classLevel} Students` : 'Students'}
+                  </Text>
+                  <Text style={styles.heroSub}>
+                    {classLevel
+                      ? `Records for ${classLevel}`
+                      : 'Manage and access student records'}
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    setMenuOpen(true);
+                  }}
+                  style={styles.profileChip}
+                  hitSlop={8}
+                >
+                  {user?.photo_url || user?.avatar_url ? (
+                    <Image
+                      source={{ uri: user.photo_url || user.avatar_url }}
+                      style={styles.profileAvatarImg}
+                    />
+                  ) : (
+                    <View style={styles.profileAvatar}>
+                      <Text style={styles.profileAvatarText}>
+                        {getInitials(user?.full_name || user?.email || 'U')}
+                      </Text>
+                    </View>
+                  )}
+                  <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
+                </Pressable>
+              </View>
+
               <View style={styles.heroMeta}>
                 <View style={styles.heroMetaPill}>
                   <Text style={styles.heroMetaNum}>{results.length}</Text>
@@ -297,73 +322,115 @@ export default function StudentsListScreen({ navigation, route }) {
               </View>
             </LinearGradient>
 
+            <Modal
+              visible={menuOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setMenuOpen(false)}
+            >
+              <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+                <View style={styles.menuCard}>
+                  <View style={styles.menuHeader}>
+                    {user?.photo_url || user?.avatar_url ? (
+                      <Image
+                        source={{ uri: user.photo_url || user.avatar_url }}
+                        style={styles.menuAvatarImg}
+                      />
+                    ) : (
+                      <View style={styles.menuAvatar}>
+                        <Text style={styles.menuAvatarText}>
+                          {getInitials(user?.full_name || user?.email || 'U')}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuName} numberOfLines={1}>
+                        {user?.full_name || 'Staff'}
+                      </Text>
+                      <Text style={styles.menuRole}>
+                        {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.menuDivider} />
+                  {(user?.role === 'principal' || user?.role === 'director') && (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        setMenuOpen(false);
+                        navigation.navigate('ManageStaff');
+                      }}
+                    >
+                      <Ionicons name="people-outline" size={18} color="#0A1930" />
+                      <Text style={styles.menuItemText}>Manage Staff</Text>
+                    </Pressable>
+                  )}
+                  {(user?.role === 'principal' || user?.role === 'director') && (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        setMenuOpen(false);
+                        navigation.navigate('Conflicts');
+                      }}
+                    >
+                      <Ionicons name="warning-outline" size={18} color="#0A1930" />
+                      <Text style={styles.menuItemText}>Conflicts</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      navigation.navigate('MoreTab');
+                    }}
+                  >
+                    <Ionicons name="grid-outline" size={18} color="#0A1930" />
+                    <Text style={styles.menuItemText}>More</Text>
+                  </Pressable>
+                  <View style={styles.menuDivider} />
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Sign out',
+                          style: 'destructive',
+                          onPress: () => logout(),
+                        },
+                      ]);
+                    }}
+                  >
+                    <Ionicons name="log-out-outline" size={18} color="#C0392B" />
+                    <Text style={[styles.menuItemText, { color: '#C0392B' }]}>Sign out</Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
             <View style={styles.bodyPad}>
               {!classLevel && (
                 <>
                   <View style={styles.statsGrid}>
-                    <DashboardStatCard
-                      icon="people"
-                      value={results.length}
-                      title="Students"
-                      subtitle="Registered"
-                      color={colors.inkSoft}
-                      bg={colors.surface}
-                      delay={0}
-                    />
-                    <DashboardStatCard
-                      icon="checkmark-circle"
-                      value={activeCount}
-                      title="Active"
-                      subtitle="Currently enrolled"
-                      color={colors.success}
-                      bg={colors.surface}
-                      delay={50}
-                    />
-                    <DashboardStatCard
-                      icon="school"
-                      value={classCount}
-                      title="Classes"
-                      subtitle="Represented"
-                      color={colors.goldDark}
-                      bg={colors.surface}
-                      delay={100}
-                    />
-                    <DashboardStatCard
-                      icon="layers"
-                      value={results.length}
-                      title="Records"
-                      subtitle="On this device"
-                      color="#5B3A8E"
-                      bg={colors.surface}
-                      delay={150}
-                    />
+                    <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                    <DashboardStatCard icon="checkmark-circle" value={activeCount} title="Active" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
+                    <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
+                    <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
                   </View>
-
-                  <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>
-                    Quick Actions
-                  </Text>
+                  <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.actionRow}>
-                    <Squish
-                      style={[styles.primaryAction, { backgroundColor: colors.ink }]}
-                      onPress={() => navigation.navigate('RegisterStudent')}
-                    >
+                    <Squish style={[styles.primaryAction, { backgroundColor: colors.ink }]} onPress={() => navigation.navigate('RegisterStudent')}>
                       <Ionicons name="person-add" size={18} color={colors.gold} />
                       <Text style={styles.primaryActionText}>Register Student</Text>
                     </Squish>
                   </View>
                   <View style={styles.secondaryRow}>
-                    <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={() => navigation.navigate('ClassesTab')}
-                    >
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('ClassesTab')}>
                       <Ionicons name="school-outline" size={16} color={colors.inkSoft} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Classes</Text>
                     </Squish>
-                    <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={handleExport}
-                      disabled={exporting}
-                    >
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
@@ -375,12 +442,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 </>
               )}
 
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
+              <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
                 <TextInput
                   value={query}
@@ -426,11 +488,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
                   {showAll ? 'See less' : `See more (${results.length - 5})`}
                 </Text>
-                <Ionicons
-                  name={showAll ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={colors.textPrimary}
-                />
+                <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimary} />
               </Squish>
             </View>
           ) : null
@@ -453,9 +511,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                 onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
               >
-                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>
-                  Register with this name
-                </Text>
+                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>Register with this name</Text>
               </Squish>
             ) : (
               <Squish
@@ -482,6 +538,91 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+  },
+  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  profileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(201,162,75,0.35)',
+  },
+  profileAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#C9A24B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarImg: { width: 36, height: 36, borderRadius: 18 },
+  profileAvatarText: {
+    color: '#0A1930',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 13,
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10,25,48,0.45)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 72,
+    paddingRight: 16,
+  },
+  menuCard: {
+    width: 260,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E4E8EF',
+    ...shadow.card,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  menuAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#16324F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuAvatarImg: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
+  menuAvatarText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 14,
+  },
+  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0A1930' },
+  menuRole: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: '#C9A24B',
+    marginTop: 2,
+  },
+  menuDivider: { height: 1, backgroundColor: '#E4E8EF', marginVertical: 4 },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  menuItemText: {
+    marginLeft: 12,
+    fontFamily: fontFamily.bodySemibold,
+    fontSize: 14,
+    color: '#0A1930',
   },
   heroEyebrow: {
     fontFamily: fontFamily.bodyBold,

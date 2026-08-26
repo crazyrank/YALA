@@ -80,7 +80,7 @@ export default function MainTabs() {
         name="StudentsTab"
         component={StudentsTab}
         options={{
-          title: 'Students',
+          title: 'Yala Matrix Schools',
           tabBarLabel: 'Students',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
