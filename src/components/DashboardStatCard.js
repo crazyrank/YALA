@@ -1,73 +1,111 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../theme/ThemeContext';
+import { fontFamily } from '../theme/typography';
+import { radius, shadow } from '../theme/spacing';
 
 export default function DashboardStatCard({
-  icon,
+  icon = 'ellipse',
   value,
   title,
   subtitle,
   color = '#3157D5',
   bg = '#EAF2FF',
+  delay = 0,
 }) {
+  const { colors } = useTheme();
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 420,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [anim, delay]);
+
+  const animatedStyle = {
+    opacity: anim,
+    transform: [
+      {
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [14, 0],
+        }),
+      },
+      {
+        scale: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.94, 1],
+        }),
+      },
+    ],
+  };
+
   return (
-    <View style={[styles.card, { backgroundColor: bg }]}>
+    <Animated.View
+      style={[
+        styles.card,
+        { backgroundColor: bg, borderColor: colors.border },
+        animatedStyle,
+      ]}
+    >
       <View style={[styles.icon, { backgroundColor: color }]}>
-        <Text style={styles.iconText}>{icon}</Text>
+        <Ionicons name={icon} size={20} color="#FFFFFF" />
       </View>
 
-      <Text style={[styles.value, { color }]}>
-        {value}
-      </Text>
+      <Text style={[styles.value, { color }]}>{value}</Text>
 
-      <Text style={styles.title}>
+      <Text style={[styles.title, { color: colors.textPrimary }]}>
         {title}
       </Text>
 
-      <Text style={styles.subtitle}>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         {subtitle}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 130,
-    borderRadius: 18,
+    minHeight: 132,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     padding: 14,
     marginBottom: 10,
+    ...shadow.raised,
   },
 
   icon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 38,
+    height: 38,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
-  },
-
-  iconText: {
-    color: '#fff',
-    fontSize: 16,
+    marginBottom: 12,
   },
 
   value: {
-    fontSize: 25,
-    fontWeight: '900',
+    fontFamily: fontFamily.display,
+    fontSize: 26,
+    letterSpacing: -0.5,
   },
 
   title: {
-    color: '#344054',
-    fontSize: 9,
-    fontWeight: '900',
-    marginTop: 2,
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    marginTop: 3,
   },
 
   subtitle: {
-    color: '#667085',
-    fontSize: 8,
-    marginTop: 4,
+    fontFamily: fontFamily.body,
+    fontSize: 10.5,
+    marginTop: 3,
   },
 });

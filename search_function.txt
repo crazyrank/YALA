@@ -1,0 +1,46 @@
+  const runLocalSearch = useCallback(async (text) => {
+    const db = await getDb();
+    const search = text.trim();
+
+    let rows;
+
+    if (classLevel) {
+      rows = search
+        ? await db.getAllAsync(
+            `SELECT id, admission_no, full_name, class_level, arm, status
+             FROM students
+             WHERE class_level = ?
+               AND (full_name LIKE ? OR admission_no LIKE ?)
+             ORDER BY full_name ASC
+             LIMIT 50`,
+            [classLevel, `%${search}%`, `%${search}%`]
+          )
+        : await db.getAllAsync(
+            `SELECT id, admission_no, full_name, class_level, arm, status
+             FROM students
+             WHERE class_level = ?
+             ORDER BY full_name ASC
+             LIMIT 50`,
+            [classLevel]
+          );
+    } else {
+      rows = search
+        ? await db.getAllAsync(
+            `SELECT id, admission_no, full_name, class_level, arm, status
+             FROM students
+             WHERE full_name LIKE ?
+                OR admission_no LIKE ?
+             ORDER BY full_name ASC
+             LIMIT 50`,
+            [`%${search}%`, `%${search}%`]
+          )
+        : await db.getAllAsync(
+            `SELECT id, admission_no, full_name, class_level, arm, status
+             FROM students
+             ORDER BY full_name ASC
+             LIMIT 50`
+          );
+    }
+
+    setResults(rows);
+  }, [classLevel]);

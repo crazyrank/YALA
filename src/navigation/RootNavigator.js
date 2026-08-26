@@ -9,6 +9,7 @@ import LoginScreen from '../screens/LoginScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import UnlockScreen from '../screens/UnlockScreen';
 import StudentsListScreen from '../screens/StudentsListScreen';
+import ClassStudentsScreen from '../screens/ClassStudentsScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
@@ -16,10 +17,11 @@ import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ManageStaffScreen from '../screens/ManageStaffScreen';
+import ClassesScreen from '../screens/ClassesScreen';
 
 const Stack = createNativeStackNavigator();
 
-function DashboardHome({ navigation }) {
+function DashboardHome({ navigation, route }) {
   const { user } = useAuth();
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
@@ -27,12 +29,12 @@ function DashboardHome({ navigation }) {
   if (isAdmin) {
     return (
       <ConflictBlocker navigation={navigation}>
-        <StudentsListScreen navigation={navigation} />
+        <StudentsListScreen navigation={navigation} route={route} />
       </ConflictBlocker>
     );
   }
 
-  return <StudentsListScreen navigation={navigation} />;
+  return <StudentsListScreen navigation={navigation} route={route} />;
 }
 
 function AddStaffButton({ navigation }) {
@@ -136,11 +138,23 @@ export default function RootNavigator() {
             <Stack.Screen
               name="Students"
               component={DashboardHome}
-              options={({ navigation }) => ({
-                title: 'Students',
+              options={({ navigation, route }) => ({
+                title: route?.params?.classLevel
+                  ? `${route.params.classLevel} Students`
+                  : 'Students',
                 headerRight: () => (
                   <HeaderActions navigation={navigation} />
                 ),
+              })}
+            />
+
+            <Stack.Screen
+              name="ClassStudents"
+              component={ClassStudentsScreen}
+              options={({ route }) => ({
+                title: route?.params?.classLevel
+                  ? route.params.classLevel + " Students"
+                  : "Students",
               })}
             />
 
@@ -187,6 +201,12 @@ export default function RootNavigator() {
               name="ManageStaff"
               component={ManageStaffScreen}
               options={{ title: 'Manage Staff' }}
+            />
+
+            <Stack.Screen
+              name="Classes"
+              component={ClassesScreen}
+              options={{ title: 'Classes' }}
             />
           </>
         )}

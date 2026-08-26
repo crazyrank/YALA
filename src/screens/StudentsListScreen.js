@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,78 +9,130 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { getDb } from '../db';
 import { api } from '../api/client';
 import { exportStudentsToCsv } from '../services/csvExport';
 import OfflineMarquee from '../components/OfflineMarquee';
 import SyncIssueBanner from '../components/SyncIssueBanner';
 import DashboardStatCard from '../components/DashboardStatCard';
+import { useTheme } from '../theme/ThemeContext';
+import { fontFamily, type } from '../theme/typography';
+import { spacing, radius, shadow } from '../theme/spacing';
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-
   if (parts.length === 0) return '?';
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
-function StudentCard({ item, navigation }) {
-  const initials = getInitials(item.full_name);
+function tap(style = Haptics.ImpactFeedbackStyle.Light) {
+  Haptics.impactAsync(style).catch(() => {});
+}
+
+/** Pressable with a smooth spring scale + haptic tap, used everywhere for a premium feel. */
+function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () => {
+    Animated.spring(scale, { toValue: scaleTo, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
+  };
+  const pressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+  };
+  const handlePress = () => {
+    if (haptic) tap();
+    onPress && onPress();
+  };
 
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.studentCard,
-        pressed && styles.studentCardPressed,
-      ]}
-      onPress={() =>
-        navigation.navigate('StudentDetail', {
-          studentId: item.id,
-        })
-      }
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      onPress={handlePress}
+      disabled={disabled}
+      {...rest}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
-      </View>
-
-      <View style={styles.studentInfo}>
-        <Text style={styles.studentName} numberOfLines={1}>
-          {item.full_name}
-        </Text>
-
-        <Text style={styles.admission}>
-          {item.admission_no || 'No admission number'}
-        </Text>
-
-        <View style={styles.classRow}>
-          <Text style={styles.classText}>
-            {item.class_level || 'Class not assigned'}
-            {item.arm ? ` • ${item.arm}` : ''}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.rightArea}>
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>
-            {item.status || 'ACTIVE'}
-          </Text>
-        </View>
-
-        <Text style={styles.chevron}>›</Text>
-      </View>
+      <Animated.View style={[style, { transform: [{ scale }] }]}>
+        {children}
+      </Animated.View>
     </Pressable>
   );
 }
 
-export default function StudentsListScreen({ navigation }) {
+function StudentCard({ item, navigation, colors }) {
+  const initials = getInitials(item.full_name);
+  const isActive = item.status === 'active';
+
+  return (
+    <Squish
+      style={[styles.studentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      scaleTo={0.98}
+      onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
+    >
+      <LinearGradient
+        colors={[colors.ink, colors.inkSoft]}
+        style={styles.avatar}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Text style={styles.avatarText}>{initials}</Text>
+      </LinearGradient>
+
+      <View style={styles.studentInfo}>
+        <Text style={[styles.studentName, { color: colors.textPrimary }]} numberOfLines={1}>
+          {item.full_name}
+        </Text>
+
+        <Text style={[styles.admission, { color: colors.textSecondary }]}>
+          {item.admission_no || 'No admission number'}
+        </Text>
+
+        <Text style={[styles.classText, { color: colors.textMuted }]}>
+          {item.class_level || 'Class not assigned'}
+          {item.arm ? ` • ${item.arm}` : ''}
+        </Text>
+      </View>
+
+      <View style={styles.rightArea}>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: isActive ? colors.successBg : colors.warningBg },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: isActive ? colors.success : colors.warning },
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              { color: isActive ? colors.success : colors.warning },
+            ]}
+          >
+            {(item.status || 'ACTIVE').toUpperCase()}
+          </Text>
+        </View>
+
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} style={{ marginTop: 8 }} />
+      </View>
+    </Squish>
+  );
+}
+
+export default function StudentsListScreen({ navigation, route }) {
+  const { colors } = useTheme();
+  const classLevel = route?.params?.classLevel || '';
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [pullError, setPullError] = useState(null);
@@ -89,26 +141,50 @@ export default function StudentsListScreen({ navigation }) {
 
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
+    const term = `%${text}%`;
 
-    const rows = text.trim()
-      ? await db.getAllAsync(
-          `SELECT id, admission_no, full_name, class_level, arm, status
-           FROM students
-           WHERE full_name LIKE ?
-              OR admission_no LIKE ?
-           ORDER BY full_name ASC
-           LIMIT 50`,
-          [`%${text}%`, `%${text}%`]
-        )
-      : await db.getAllAsync(
-          `SELECT id, admission_no, full_name, class_level, arm, status
-           FROM students
-           ORDER BY full_name ASC
-           LIMIT 50`
-        );
+    let rows;
+
+    if (classLevel && text.trim()) {
+      rows = await db.getAllAsync(
+        `SELECT id, admission_no, full_name, class_level, arm, status
+         FROM students
+         WHERE class_level = ?
+           AND (full_name LIKE ? OR admission_no LIKE ?)
+         ORDER BY full_name ASC
+         LIMIT 50`,
+        [classLevel, term, term]
+      );
+    } else if (classLevel) {
+      rows = await db.getAllAsync(
+        `SELECT id, admission_no, full_name, class_level, arm, status
+         FROM students
+         WHERE class_level = ?
+         ORDER BY full_name ASC
+         LIMIT 50`,
+        [classLevel]
+      );
+    } else if (text.trim()) {
+      rows = await db.getAllAsync(
+        `SELECT id, admission_no, full_name, class_level, arm, status
+         FROM students
+         WHERE full_name LIKE ?
+            OR admission_no LIKE ?
+         ORDER BY full_name ASC
+         LIMIT 50`,
+        [term, term]
+      );
+    } else {
+      rows = await db.getAllAsync(
+        `SELECT id, admission_no, full_name, class_level, arm, status
+         FROM students
+         ORDER BY full_name ASC
+         LIMIT 50`
+      );
+    }
 
     setResults(rows);
-  }, []);
+  }, [classLevel]);
 
   const refreshFromServer = useCallback(async () => {
     try {
@@ -149,9 +225,7 @@ export default function StudentsListScreen({ navigation }) {
       setPullError(null);
     } catch (err) {
       if (!err.isNetworkError) {
-        setPullError(
-          err.message || 'Could not reach the server.'
-        );
+        setPullError(err.message || 'Could not reach the server.');
       }
     }
   }, [query, runLocalSearch]);
@@ -170,7 +244,6 @@ export default function StudentsListScreen({ navigation }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-
     try {
       await refreshFromServer();
     } finally {
@@ -181,44 +254,30 @@ export default function StudentsListScreen({ navigation }) {
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
+    tap();
 
     try {
       const count = await exportStudentsToCsv();
-
       if (count === 0) {
-        Alert.alert(
-          'Nothing to export',
-          'There are no student records stored on this device yet.'
-        );
+        Alert.alert('Nothing to export', 'There are no student records stored on this device yet.');
       }
     } catch (err) {
-      Alert.alert(
-        'Export failed',
-        err.message || 'Could not export student records.'
-      );
+      Alert.alert('Export failed', err.message || 'Could not export student records.');
     } finally {
       setExporting(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <OfflineMarquee />
-
-      <SyncIssueBanner
-        pullError={pullError}
-        onRetryPull={refreshFromServer}
-      />
+      <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
 
       <FlatList
         data={results}
         keyExtractor={(item) => String(item.id)}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#16324F"
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.ink} />
         }
         contentContainerStyle={[
           styles.listContent,
@@ -228,162 +287,216 @@ export default function StudentsListScreen({ navigation }) {
           <View>
             <View style={styles.header}>
               <View>
-                <Text style={styles.eyebrow}>
-                  YALAMATRIX SIS
+                <Text style={[type.overline, styles.eyebrow, { color: colors.textMuted }]}>
+                  {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
                 </Text>
-
-                <Text style={styles.title}>
-                  Students
+                <Text style={[type.display, styles.title, { color: colors.textPrimary }]}>
+                  {classLevel ? `${classLevel} Students` : 'Students'}
                 </Text>
-
-                <Text style={styles.subtitle}>
-                  Manage and access student records.
+                <Text style={[type.bodySmall, { color: colors.textSecondary, marginTop: 5 }]}>
+                  {classLevel ? `Students in ${classLevel}.` : 'Manage and access student records.'}
                 </Text>
               </View>
 
-              <View style={styles.countBox}>
-                <Text style={styles.countNumber}>
-                  {results.length}
-                </Text>
-
-                <Text style={styles.countLabel}>
-                  SHOWING
-                </Text>
+              <View style={[styles.countBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.countNumber, { color: colors.textPrimary }]}>{results.length}</Text>
+                <Text style={[styles.countLabel, { color: colors.textMuted }]}>SHOWING</Text>
               </View>
             </View>
 
-            <View style={styles.statsGrid}><DashboardStatCard icon="👥" value={results.length} title="STUDENTS" subtitle="Registered" color="#3157D5" bg="#EAF2FF" /><DashboardStatCard icon="✓" value={results.filter(s => s.status === "active").length} title="ACTIVE" subtitle="Currently active" color="#087443" bg="#EAFBF2" /><DashboardStatCard icon="🎓" value={new Set(results.map(s => s.class_level).filter(Boolean)).size} title="CLASSES" subtitle="Represented" color="#6941C6" bg="#F2EDFF" /><DashboardStatCard icon="✨" value={results.length} title="RECENT" subtitle="Student records" color="#B54708" bg="#FFF4E5" /></View><View style={styles.quickSection}><Text style={styles.quickTitle}>Quick Actions</Text><View style={styles.quickGrid}><Pressable style={[styles.quickBtn,{backgroundColor:"#3157D5"}]} onPress={()=>navigation.navigate("RegisterStudent")}><Text style={styles.quickIcon}>+</Text><Text style={styles.quickBtnText}>Register Student</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#087443"}]} onPress={()=>setQuery("")}><Text style={styles.quickIcon}>⌕</Text><Text style={styles.quickBtnText}>Find Student</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#6941C6"}]} onPress={()=>{}}><Text style={styles.quickIcon}>🎓</Text><Text style={styles.quickBtnText}>View Classes</Text></Pressable><Pressable style={[styles.quickBtn,{backgroundColor:"#B54708"}]} onPress={handleExport}><Text style={styles.quickIcon}>↑</Text><Text style={styles.quickBtnText}>Export Records</Text></Pressable></View></View><View style={styles.systemCard}><View style={styles.systemIcon}><Text>🔄</Text></View><View style={styles.systemInfo}><Text style={styles.systemTitle}>System Status</Text><Text style={styles.systemSub}>Your student records are stored safely on this device.</Text></View><View style={styles.systemBadge}><View style={styles.onlineDot}/><Text style={styles.systemBadgeText}>READY</Text></View></View><View style={styles.searchArea}>
-              <View style={styles.searchBox}>
-                <Text style={styles.searchIcon}>
-                  ⌕
-                </Text>
+            {!classLevel && (
+              <>
+                <View style={styles.statsGrid}>
+                  <DashboardStatCard
+                    icon="people"
+                    value={results.length}
+                    title="STUDENTS"
+                    subtitle="Registered"
+                    color={colors.inkSoft}
+                    bg="#EAF0F6"
+                    delay={0}
+                  />
+                  <DashboardStatCard
+                    icon="checkmark-circle"
+                    value={results.filter((s) => s.status === 'active').length}
+                    title="ACTIVE"
+                    subtitle="Currently active"
+                    color={colors.success}
+                    bg={colors.successBg}
+                    delay={60}
+                  />
+                  <DashboardStatCard
+                    icon="school"
+                    value={new Set(results.map((s) => s.class_level).filter(Boolean)).size}
+                    title="CLASSES"
+                    subtitle="Represented"
+                    color={colors.goldDark}
+                    bg={colors.goldTint}
+                    delay={120}
+                  />
+                  <DashboardStatCard
+                    icon="sparkles"
+                    value={results.length}
+                    title="RECENT"
+                    subtitle="Student records"
+                    color="#5B3A8E"
+                    bg="#F1EAFB"
+                    delay={180}
+                  />
+                </View>
 
+                <View style={styles.quickSection}>
+                  <Text style={[type.h3, styles.quickTitle, { color: colors.textPrimary }]}>
+                    Quick Actions
+                    Quick Actions
+                  </Text>
+
+                  <View style={styles.quickGrid}>
+                    <Squish
+                      style={[styles.quickBtn, { backgroundColor: colors.ink }]}
+                      onPress={() => navigation.navigate('RegisterStudent')}
+                    >
+                      <Ionicons name="person-add" size={20} color={colors.gold} />
+                      <Text style={[styles.quickBtnText, { color: '#FFFFFF' }]}>Register Student</Text>
+                    </Squish>
+
+                    <Squish
+                      style={[styles.quickBtn, { backgroundColor: '#EAF0F6' }]}
+                      onPress={() => setQuery('')}
+                    >
+                      <Ionicons name="search" size={20} color={colors.inkSoft} />
+                      <Text style={[styles.quickBtnText, { color: colors.inkSoft }]}>Find Student</Text>
+                    </Squish>
+
+                    <Squish
+                      style={[styles.quickBtn, { backgroundColor: colors.gold }]}
+                      onPress={() => navigation.navigate('Classes')}
+                    >
+                      <Ionicons name="school" size={20} color={colors.ink} />
+                      <Text style={[styles.quickBtnText, { color: colors.ink }]}>View Classes</Text>
+                    </Squish>
+
+                    <Squish
+                      style={[styles.quickBtn, { backgroundColor: colors.goldTint }]}
+                      onPress={handleExport}
+                      disabled={exporting}
+                    >
+                      {exporting ? (
+                        <ActivityIndicator size="small" color={colors.goldDark} />
+                      ) : (
+                        <Ionicons name="download" size={20} color={colors.goldDark} />
+                      )}
+                      <Text style={[styles.quickBtnText, { color: colors.goldDark }]}>Export Records</Text>
+                    </Squish>
+                  </View>
+                </View>
+
+                <View style={[styles.systemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.systemIcon, { backgroundColor: '#EAF0F6' }]}>
+                    <Ionicons name="sync" size={18} color={colors.inkSoft} />
+                  </View>
+                  <View style={styles.systemInfo}>
+                    <Text style={[styles.systemTitle, { color: colors.textPrimary }]}>System Status</Text>
+                    <Text style={[styles.systemSub, { color: colors.textSecondary }]}>
+                      Your student records are stored safely on this device.
+                    </Text>
+                  </View>
+                  <View style={[styles.systemBadge, { backgroundColor: colors.successBg }]}>
+                    <View style={[styles.onlineDot, { backgroundColor: colors.success }]} />
+                    <Text style={[styles.systemBadgeText, { color: colors.success }]}>READY</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.searchArea}>
+              <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="search" size={19} color={colors.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { color: colors.textPrimary, fontFamily: fontFamily.bodyMedium }]}
                   placeholder="Search students or admission number"
-                  placeholderTextColor="#98A2B3"
+                  placeholderTextColor={colors.textMuted}
                   value={query}
                   onChangeText={handleChange}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-
                 {query.length > 0 && (
-                  <Pressable
-                    onPress={() => handleChange('')}
-                    hitSlop={10}
-                  >
-                    <Text style={styles.clearSearch}>
-                      ×
-                    </Text>
+                  <Pressable onPress={() => handleChange('')} hitSlop={10}>
+                    <Ionicons name="close-circle" size={19} color={colors.textMuted} />
                   </Pressable>
                 )}
               </View>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.registerButton,
-                  pressed && styles.registerPressed,
-                ]}
-                onPress={() =>
-                  navigation.navigate('RegisterStudent')
-                }
+              <Squish
+                style={[styles.registerButton, { backgroundColor: colors.ink }]}
+                onPress={() => navigation.navigate('RegisterStudent')}
               >
-                <Text style={styles.registerPlus}>
-                  +
-                </Text>
-
-                <Text style={styles.registerText}>
-                  Register
-                </Text>
-              </Pressable>
+                <Ionicons name="add" size={19} color={colors.gold} />
+                <Text style={styles.registerText}>Register</Text>
+              </Squish>
             </View>
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {query
-                  ? 'Search results'
-                  : 'Student records'}
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                {query ? 'Search results' : 'Student records'}
               </Text>
 
               <View style={styles.sectionRight}>
-                <Text style={styles.sectionHint}>
-                  {results.length} record
-                  {results.length === 1 ? '' : 's'}
+                <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                  {results.length} record{results.length === 1 ? '' : 's'}
                 </Text>
 
-                <Pressable
+                <Squish
+                  style={[styles.exportButton, { backgroundColor: colors.goldTint }]}
                   onPress={handleExport}
                   disabled={exporting}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.exportButton,
-                    pressed && styles.exportButtonPressed,
-                  ]}
                 >
                   {exporting ? (
-                    <ActivityIndicator size="small" color="#16324F" />
+                    <ActivityIndicator size="small" color={colors.goldDark} />
                   ) : (
-                    <Text style={styles.exportButtonText}>
-                      Export CSV
-                    </Text>
+                    <Text style={[styles.exportButtonText, { color: colors.goldDark }]}>Export CSV</Text>
                   )}
-                </Pressable>
+                </Squish>
               </View>
             </View>
           </View>
         }
         renderItem={({ item }) => (
-          <StudentCard
-            item={item}
-            navigation={navigation}
-          />
+          <StudentCard item={item} navigation={navigation} colors={colors} />
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Text style={styles.emptyIconText}>
-                {query ? '⌕' : 'S'}
-              </Text>
+            <View style={[styles.emptyIcon, { backgroundColor: '#EAF0F6' }]}>
+              <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
             </View>
 
-            <Text style={styles.emptyTitle}>
-              {query
-                ? 'No student found'
-                : 'No students yet'}
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+              {query ? 'No student found' : 'No students yet'}
             </Text>
 
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {query
                 ? 'No matching student was found in the local records. You can search using a name or admission number.'
                 : 'Student records assigned to your account will appear here.'}
             </Text>
 
             {query.length > 0 ? (
-              <Pressable
-                style={styles.fallbackButton}
-                onPress={() =>
-                  navigation.navigate(
-                    'RegisterStudent',
-                    { prefillName: query }
-                  )
-                }
+              <Squish
+                style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
+                onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
               >
-                <Text style={styles.fallbackButtonText}>
+                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>
                   Enter admission number manually
                 </Text>
-              </Pressable>
+              </Squish>
             ) : (
-              <Pressable
-                style={styles.emptyRegisterButton}
-                onPress={() =>
-                  navigation.navigate('RegisterStudent')
-                }
+              <Squish
+                style={[styles.emptyRegisterButton, { backgroundColor: colors.ink }]}
+                onPress={() => navigation.navigate('RegisterStudent')}
               >
-                <Text style={styles.emptyRegisterText}>
-                  + Register first student
-                </Text>
-              </Pressable>
+                <Text style={styles.emptyRegisterText}>+ Register first student</Text>
+              </Squish>
             )}
           </View>
         }
@@ -393,19 +506,9 @@ export default function StudentsListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F7F9',
-  },
-
-  listContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 30,
-  },
-
-  emptyListContent: {
-    flexGrow: 1,
-  },
+  container: { flex: 1 },
+  listContent: { paddingHorizontal: 18, paddingBottom: 30 },
+  emptyListContent: { flexGrow: 1 },
 
   header: {
     flexDirection: 'row',
@@ -415,266 +518,149 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  eyebrow: {
-    color: '#667085',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-    marginBottom: 6,
-  },
-
-  title: {
-    color: '#101828',
-    fontSize: 31,
-    lineHeight: 36,
-    fontWeight: '900',
-    letterSpacing: -0.7,
-  },
-
-  subtitle: {
-    color: '#667085',
-    fontSize: 12,
-    marginTop: 5,
-  },
+  eyebrow: { marginBottom: 6 },
+  title: { marginTop: 2 },
 
   countBox: {
     minWidth: 68,
     height: 64,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#EAECF0',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
   },
+  countNumber: { fontFamily: fontFamily.display, fontSize: 21 },
+  countLabel: { fontFamily: fontFamily.bodyBold, fontSize: 6.5, letterSpacing: 1, marginTop: 2 },
 
-  countNumber: {
-    color: '#101828',
-    fontSize: 21,
-    fontWeight: '900',
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
+
+  quickSection: { marginBottom: 16 },
+  quickTitle: { marginBottom: 10 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  quickBtn: {
+    width: '48.5%',
+    minHeight: 68,
+    borderRadius: radius.lg,
+    padding: 13,
+    marginBottom: 10,
+    ...shadow.raised,
   },
+  quickBtnText: { fontFamily: fontFamily.bodyBold, fontSize: 11, marginTop: 8 },
 
-  countLabel: {
-    color: '#98A2B3',
-    fontSize: 6.5,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 10 },
-
-  quickSection: { marginBottom: 16 }, quickTitle: { fontSize: 15, fontWeight: "900", color: "#101828", marginBottom: 9 }, quickGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }, quickBtn: { width: "48.5%", minHeight: 62, borderRadius: 15, padding: 11, marginBottom: 9 }, quickIcon: { color: "#fff", fontSize: 18, marginBottom: 5 }, quickBtnText: { color: "#fff", fontSize: 10, fontWeight: "800" }, systemCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#EAECF0" }, systemIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: "#EAF2FF", alignItems: "center", justifyContent: "center", marginRight: 10 }, systemInfo: { flex: 1 }, systemTitle: { color: "#101828", fontSize: 12, fontWeight: "900" }, systemSub: { color: "#667085", fontSize: 8.5, lineHeight: 13, marginTop: 3 }, systemBadge: { backgroundColor: "#ECFDF3", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5, flexDirection: "row", alignItems: "center" }, onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#12B76A", marginRight: 4 }, systemBadgeText: { color: "#027A48", fontSize: 7, fontWeight: "900" }, searchArea: {
+  systemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 22,
+    borderRadius: radius.lg,
+    padding: 13,
+    marginBottom: 18,
+    borderWidth: 1,
+    ...shadow.raised,
   },
+  systemIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  systemInfo: { flex: 1 },
+  systemTitle: { fontFamily: fontFamily.bodyBold, fontSize: 13 },
+  systemSub: { fontFamily: fontFamily.body, fontSize: 10.5, lineHeight: 15, marginTop: 3 },
+  systemBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  systemBadgeText: { fontFamily: fontFamily.bodyBold, fontSize: 8, letterSpacing: 0.3 },
 
+  searchArea: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
   searchBox: {
     flex: 1,
-    height: 50,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 13,
+    height: 52,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#EAECF0',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
   },
-
-  searchIcon: {
-    color: '#667085',
-    fontSize: 22,
-    marginRight: 7,
-    marginTop: -2,
-  },
-
-  searchInput: {
-    flex: 1,
-    height: 48,
-    color: '#101828',
-    fontSize: 12.5,
-    paddingVertical: 0,
-  },
-
-  clearSearch: {
-    color: '#667085',
-    fontSize: 21,
-    paddingLeft: 5,
-  },
+  searchInput: { flex: 1, height: 50, fontSize: 13, paddingVertical: 0 },
 
   registerButton: {
-    height: 50,
-    borderRadius: 13,
-    backgroundColor: '#16324F',
-    paddingHorizontal: 14,
+    height: 52,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
     marginLeft: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.button,
   },
-
-  registerPressed: {
-    opacity: 0.82,
-  },
-
-  registerPlus: {
-    color: '#C9A24B',
-    fontSize: 19,
-    fontWeight: '400',
-    marginRight: 4,
-  },
-
   registerText: {
     color: '#FFFFFF',
-    fontSize: 11.5,
-    fontWeight: '800',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 12.5,
+    marginLeft: 5,
   },
 
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-
-  sectionTitle: {
-    color: '#101828',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  sectionHint: {
-    color: '#98A2B3',
-    fontSize: 10,
-  },
-
-  sectionRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  exportButton: {
-    marginLeft: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#F4EAD0',
-  },
-
-  exportButtonPressed: {
-    opacity: 0.78,
-  },
-
-  exportButtonText: {
-    color: '#8A6A1F',
-    fontSize: 9.5,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
+  sectionTitle: { fontFamily: fontFamily.heading, fontSize: 15 },
+  sectionHint: { fontFamily: fontFamily.body, fontSize: 10.5 },
+  sectionRight: { flexDirection: 'row', alignItems: 'center' },
+  exportButton: { marginLeft: 10, paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.sm },
+  exportButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 10, letterSpacing: 0.3 },
 
   studentCard: {
-    minHeight: 82,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    minHeight: 84,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#EAECF0',
-    marginBottom: 9,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-
-  studentCardPressed: {
-    backgroundColor: '#F8FAFC',
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
+    ...shadow.raised,
   },
 
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#E9F3F1',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 13,
   },
-
   avatarText: {
-    color: '#1F746A',
-    fontSize: 13,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 14,
     letterSpacing: 0.4,
   },
 
-  studentInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
+  studentInfo: { flex: 1, minWidth: 0 },
+  studentName: { fontFamily: fontFamily.heading, fontSize: 14.5 },
+  admission: { fontFamily: fontFamily.body, fontSize: 11, marginTop: 3 },
+  classText: { fontFamily: fontFamily.bodySemibold, fontSize: 10, marginTop: 5 },
 
-  studentName: {
-    color: '#101828',
-    fontSize: 13.5,
-    fontWeight: '800',
-  },
-
-  admission: {
-    color: '#667085',
-    fontSize: 10.5,
-    marginTop: 3,
-  },
-
-  classRow: {
-    marginTop: 5,
-  },
-
-  classText: {
-    color: '#98A2B3',
-    fontSize: 9.5,
-    fontWeight: '600',
-  },
-
-  rightArea: {
-    alignItems: 'flex-end',
-    marginLeft: 8,
-  },
-
+  rightArea: { alignItems: 'flex-end', marginLeft: 8 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF3',
-    borderRadius: 20,
-    paddingHorizontal: 7,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
-
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#12B76A',
-    marginRight: 4,
-  },
-
-  statusText: {
-    color: '#027A48',
-    fontSize: 6.5,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  chevron: {
-    color: '#98A2B3',
-    fontSize: 21,
-    lineHeight: 20,
-    marginTop: 7,
-  },
+  statusDot: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
+  statusText: { fontFamily: fontFamily.bodyBold, fontSize: 7, letterSpacing: 0.5 },
 
   empty: {
     flex: 1,
@@ -683,65 +669,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 60,
   },
-
   emptyIcon: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: '#EAECF0',
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-
-  emptyIconText: {
-    color: '#667085',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-
-  emptyTitle: {
-    color: '#101828',
-    fontSize: 17,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-
+  emptyTitle: { fontFamily: fontFamily.heading, fontSize: 18, textAlign: 'center' },
   emptyText: {
-    color: '#667085',
-    fontSize: 12,
+    fontFamily: fontFamily.body,
+    fontSize: 12.5,
     lineHeight: 19,
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 310,
   },
 
-  fallbackButton: {
-    backgroundColor: '#F4EAD0',
-    borderRadius: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    marginTop: 18,
-  },
-
-  fallbackButtonText: {
-    color: '#8A6A1F',
-    fontSize: 11,
-    fontWeight: '800',
-  },
+  fallbackButton: { borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 12, marginTop: 18 },
+  fallbackButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 11.5 },
 
   emptyRegisterButton: {
-    backgroundColor: '#16324F',
-    borderRadius: 11,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    borderRadius: radius.md,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
     marginTop: 18,
+    ...shadow.button,
   },
-
-  emptyRegisterText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
+  emptyRegisterText: { color: '#FFFFFF', fontFamily: fontFamily.bodyBold, fontSize: 12 },
 });
-
