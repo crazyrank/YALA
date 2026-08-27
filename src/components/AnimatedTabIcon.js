@@ -1,13 +1,19 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
 /**
  * Tab icon with a smooth press/focus transition instead of an instant
  * color swap: the icon crossfades from inactive to active color and
  * gives a small bounce when it becomes focused.
+ *
+ * NOTE: we deliberately do NOT animate the icon's `color` prop via
+ * Animated.createAnimatedComponent(Ionicons). Expo's Ionicons wraps the
+ * underlying glyph in an async font-loading component, which breaks the
+ * setNativeProps ref chain Animated relies on for non-native-driver
+ * updates — causing "this._icon.setNativeProps is not a function".
+ * Instead we crossfade two overlapping icons by opacity, which runs
+ * entirely on the native driver and never touches setNativeProps.
  */
 export default function AnimatedTabIcon({
   focused,
@@ -24,7 +30,7 @@ export default function AnimatedTabIcon({
     Animated.timing(progress, {
       toValue: focused ? 1 : 0,
       duration: 220,
-      useNativeDriver: false, // color interpolation can't use the native driver
+      useNativeDriver: true, // opacity crossfade can use the native driver
     }).start();
 
     if (focused) {
@@ -38,18 +44,26 @@ export default function AnimatedTabIcon({
     }
   }, [focused]);
 
-  const color = progress.interpolate({
+  const inactiveOpacity = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [inactiveColor, activeColor],
+    outputRange: [1, 0],
   });
+  const activeOpacity = progress;
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <AnimatedIonicons
-        name={focused ? activeName : inactiveName}
-        size={size}
-        color={color}
-      />
+    <Animated.View
+      style={{
+        width: size,
+        height: size,
+        transform: [{ scale }],
+      }}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: inactiveOpacity }]}>
+        <Ionicons name={inactiveName} size={size} color={inactiveColor} />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: activeOpacity }]}>
+        <Ionicons name={activeName} size={size} color={activeColor} />
+      </Animated.View>
     </Animated.View>
   );
 }
