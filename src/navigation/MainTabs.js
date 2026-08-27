@@ -10,6 +10,7 @@ import MoreScreen from '../screens/MoreScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
 import ConflictBlocker from '../components/ConflictBlocker';
+import AnimatedTabIcon from '../components/AnimatedTabIcon';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
@@ -111,8 +112,15 @@ export default function MainTabs() {
         options={{
           title: 'Yala Matrix Schools',
           tabBarLabel: 'Students',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              activeName="people"
+              inactiveName="people-outline"
+              activeColor={colors.gold}
+              inactiveColor={colors.textMuted}
+              size={24}
+            />
           ),
         }}
       />
@@ -123,8 +131,15 @@ export default function MainTabs() {
         options={{
           title: 'Classes',
           tabBarLabel: 'Classes',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'school' : 'school-outline'} size={24} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              activeName="school"
+              inactiveName="school-outline"
+              activeColor={colors.gold}
+              inactiveColor={colors.textMuted}
+              size={24}
+            />
           ),
         }}
       />
@@ -138,8 +153,15 @@ export default function MainTabs() {
             tabBarLabel: 'Conflicts',
             tabBarBadge: openConflictCount > 0 ? openConflictCount : undefined,
             tabBarBadgeStyle: { backgroundColor: colors.error },
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'warning' : 'warning-outline'} size={22} color={color} />
+            tabBarIcon: ({ focused }) => (
+              <AnimatedTabIcon
+                focused={focused}
+                activeName="warning"
+                inactiveName="warning-outline"
+                activeColor={colors.warning}
+                inactiveColor={colors.textMuted}
+                size={22}
+              />
             ),
           }}
         />
@@ -164,8 +186,15 @@ export default function MainTabs() {
         options={{
           title: 'More',
           tabBarLabel: 'More',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <AnimatedTabIcon
+              focused={focused}
+              activeName="grid"
+              inactiveName="grid-outline"
+              activeColor={colors.gold}
+              inactiveColor={colors.textMuted}
+              size={22}
+            />
           ),
         }}
       />
