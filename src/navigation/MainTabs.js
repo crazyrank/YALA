@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import StudentsListScreen from '../screens/StudentsListScreen';
 import ClassesScreen from '../screens/ClassesScreen';
-import MoreScreen from '../screens/MoreScreen';
+import MoreStack from './MoreStack';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
 import ConflictBlocker from '../components/ConflictBlocker';
@@ -182,7 +182,8 @@ export default function MainTabs() {
 
       <Tab.Screen
         name="MoreTab"
-        component={MoreScreen}
+        component={MoreStack}
+        headerShown: false,
         options={{
           title: 'More',
           tabBarLabel: 'More',
