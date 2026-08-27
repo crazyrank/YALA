@@ -9,7 +9,6 @@ import UnlockScreen from '../screens/UnlockScreen';
 import ClassStudentsScreen from '../screens/ClassStudentsScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
-import ConflictsScreen from '../screens/ConflictsScreen';
 import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
@@ -88,12 +87,6 @@ export default function RootNavigator() {
               name="RegisterStudent"
               component={RegisterStudentScreen}
               options={{ title: 'Register Student' }}
-            />
-
-            <Stack.Screen
-              name="Conflicts"
-              component={ConflictsScreen}
-              options={{ title: 'Conflicts' }}
             />
 
             <Stack.Screen

@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import StudentsListScreen from '../screens/StudentsListScreen';
 import ClassesScreen from '../screens/ClassesScreen';
 import MoreScreen from '../screens/MoreScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
+import ConflictsScreen from '../screens/ConflictsScreen';
 import ConflictBlocker from '../components/ConflictBlocker';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
+import { api } from '../api/client';
 
 const Tab = createBottomTabNavigator();
 
@@ -46,8 +49,38 @@ function RegisterTabButton({ onPress }) {
   );
 }
 
+function useOpenConflictCount(enabled) {
+  const [count, setCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!enabled) return;
+
+      let cancelled = false;
+
+      api
+        .get('/conflicts?status=open')
+        .then((res) => {
+          if (!cancelled) setCount(res.conflicts?.length || 0);
+        })
+        .catch(() => {
+          if (!cancelled) setCount(0);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [enabled])
+  );
+
+  return count;
+}
+
 export default function MainTabs() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const openConflictCount = useOpenConflictCount(isAdmin);
 
   return (
     <Tab.Navigator
@@ -95,6 +128,22 @@ export default function MainTabs() {
           ),
         }}
       />
+
+      {isAdmin && (
+        <Tab.Screen
+          name="ConflictsTab"
+          component={ConflictsScreen}
+          options={{
+            title: 'Conflicts',
+            tabBarLabel: 'Conflicts',
+            tabBarBadge: openConflictCount > 0 ? openConflictCount : undefined,
+            tabBarBadgeStyle: { backgroundColor: colors.error },
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? 'warning' : 'warning-outline'} size={22} color={color} />
+            ),
+          }}
+        />
+      )}
 
       <Tab.Screen
         name="RegisterTab"

@@ -370,7 +370,7 @@ export default function StudentsListScreen({ navigation, route }) {
                       style={styles.menuItem}
                       onPress={() => {
                         setMenuOpen(false);
-                        navigation.navigate('Conflicts');
+                        navigation.navigate('ConflictsTab');
                       }}
                     >
                       <Ionicons name="warning-outline" size={18} color="#0A1930" />

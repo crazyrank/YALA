@@ -1,10 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../api/client';
+import { useTheme } from '../theme/ThemeContext';
+import { type } from '../theme/typography';
+import { spacing, radius, shadow } from '../theme/spacing';
 
-export default function ConflictsScreen({ navigation }) {
+export default function ConflictsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,11 +32,6 @@ export default function ConflictsScreen({ navigation }) {
     try {
       await api.post(`/conflicts/${conflictId}/resolve`, { resolution });
       load();
-      if (conflicts.length <= 1) {
-        // Last conflict resolved — return to dashboard, ConflictBlocker
-        // will re-check and unblock automatically.
-        navigation.goBack();
-      }
     } catch (err) {
       Alert.alert('Could not resolve', err.message);
     }
@@ -43,7 +44,7 @@ export default function ConflictsScreen({ navigation }) {
       refreshing={loading}
       onRefresh={load}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={styles.listContent}
       renderItem={({ item }) => (
         <View style={styles.card}>
           <Text style={styles.studentName}>{item.full_name}</Text>
@@ -62,10 +63,20 @@ export default function ConflictsScreen({ navigation }) {
           </View>
 
           <View style={styles.buttonRow}>
-            <Pressable style={styles.button} onPress={() => resolve(item.id, 'restore')}>
+            <Pressable
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+              onPress={() => resolve(item.id, 'restore')}
+            >
               <Text style={styles.buttonText}>Apply the Change</Text>
             </Pressable>
-            <Pressable style={[styles.button, styles.buttonSecondary]} onPress={() => resolve(item.id, 'keep_deleted')}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                styles.buttonSecondary,
+                pressed && styles.buttonPressed,
+              ]}
+              onPress={() => resolve(item.id, 'keep_deleted')}
+            >
               <Text style={styles.buttonText}>Keep Current</Text>
             </Pressable>
           </View>
@@ -74,7 +85,7 @@ export default function ConflictsScreen({ navigation }) {
       ListHeaderComponent={
         <View style={styles.statusCard}>
           <View style={styles.statusIcon}>
-            <Ionicons name="sync" size={18} color="#16324f" />
+            <Ionicons name="sync" size={18} color={colors.inkSoft} />
           </View>
           <View style={styles.statusInfo}>
             <Text style={styles.statusTitle}>System Status</Text>
@@ -88,54 +99,17 @@ export default function ConflictsScreen({ navigation }) {
           </View>
         </View>
       }
-      ListEmptyComponent={!loading && <Text style={styles.empty}>No open conflicts.</Text>}
+      ListEmptyComponent={
+        !loading && (
+          <View style={styles.empty}>
+            <Ionicons name="checkmark-circle-outline" size={36} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>No open conflicts</Text>
+            <Text style={styles.emptyText}>
+              Everything is in sync. New conflicts will show up here.
+            </Text>
+          </View>
+        )
+      }
     />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f2ec' },
-  card: { backgroundColor: '#fff', borderRadius: 10, padding: 16, marginBottom: 14 },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 18,
-  },
-  statusIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: '#f8f6f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  statusInfo: { flex: 1 },
-  statusTitle: { fontSize: 13, fontWeight: '700', color: '#16324f' },
-  statusSub: { fontSize: 11, color: '#7a8a99', marginTop: 3, lineHeight: 15 },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E7F7EF',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1E9E63', marginRight: 5 },
-  statusBadgeText: { fontSize: 8, fontWeight: '700', color: '#1E9E63', letterSpacing: 0.3 },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#16324f' },
-  admissionNo: { fontSize: 12, color: '#7a8a99', marginBottom: 8 },
-  summary: { fontSize: 13, color: '#3a4a5a', marginBottom: 12 },
-  compareRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  compareCol: { flex: 1, backgroundColor: '#f8f6f0', borderRadius: 6, padding: 8 },
-  compareLabel: { fontSize: 10, fontWeight: '700', color: '#c9a24b', marginBottom: 4, textTransform: 'uppercase' },
-  compareValue: { fontSize: 10, color: '#3a4a5a', fontFamily: 'monospace' },
-  buttonRow: { flexDirection: 'row', gap: 8 },
-  button: { flex: 1, backgroundColor: '#16324f', borderRadius: 6, paddingVertical: 10 },
-  buttonSecondary: { backgroundColor: '#a83f3f' },
-  buttonText: { textAlign: 'center', color: '#fff', fontWeight: '600', fontSize: 12 },
-  empty: { textAlign: 'center', color: '#7a8a99', marginTop: 40 },
-});

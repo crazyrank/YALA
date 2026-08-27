@@ -259,7 +259,7 @@ export default function MoreScreen({ navigation }) {
             label="Conflicts"
             subtitle="Resolve sync conflicts"
             color={colors.warning}
-            onPress={() => navigation.navigate('Conflicts')}
+            onPress={() => navigation.navigate('ConflictsTab')}
           />
         )}
 

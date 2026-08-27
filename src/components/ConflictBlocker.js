@@ -60,7 +60,7 @@ export default function ConflictBlocker({ navigation, children }) {
           {'. '}Other dashboard actions are paused until these are resolved.
         </Text>
         {openCount > 0 && (
-          <Pressable style={styles.button} onPress={() => navigation.navigate('Conflicts')}>
+          <Pressable style={styles.button} onPress={() => navigation.navigate('ConflictsTab')}>
             <Text style={styles.buttonText}>Review Conflicts</Text>
           </Pressable>
         )}
