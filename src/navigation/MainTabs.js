@@ -110,6 +110,7 @@ export default function MainTabs() {
         name="StudentsTab"
         component={StudentsTab}
         options={{
+          headerShown: false,
           title: 'Yala Matrix Schools',
           tabBarLabel: 'Students',
           tabBarIcon: ({ focused }) => (
@@ -129,6 +130,7 @@ export default function MainTabs() {
         name="ClassesTab"
         component={ClassesScreen}
         options={{
+          headerShown: false,
           title: 'Classes',
           tabBarLabel: 'Classes',
           tabBarIcon: ({ focused }) => (
@@ -149,6 +151,7 @@ export default function MainTabs() {
           name="ConflictsTab"
           component={ConflictsScreen}
           options={{
+          headerShown: false,
             title: 'Conflicts',
             tabBarLabel: 'Conflicts',
             tabBarBadge: openConflictCount > 0 ? openConflictCount : undefined,
@@ -171,6 +174,7 @@ export default function MainTabs() {
         name="RegisterTab"
         component={RegisterStudentScreen}
         options={{
+          headerShown: false,
           title: 'Register Student',
           tabBarLabel: '',
           tabBarIcon: () => null,
@@ -183,8 +187,8 @@ export default function MainTabs() {
       <Tab.Screen
         name="MoreTab"
         component={MoreStack}
-        headerShown: false,
         options={{
+          headerShown: false,
           title: 'More',
           tabBarLabel: 'More',
           tabBarIcon: ({ focused }) => (

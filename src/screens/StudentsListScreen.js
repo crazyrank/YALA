@@ -358,7 +358,7 @@ export default function StudentsListScreen({ navigation, route }) {
                       style={styles.menuItem}
                       onPress={() => {
                         setMenuOpen(false);
-                        navigation.navigate('ManageStaff');
+                        navigation.navigate('MoreTab', { screen: 'ManageStaff' });
                       }}
                     >
                       <Ionicons name="people-outline" size={18} color="#0A1930" />

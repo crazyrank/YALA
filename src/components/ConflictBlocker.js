@@ -65,7 +65,7 @@ export default function ConflictBlocker({ navigation, children }) {
           </Pressable>
         )}
         {mergeCount > 0 && (
-          <Pressable style={[styles.button, styles.buttonSecondary]} onPress={() => navigation.navigate('MergeQueue')}>
+          <Pressable style={[styles.button, styles.buttonSecondary]} onPress={() => navigation.navigate('MoreTab', { screen: 'MergeQueue' })}>
             <Text style={styles.buttonText}>Review Duplicate Registrations</Text>
           </Pressable>
         )}
