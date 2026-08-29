@@ -9,10 +9,12 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
+import { SkeletonClassRow } from '../components/Skeleton';
 
 export default function ClassesScreen({ navigation }) {
   const [classes, setClasses] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const loadClasses = useCallback(async () => {
     const db = await getDb();
@@ -29,6 +31,7 @@ export default function ClassesScreen({ navigation }) {
     `);
 
     setClasses(rows);
+    setInitialLoading(false);
   }, []);
 
   useFocusEffect(
@@ -85,11 +88,11 @@ export default function ClassesScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={classes}
+        data={initialLoading ? [] : classes}
         keyExtractor={(item) => item.class_level}
         renderItem={renderClass}
         contentContainerStyle={
-          classes.length === 0
+          !initialLoading && classes.length === 0
             ? styles.emptyContainer
             : styles.listContent
         }
@@ -100,15 +103,25 @@ export default function ClassesScreen({ navigation }) {
           />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎓</Text>
-            <Text style={styles.emptyTitle}>
-              No classes yet
-            </Text>
-            <Text style={styles.emptyText}>
-              Classes will appear here when students are registered.
-            </Text>
-          </View>
+          initialLoading ? (
+            <View>
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🎓</Text>
+              <Text style={styles.emptyTitle}>
+                No classes yet
+              </Text>
+              <Text style={styles.emptyText}>
+                Classes will appear here when students are registered.
+              </Text>
+            </View>
+          )
         }
       />
     </View>

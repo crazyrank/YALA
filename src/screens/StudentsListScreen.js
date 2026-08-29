@@ -23,6 +23,11 @@ import { exportStudentsToCsv } from '../services/csvExport';
 import OfflineMarquee from '../components/OfflineMarquee';
 import SyncIssueBanner from '../components/SyncIssueBanner';
 import DashboardStatCard from '../components/DashboardStatCard';
+import Skeleton, {
+  SkeletonDashboard,
+  SkeletonStatCard,
+  SkeletonStudentRow,
+} from '../components/Skeleton';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily, type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
@@ -138,6 +143,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
@@ -174,6 +180,7 @@ export default function StudentsListScreen({ navigation, route }) {
       );
     }
     setResults(rows);
+    setInitialLoading(false);
   }, [classLevel]);
 
   const refreshFromServer = useCallback(async () => {
@@ -205,6 +212,7 @@ export default function StudentsListScreen({ navigation, route }) {
       await runLocalSearch(query);
       setPullError(null);
     } catch (err) {
+      setInitialLoading(false);
       if (!err.isNetworkError) {
         setPullError(err.message || 'Could not reach the server.');
       }
@@ -258,14 +266,14 @@ export default function StudentsListScreen({ navigation, route }) {
       <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
 
       <FlatList
-        data={displayedResults}
+        data={initialLoading ? [] : displayedResults}
         keyExtractor={(item) => String(item.id)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.ink} />
         }
         contentContainerStyle={[
           styles.listContent,
-          results.length === 0 && styles.emptyListContent,
+          !initialLoading && results.length === 0 && styles.emptyListContent,
         ]}
         ListHeaderComponent={
           <View>
@@ -316,7 +324,11 @@ export default function StudentsListScreen({ navigation, route }) {
 
               <View style={styles.heroMeta}>
                 <View style={styles.heroMetaPill}>
-                  <Text style={styles.heroMetaNum}>{results.length}</Text>
+                  {initialLoading ? (
+                    <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
+                  ) : (
+                    <Text style={styles.heroMetaNum}>{results.length}</Text>
+                  )}
                   <Text style={styles.heroMetaLabel}>SHOWING</Text>
                 </View>
               </View>
@@ -412,12 +424,21 @@ export default function StudentsListScreen({ navigation, route }) {
             <View style={styles.bodyPad}>
               {!classLevel && (
                 <>
-                  <View style={styles.statsGrid}>
-                    <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
-                    <DashboardStatCard icon="checkmark-circle" value={activeCount} title="Active" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
-                    <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
-                    <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
-                  </View>
+                  {initialLoading ? (
+                    <View style={styles.statsGrid}>
+                      <SkeletonStatCard />
+                      <SkeletonStatCard />
+                      <SkeletonStatCard />
+                      <SkeletonStatCard />
+                    </View>
+                  ) : (
+                    <View style={styles.statsGrid}>
+                      <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                      <DashboardStatCard icon="checkmark-circle" value={activeCount} title="Active" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
+                      <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
+                      <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
+                    </View>
+                  )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.actionRow}>
                     <Squish style={[styles.primaryAction, { backgroundColor: colors.ink }]} onPress={() => navigation.navigate('RegisterStudent')}>
@@ -479,7 +500,7 @@ export default function StudentsListScreen({ navigation, route }) {
           </View>
         )}
         ListFooterComponent={
-          !query && results.length > 5 ? (
+          !initialLoading && !query && results.length > 5 ? (
             <View style={styles.listPad}>
               <Squish
                 style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -494,34 +515,44 @@ export default function StudentsListScreen({ navigation, route }) {
           ) : null
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
-              <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
+          initialLoading ? (
+            <View style={styles.listPad}>
+              <SkeletonStudentRow />
+              <SkeletonStudentRow />
+              <SkeletonStudentRow />
+              <SkeletonStudentRow />
+              <SkeletonStudentRow />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-              {query ? 'No student found' : 'No students yet'}
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              {query
-                ? 'No matching student was found in the local records. Try a name or admission number.'
-                : 'Student records assigned to your account will appear here.'}
-            </Text>
-            {query.length > 0 ? (
-              <Squish
-                style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
-                onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
-              >
-                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>Register with this name</Text>
-              </Squish>
-            ) : (
-              <Squish
-                style={[styles.emptyRegisterButton, { backgroundColor: colors.ink }]}
-                onPress={() => navigation.navigate('RegisterStudent')}
-              >
-                <Text style={styles.emptyRegisterText}>+ Register first student</Text>
-              </Squish>
-            )}
-          </View>
+          ) : (
+            <View style={styles.empty}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
+                <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                {query ? 'No student found' : 'No students yet'}
+              </Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {query
+                  ? 'No matching student was found in the local records. Try a name or admission number.'
+                  : 'Student records assigned to your account will appear here.'}
+              </Text>
+              {query.length > 0 ? (
+                <Squish
+                  style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
+                  onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
+                >
+                  <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>Register with this name</Text>
+                </Squish>
+              ) : (
+                <Squish
+                  style={[styles.emptyRegisterButton, { backgroundColor: colors.ink }]}
+                  onPress={() => navigation.navigate('RegisterStudent')}
+                >
+                  <Text style={styles.emptyRegisterText}>+ Register first student</Text>
+                </Squish>
+              )}
+            </View>
+          )
         }
       />
     </View>

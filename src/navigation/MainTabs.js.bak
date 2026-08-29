@@ -9,6 +9,7 @@ import ClassesScreen from '../screens/ClassesScreen';
 import MoreStack from './MoreStack';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
+import ConflictBlocker from '../components/ConflictBlocker';
 import AnimatedTabIcon from '../components/AnimatedTabIcon';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -18,7 +19,16 @@ import { api } from '../api/client';
 const Tab = createBottomTabNavigator();
 
 function StudentsTab({ navigation, route }) {
-  // Conflicts are handled on the Conflicts tab only — never block the dashboard.
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+
+  if (isAdmin) {
+    return (
+      <ConflictBlocker navigation={navigation}>
+        <StudentsListScreen navigation={navigation} route={route} />
+      </ConflictBlocker>
+    );
+  }
   return <StudentsListScreen navigation={navigation} route={route} />;
 }
 

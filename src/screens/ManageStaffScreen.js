@@ -1,8 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import { useTheme } from '../theme/ThemeContext';
+import { type } from '../theme/typography';
+import { spacing, radius, shadow } from '../theme/spacing';
 
 /**
  * Lists the staff the caller manages (Director → Principals they created,
@@ -11,6 +15,9 @@ import { api } from '../api/client';
  * (from CreateAccountScreen) needs to show up immediately on "Done".
  */
 export default function ManageStaffScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const { user } = useAuth();
   const staffLabel = user?.role === 'director' ? 'Principals' : 'Head Teachers';
 
@@ -66,33 +73,80 @@ export default function ManageStaffScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.createButton} onPress={() => navigation.navigate('CreateAccount')}>
-        <Text style={styles.createButtonText}>+ Create {staffLabel === 'Principals' ? 'Principal' : 'Head Teacher'}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.createButton, pressed && styles.createButtonPressed]}
+        onPress={() => navigation.navigate('CreateAccount')}
+      >
+        <Ionicons name="add-circle" size={18} color={colors.ink} />
+        <Text style={styles.createButtonText}>
+          Create {staffLabel === 'Principals' ? 'Principal' : 'Head Teacher'}
+        </Text>
       </Pressable>
 
       <FlatList
         data={staff}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadStaff(true)} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadStaff(true)}
+            tintColor={colors.gold}
+            colors={[colors.gold]}
+          />
+        }
         ListEmptyComponent={
           !loading ? (
-            <Text style={styles.emptyText}>
-              No {staffLabel.toLowerCase()} yet. Tap "+ Create" above to add one.
-            </Text>
+            <View style={styles.empty}>
+              <Ionicons name="people-outline" size={36} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No {staffLabel.toLowerCase()} yet</Text>
+              <Text style={styles.emptyText}>
+                Tap "Create" above to add one.
+              </Text>
+            </View>
           ) : null
         }
         renderItem={({ item }) => (
           <View style={styles.row}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {(item.fullName || '?').trim().charAt(0).toUpperCase()}
+              </Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{item.fullName}</Text>
               <Text style={styles.email}>{item.email}</Text>
-              <Text style={[styles.status, item.status === 'active' ? styles.statusActive : styles.statusSuspended]}>
-                {item.status === 'active' ? 'Active' : 'Suspended'}
-              </Text>
+              <View style={styles.statusRow}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: item.status === 'active' ? colors.success : colors.error },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.status,
+                    { color: item.status === 'active' ? colors.success : colors.error },
+                  ]}
+                >
+                  {item.status === 'active' ? 'Active' : 'Suspended'}
+                </Text>
+              </View>
             </View>
-            <Pressable style={styles.toggleButton} onPress={() => toggleStatus(item)}>
-              <Text style={styles.toggleButtonText}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.toggleButton,
+                item.status === 'active' && styles.toggleButtonDanger,
+                pressed && styles.toggleButtonPressed,
+              ]}
+              onPress={() => toggleStatus(item)}
+            >
+              <Text
+                style={[
+                  styles.toggleButtonText,
+                  item.status === 'active' && styles.toggleButtonTextDanger,
+                ]}
+              >
                 {item.status === 'active' ? 'Disable' : 'Enable'}
               </Text>
             </Pressable>
@@ -103,21 +157,141 @@ export default function ManageStaffScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  createButton: { backgroundColor: '#c9a24b', margin: 16, paddingVertical: 14, borderRadius: 8 },
-  createButtonText: { textAlign: 'center', color: '#0d1f33', fontWeight: '700', fontSize: 15 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  emptyText: { textAlign: 'center', color: '#7a8a99', fontSize: 13, marginTop: 40, lineHeight: 19 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f4f2ec',
-    borderRadius: 10, padding: 14, marginBottom: 10,
-  },
-  name: { fontSize: 15, fontWeight: '700', color: '#16324f' },
-  email: { fontSize: 12.5, color: '#7a8a99', marginTop: 2 },
-  status: { fontSize: 11, fontWeight: '700', marginTop: 6, textTransform: 'uppercase' },
-  statusActive: { color: '#2f8f4e' },
-  statusSuspended: { color: '#b3403a' },
-  toggleButton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#16324f', borderRadius: 6 },
-  toggleButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-});
+function createStyles(colors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+
+    createButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      backgroundColor: colors.gold,
+      margin: spacing.lg,
+      paddingVertical: spacing.md + 2,
+      borderRadius: radius.md,
+      ...shadow.goldGlow,
+    },
+
+    createButtonPressed: {
+      opacity: 0.88,
+    },
+
+    createButtonText: {
+      ...type.button,
+      color: colors.ink,
+      fontSize: 15,
+    },
+
+    listContent: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      padding: spacing.md + 2,
+      marginBottom: spacing.md,
+      ...shadow.raised,
+    },
+
+    avatar: {
+      width: 42,
+      height: 42,
+      borderRadius: radius.md,
+      backgroundColor: colors.goldTint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+
+    avatarText: {
+      ...type.h3,
+      fontSize: 17,
+      color: colors.goldDark,
+    },
+
+    name: {
+      ...type.bodyMedium,
+      fontSize: 15,
+      color: colors.textPrimary,
+    },
+
+    email: {
+      ...type.bodySmall,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+
+    statusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: spacing.xs + 2,
+    },
+
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      marginRight: 5,
+    },
+
+    status: {
+      ...type.overline,
+      fontSize: 9.5,
+    },
+
+    toggleButton: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.inkSoft,
+      borderRadius: radius.sm,
+    },
+
+    toggleButtonDanger: {
+      backgroundColor: colors.errorBg,
+    },
+
+    toggleButtonPressed: {
+      opacity: 0.85,
+    },
+
+    toggleButtonText: {
+      ...type.label,
+      fontSize: 11.5,
+      color: colors.textInverse,
+    },
+
+    toggleButtonTextDanger: {
+      color: colors.error,
+    },
+
+    empty: {
+      alignItems: 'center',
+      paddingTop: spacing.xxl * 2,
+      paddingHorizontal: spacing.xl,
+    },
+
+    emptyTitle: {
+      ...type.h3,
+      fontSize: 15,
+      marginTop: spacing.md,
+      color: colors.textPrimary,
+    },
+
+    emptyText: {
+      ...type.bodySmall,
+      marginTop: spacing.xs,
+      textAlign: 'center',
+      color: colors.textMuted,
+    },
+  });
+}

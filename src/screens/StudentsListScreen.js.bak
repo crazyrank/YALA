@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Modal,
+  Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,22 +26,22 @@ import DashboardStatCard from '../components/DashboardStatCard';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily, type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
+import { gradients } from '../theme/colors';
+import { useAuth } from '../context/AuthContext';
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return `\( {parts[0][0]} \){parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function tap(style = Haptics.ImpactFeedbackStyle.Light) {
   Haptics.impactAsync(style).catch(() => {});
 }
 
-/** Pressable with a smooth spring scale + haptic tap, used everywhere for a premium feel. */
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
-
   const pressIn = () => {
     Animated.spring(scale, { toValue: scaleTo, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
   };
@@ -50,9 +52,7 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
     if (haptic) tap();
     onPress && onPress();
   };
-
   const flatStyle = StyleSheet.flatten(style) || {};
-
   return (
     <Pressable
       onPressIn={pressIn}
@@ -72,7 +72,6 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
 function StudentCard({ item, navigation, colors }) {
   const initials = getInitials(item.full_name);
   const isActive = item.status === 'active';
-
   return (
     <Squish
       style={[styles.studentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -87,22 +86,18 @@ function StudentCard({ item, navigation, colors }) {
       >
         <Text style={styles.avatarText}>{initials}</Text>
       </LinearGradient>
-
       <View style={styles.studentInfo}>
         <Text style={[styles.studentName, { color: colors.textPrimary }]} numberOfLines={1}>
           {item.full_name}
         </Text>
-
         <Text style={[styles.admission, { color: colors.textSecondary }]}>
           {item.admission_no || 'No admission number'}
         </Text>
-
         <Text style={[styles.classText, { color: colors.textMuted }]}>
           {item.class_level || 'Class not assigned'}
           {item.arm ? ` • ${item.arm}` : ''}
         </Text>
       </View>
-
       <View style={styles.rightArea}>
         <View
           style={[
@@ -125,8 +120,7 @@ function StudentCard({ item, navigation, colors }) {
             {(item.status || 'ACTIVE').toUpperCase()}
           </Text>
         </View>
-
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} style={{ marginTop: 8 }} />
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={{ marginTop: 8 }} />
       </View>
     </Squish>
   );
@@ -134,8 +128,10 @@ function StudentCard({ item, navigation, colors }) {
 
 export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
+  const { user, logout } = useAuth();
   const classLevel = route?.params?.classLevel || '';
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [pullError, setPullError] = useState(null);
@@ -146,47 +142,37 @@ export default function StudentsListScreen({ navigation, route }) {
   const runLocalSearch = useCallback(async (text) => {
     const db = await getDb();
     const term = `%${text}%`;
-
     let rows;
-
     if (classLevel && text.trim()) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
          WHERE class_level = ?
            AND (full_name LIKE ? OR admission_no LIKE ?)
-         ORDER BY full_name ASC
-         LIMIT 50`,
+         ORDER BY full_name ASC LIMIT 50`,
         [classLevel, term, term]
       );
     } else if (classLevel) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE class_level = ?
-         ORDER BY full_name ASC
-         LIMIT 50`,
+         FROM students WHERE class_level = ?
+         ORDER BY full_name ASC LIMIT 50`,
         [classLevel]
       );
     } else if (text.trim()) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
-         WHERE full_name LIKE ?
-            OR admission_no LIKE ?
-         ORDER BY full_name ASC
-         LIMIT 50`,
+         WHERE full_name LIKE ? OR admission_no LIKE ?
+         ORDER BY full_name ASC LIMIT 50`,
         [term, term]
       );
     } else {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         ORDER BY full_name ASC
-         LIMIT 50`
+         FROM students ORDER BY full_name ASC LIMIT 50`
       );
     }
-
     setResults(rows);
   }, [classLevel]);
 
@@ -194,7 +180,6 @@ export default function StudentsListScreen({ navigation, route }) {
     try {
       const response = await api.get('/students?page=1');
       const db = await getDb();
-
       for (const s of response.students || []) {
         await db.runAsync(
           `INSERT INTO students
@@ -211,20 +196,12 @@ export default function StudentsListScreen({ navigation, route }) {
              updated_at=excluded.updated_at
            WHERE students.local_dirty = 0`,
           [
-            s.id,
-            s.admission_no,
-            s.full_name,
-            s.division || 'secondary',
-            s.class_level,
-            s.arm,
-            s.status,
-            s.sync_version,
-            new Date().toISOString(),
-            new Date().toISOString(),
+            s.id, s.admission_no, s.full_name, s.division || 'secondary',
+            s.class_level, s.arm, s.status, s.sync_version,
+            new Date().toISOString(), new Date().toISOString(),
           ]
         );
       }
-
       await runLocalSearch(query);
       setPullError(null);
     } catch (err) {
@@ -259,7 +236,6 @@ export default function StudentsListScreen({ navigation, route }) {
     if (exporting) return;
     setExporting(true);
     tap();
-
     try {
       const count = await exportStudentsToCsv();
       if (count === 0) {
@@ -272,7 +248,9 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
-  const displayedResults = (query || showAll) ? results : results.slice(0, 3);
+  const displayedResults = (query || showAll) ? results : results.slice(0, 5);
+  const activeCount = results.filter((s) => s.status === 'active').length;
+  const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -291,184 +269,249 @@ export default function StudentsListScreen({ navigation, route }) {
         ]}
         ListHeaderComponent={
           <View>
-            <View style={styles.header}>
-              <View>
-                <Text style={[type.overline, styles.eyebrow, { color: colors.textMuted }]}>
-                  {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
-                </Text>
-                <Text style={[type.display, styles.title, { color: colors.textPrimary }]}>
-                  {classLevel ? `${classLevel} Students` : 'Students'}
-                </Text>
-                <Text style={[type.bodySmall, { color: colors.textSecondary, marginTop: 5 }]}>
-                  {classLevel ? `Students in ${classLevel}.` : 'Manage and access student records.'}
-                </Text>
-              </View>
-
-              <View style={[styles.countBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.countNumber, { color: colors.textPrimary }]}>{results.length}</Text>
-                <Text style={[styles.countLabel, { color: colors.textMuted }]}>SHOWING</Text>
-              </View>
-            </View>
-
-            {!classLevel && (
-              <>
-                <View style={styles.statsGrid}>
-                  <DashboardStatCard
-                    icon="people"
-                    value={results.length}
-                    title="STUDENTS"
-                    subtitle="Registered"
-                    color={colors.inkSoft}
-                    bg="#EAF0F6"
-                    delay={0}
-                  />
-                  <DashboardStatCard
-                    icon="checkmark-circle"
-                    value={results.filter((s) => s.status === 'active').length}
-                    title="ACTIVE"
-                    subtitle="Currently active"
-                    color={colors.success}
-                    bg={colors.successBg}
-                    delay={60}
-                  />
-                  <DashboardStatCard
-                    icon="school"
-                    value={new Set(results.map((s) => s.class_level).filter(Boolean)).size}
-                    title="CLASSES"
-                    subtitle="Represented"
-                    color={colors.goldDark}
-                    bg={colors.goldTint}
-                    delay={120}
-                  />
-                  <DashboardStatCard
-                    icon="sparkles"
-                    value={results.length}
-                    title="RECENT"
-                    subtitle="Student records"
-                    color="#5B3A8E"
-                    bg="#F1EAFB"
-                    delay={180}
-                  />
+            <LinearGradient
+              colors={gradients.navy}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.hero}
+            >
+              <View style={styles.heroTopRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.heroEyebrow}>
+                    {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+                  </Text>
+                  <Text style={styles.heroTitle}>
+                    {classLevel ? `${classLevel} Students` : 'Students'}
+                  </Text>
+                  <Text style={styles.heroSub}>
+                    {classLevel
+                      ? `Records for ${classLevel}`
+                      : 'Manage and access student records'}
+                  </Text>
                 </View>
 
-                <View style={styles.quickSection}>
-                  <Text style={[type.h3, styles.quickTitle, { color: colors.textPrimary }]}>
-                    Quick Actions
-                  </Text>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    setMenuOpen(true);
+                  }}
+                  style={styles.profileChip}
+                  hitSlop={8}
+                >
+                  {user?.photo_url || user?.avatar_url ? (
+                    <Image
+                      source={{ uri: user.photo_url || user.avatar_url }}
+                      style={styles.profileAvatarImg}
+                    />
+                  ) : (
+                    <View style={styles.profileAvatar}>
+                      <Text style={styles.profileAvatarText}>
+                        {getInitials(user?.full_name || user?.email || 'U')}
+                      </Text>
+                    </View>
+                  )}
+                  <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
+                </Pressable>
+              </View>
 
-                  <View style={styles.quickGrid}>
-                    <Squish
-                      style={[styles.quickBtn, { backgroundColor: colors.ink }]}
-                      onPress={() => navigation.navigate('RegisterStudent')}
+              <View style={styles.heroMeta}>
+                <View style={styles.heroMetaPill}>
+                  <Text style={styles.heroMetaNum}>{results.length}</Text>
+                  <Text style={styles.heroMetaLabel}>SHOWING</Text>
+                </View>
+              </View>
+            </LinearGradient>
+
+            <Modal
+              visible={menuOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setMenuOpen(false)}
+            >
+              <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+                <View style={styles.menuCard}>
+                  <View style={styles.menuHeader}>
+                    {user?.photo_url || user?.avatar_url ? (
+                      <Image
+                        source={{ uri: user.photo_url || user.avatar_url }}
+                        style={styles.menuAvatarImg}
+                      />
+                    ) : (
+                      <View style={styles.menuAvatar}>
+                        <Text style={styles.menuAvatarText}>
+                          {getInitials(user?.full_name || user?.email || 'U')}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.menuName} numberOfLines={1}>
+                        {user?.full_name || 'Staff'}
+                      </Text>
+                      <Text style={styles.menuRole}>
+                        {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.menuDivider} />
+                  {(user?.role === 'principal' || user?.role === 'director') && (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        setMenuOpen(false);
+                        navigation.navigate('MoreTab', { screen: 'ManageStaff' });
+                      }}
                     >
-                      <Ionicons name="person-add" size={15} color={colors.gold} />
-                      <Text style={[styles.quickBtnText, { color: '#FFFFFF' }]} numberOfLines={1}>Register</Text>
+                      <Ionicons name="people-outline" size={18} color="#0A1930" />
+                      <Text style={styles.menuItemText}>Manage Staff</Text>
+                    </Pressable>
+                  )}
+                  {(user?.role === 'principal' || user?.role === 'director') && (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        setMenuOpen(false);
+                        navigation.navigate('ConflictsTab');
+                      }}
+                    >
+                      <Ionicons name="warning-outline" size={18} color="#0A1930" />
+                      <Text style={styles.menuItemText}>Conflicts</Text>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      navigation.navigate('MoreTab');
+                    }}
+                  >
+                    <Ionicons name="grid-outline" size={18} color="#0A1930" />
+                    <Text style={styles.menuItemText}>More</Text>
+                  </Pressable>
+                  <View style={styles.menuDivider} />
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Sign out',
+                          style: 'destructive',
+                          onPress: () => logout(),
+                        },
+                      ]);
+                    }}
+                  >
+                    <Ionicons name="log-out-outline" size={18} color="#C0392B" />
+                    <Text style={[styles.menuItemText, { color: '#C0392B' }]}>Sign out</Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            <View style={styles.bodyPad}>
+              {!classLevel && (
+                <>
+                  <View style={styles.statsGrid}>
+                    <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                    <DashboardStatCard icon="checkmark-circle" value={activeCount} title="Active" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
+                    <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
+                    <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
+                  </View>
+                  <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
+                  <View style={styles.actionRow}>
+                    <Squish style={[styles.primaryAction, { backgroundColor: colors.ink }]} onPress={() => navigation.navigate('RegisterStudent')}>
+                      <Ionicons name="person-add" size={18} color={colors.gold} />
+                      <Text style={styles.primaryActionText}>Register Student</Text>
                     </Squish>
-
-                    <Squish
-                      style={[styles.quickBtn, { backgroundColor: '#EAF0F6' }]}
-                      onPress={() => setQuery('')}
-                    >
-                      <Ionicons name="search" size={15} color={colors.inkSoft} />
-                      <Text style={[styles.quickBtnText, { color: colors.inkSoft }]} numberOfLines={1}>Find</Text>
+                  </View>
+                  <View style={styles.secondaryRow}>
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('ClassesTab')}>
+                      <Ionicons name="school-outline" size={16} color={colors.inkSoft} />
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Classes</Text>
                     </Squish>
-
-                    <Squish
-                      style={[styles.quickBtn, { backgroundColor: colors.gold }]}
-                      onPress={() => navigation.navigate('Classes')}
-                    >
-                      <Ionicons name="school" size={15} color={colors.ink} />
-                      <Text style={[styles.quickBtnText, { color: colors.ink }]} numberOfLines={1}>Classes</Text>
-                    </Squish>
-
-                    <Squish
-                      style={[styles.quickBtn, { backgroundColor: colors.goldTint }]}
-                      onPress={handleExport}
-                      disabled={exporting}
-                    >
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download" size={15} color={colors.goldDark} />
+                        <Ionicons name="download-outline" size={16} color={colors.goldDark} />
                       )}
-                      <Text style={[styles.quickBtnText, { color: colors.goldDark }]} numberOfLines={1}>Export</Text>
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>
                   </View>
-                </View>
+                </>
+              )}
 
+              <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
+                <TextInput
+                  value={query}
+                  onChangeText={handleChange}
+                  placeholder="Search name or admission no."
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.searchInput, { color: colors.textPrimary }]}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+                {query.length > 0 && (
+                  <Pressable onPress={() => handleChange('')} hitSlop={10}>
+                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                  </Pressable>
+                )}
+              </View>
 
-              </>
-            )}
-
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                {query ? 'Search results' : 'Student records'}
-              </Text>
-
-              <View style={styles.sectionRight}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                  {query ? 'Search results' : 'Student records'}
+                </Text>
                 <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
                   {results.length} record{results.length === 1 ? '' : 's'}
                 </Text>
-
-                <Squish
-                  style={[styles.exportButton, { backgroundColor: colors.goldTint }]}
-                  onPress={handleExport}
-                  disabled={exporting}
-                >
-                  {exporting ? (
-                    <ActivityIndicator size="small" color={colors.goldDark} />
-                  ) : (
-                    <Text style={[styles.exportButtonText, { color: colors.goldDark }]}>Export CSV</Text>
-                  )}
-                </Squish>
               </View>
             </View>
           </View>
         }
         renderItem={({ item }) => (
-          <StudentCard item={item} navigation={navigation} colors={colors} />
+          <View style={styles.listPad}>
+            <StudentCard item={item} navigation={navigation} colors={colors} />
+          </View>
         )}
         ListFooterComponent={
-          !query && results.length > 3 ? (
-            <Squish
-              style={[styles.seeMoreBtn, { borderColor: colors.border }]}
-              onPress={() => setShowAll((prev) => !prev)}
-            >
-              <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
-                {showAll ? 'See less' : `See more (${results.length - 3})`}
-              </Text>
-              <Ionicons
-                name={showAll ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={colors.textPrimary}
-              />
-            </Squish>
+          !query && results.length > 5 ? (
+            <View style={styles.listPad}>
+              <Squish
+                style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={() => setShowAll((prev) => !prev)}
+              >
+                <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
+                  {showAll ? 'See less' : `See more (${results.length - 5})`}
+                </Text>
+                <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimary} />
+              </Squish>
+            </View>
           ) : null
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <View style={[styles.emptyIcon, { backgroundColor: '#EAF0F6' }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
               <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
             </View>
-
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
               {query ? 'No student found' : 'No students yet'}
             </Text>
-
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               {query
-                ? 'No matching student was found in the local records. You can search using a name or admission number.'
+                ? 'No matching student was found in the local records. Try a name or admission number.'
                 : 'Student records assigned to your account will appear here.'}
             </Text>
-
             {query.length > 0 ? (
               <Squish
                 style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                 onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
               >
-                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>
-                  Enter admission number manually
-                </Text>
+                <Text style={[styles.fallbackButtonText, { color: colors.goldDark }]}>Register with this name</Text>
               </Squish>
             ) : (
               <Squish
@@ -487,159 +530,241 @@ export default function StudentsListScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { paddingHorizontal: 18, paddingBottom: 30 },
+  listContent: { paddingBottom: 36 },
   emptyListContent: { flexGrow: 1 },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingTop: 22,
-    paddingBottom: 20,
+  hero: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-
-  eyebrow: { marginBottom: 6 },
-  title: { marginTop: 2 },
-
-  countBox: {
-    minWidth: 68,
-    height: 64,
-    borderRadius: radius.lg,
+  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  profileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 8,
     borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
+    borderColor: 'rgba(201,162,75,0.35)',
   },
-  countNumber: { fontFamily: fontFamily.display, fontSize: 21 },
-  countLabel: { fontFamily: fontFamily.bodyBold, fontSize: 6.5, letterSpacing: 1, marginTop: 2 },
-
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
-
-  quickSection: { marginBottom: 16 },
-  quickTitle: { marginBottom: 10 },
-  quickGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  quickBtn: {
-    minWidth: 88,
-    minHeight: 56,
-    borderRadius: radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginRight: 10,
-    marginBottom: 10,
+  profileAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#C9A24B',
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.raised,
   },
-  quickBtnText: {
+  profileAvatarImg: { width: 36, height: 36, borderRadius: 18 },
+  profileAvatarText: {
+    color: '#0A1930',
     fontFamily: fontFamily.bodyBold,
-    fontSize: 10.5,
-    marginTop: 5,
-    textAlign: 'center',
+    fontSize: 13,
   },
-
-  systemCard: {
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10,25,48,0.45)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 72,
+    paddingRight: 16,
+  },
+  menuCard: {
+    width: 260,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E4E8EF',
+    ...shadow.card,
+  },
+  menuHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radius.lg,
-    padding: 13,
-    marginBottom: 18,
-    borderWidth: 1,
-    ...shadow.raised,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  systemIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.sm,
+  menuAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#16324F',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  systemInfo: { flex: 1 },
-  systemTitle: { fontFamily: fontFamily.bodyBold, fontSize: 13 },
-  systemSub: { fontFamily: fontFamily.body, fontSize: 10.5, lineHeight: 15, marginTop: 3 },
-  systemBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
+  menuAvatarImg: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
+  menuAvatarText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 14,
   },
-  onlineDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  systemBadgeText: { fontFamily: fontFamily.bodyBold, fontSize: 8, letterSpacing: 0.3 },
-
-  searchArea: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
-  searchBox: {
-    flex: 1,
-    height: 52,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0A1930' },
+  menuRole: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: '#C9A24B',
+    marginTop: 2,
+  },
+  menuDivider: { height: 1, backgroundColor: '#E4E8EF', marginVertical: 4 },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  searchInput: { flex: 1, height: 50, fontSize: 13, paddingVertical: 0 },
-
-  registerButton: {
+  menuItemText: {
+    marginLeft: 12,
+    fontFamily: fontFamily.bodySemibold,
+    fontSize: 14,
+    color: '#0A1930',
+  },
+  heroEyebrow: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    color: '#C9A24B',
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -1,
+    color: '#FFFFFF',
+  },
+  heroSub: {
+    fontFamily: fontFamily.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(255,255,255,0.72)',
+    marginTop: 6,
+  },
+  heroMeta: { flexDirection: 'row', marginTop: 18 },
+  heroMetaPill: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroMetaNum: {
+    fontFamily: fontFamily.display,
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginRight: 8,
+  },
+  heroMetaLabel: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  bodyPad: { paddingHorizontal: 18, paddingTop: 18 },
+  listPad: { paddingHorizontal: 18 },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    fontFamily: fontFamily.heading,
+    fontSize: 16,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  actionRow: { marginBottom: 10 },
+  primaryAction: {
     height: 52,
     borderRadius: radius.lg,
-    paddingHorizontal: 16,
-    marginLeft: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.button,
   },
-  registerText: {
-    color: '#FFFFFF',
+  primaryActionText: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 12.5,
-    marginLeft: 5,
+    fontSize: 15,
+    color: '#FFFFFF',
+    marginLeft: 10,
   },
-
+  secondaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  secondaryAction: {
+    width: '48%',
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.raised,
+  },
+  secondaryActionText: {
+    fontFamily: fontFamily.bodySemibold,
+    fontSize: 13,
+    marginLeft: 8,
+  },
+  searchBox: {
+    height: 50,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 18,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    fontFamily: fontFamily.body,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitle: { fontFamily: fontFamily.heading, fontSize: 15 },
-  sectionHint: { fontFamily: fontFamily.body, fontSize: 10.5 },
-  sectionRight: { flexDirection: 'row', alignItems: 'center' },
-  exportButton: { marginLeft: 10, paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.sm },
-  exportButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 10, letterSpacing: 0.3 },
-
+  sectionTitle: { fontFamily: fontFamily.heading, fontSize: 16 },
+  sectionHint: { fontFamily: fontFamily.body, fontSize: 12 },
   seeMoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: radius.md,
-    paddingVertical: 12,
+    paddingVertical: 14,
     marginTop: 4,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   seeMoreText: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 12.5,
+    fontSize: 13,
     marginRight: 6,
   },
-
   studentCard: {
-    minHeight: 84,
+    minHeight: 86,
     borderRadius: radius.lg,
     borderWidth: 1,
     marginBottom: 10,
     paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     ...shadow.raised,
   },
-
   avatar: {
     width: 48,
     height: 48,
@@ -654,23 +779,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0.4,
   },
-
   studentInfo: { flex: 1, minWidth: 0 },
-  studentName: { fontFamily: fontFamily.heading, fontSize: 14.5 },
-  admission: { fontFamily: fontFamily.body, fontSize: 11, marginTop: 3 },
-  classText: { fontFamily: fontFamily.bodySemibold, fontSize: 10, marginTop: 5 },
-
+  studentName: { fontFamily: fontFamily.heading, fontSize: 15 },
+  admission: { fontFamily: fontFamily.body, fontSize: 12, marginTop: 3 },
+  classText: { fontFamily: fontFamily.bodySemibold, fontSize: 11, marginTop: 5 },
   rightArea: { alignItems: 'flex-end', marginLeft: 8 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
-  statusDot: { width: 5, height: 5, borderRadius: 3, marginRight: 4 },
-  statusText: { fontFamily: fontFamily.bodyBold, fontSize: 7, letterSpacing: 0.5 },
-
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  statusText: { fontFamily: fontFamily.bodyBold, fontSize: 9, letterSpacing: 0.4 },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -679,9 +801,9 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyIcon: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -689,22 +811,29 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fontFamily.heading, fontSize: 18, textAlign: 'center' },
   emptyText: {
     fontFamily: fontFamily.body,
-    fontSize: 12.5,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 20,
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 310,
   },
-
-  fallbackButton: { borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 12, marginTop: 18 },
-  fallbackButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 11.5 },
-
+  fallbackButton: {
+    borderRadius: radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 18,
+  },
+  fallbackButtonText: { fontFamily: fontFamily.bodyBold, fontSize: 13 },
   emptyRegisterButton: {
     borderRadius: radius.md,
     paddingHorizontal: 20,
-    paddingVertical: 13,
+    paddingVertical: 14,
     marginTop: 18,
     ...shadow.button,
   },
-  emptyRegisterText: { color: '#FFFFFF', fontFamily: fontFamily.bodyBold, fontSize: 12 },
+  emptyRegisterText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 13,
+  },
 });
