@@ -16,13 +16,11 @@ import {
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queueOperation } from '../services/syncEngine';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
 export default function RegisterStudentScreen({ route, navigation }) {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const prefillName = route.params?.prefillName || '';
 
@@ -160,10 +158,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
-        ]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

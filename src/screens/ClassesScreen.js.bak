@@ -8,29 +8,30 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDb } from '../db';
-import { useTheme } from '../theme/ThemeContext';
-import { fontFamily } from '../theme/typography';
-import { radius, shadow } from '../theme/spacing';
+import { SkeletonClassRow } from '../components/Skeleton';
 
 export default function ClassesScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
   const [classes, setClasses] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const loadClasses = useCallback(async () => {
     const db = await getDb();
+
     const rows = await db.getAllAsync(`
-      SELECT class_level, COUNT(*) AS student_count
+      SELECT
+        class_level,
+        COUNT(*) AS student_count
       FROM students
       WHERE status IN ('registered', 'active', 'promoted')
         AND TRIM(class_level) != ''
       GROUP BY class_level
       ORDER BY class_level ASC
     `);
+
     setClasses(rows);
+    setInitialLoading(false);
   }, []);
 
   useFocusEffect(
@@ -41,6 +42,7 @@ export default function ClassesScreen({ navigation }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+
     try {
       await loadClasses();
     } finally {
@@ -50,68 +52,76 @@ export default function ClassesScreen({ navigation }) {
 
   const renderClass = ({ item }) => (
     <Pressable
-      style={[
-        styles.classCard,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
+      style={styles.classCard}
       onPress={() =>
-        navigation.navigate('ClassStudents', { classLevel: item.class_level })
+        navigation.navigate('ClassStudents', {
+          classLevel: item.class_level,
+        })
       }
     >
-      <View style={[styles.classIcon, { backgroundColor: colors.goldTint || '#FBF3E1' }]}>
+      <View style={styles.classIcon}>
         <Text style={styles.classIconText}>🎓</Text>
       </View>
+
       <View style={styles.classInfo}>
-        <Text style={[styles.className, { color: colors.textPrimary }]}>
+        <Text style={styles.className}>
           {item.class_level}
         </Text>
-        <Text style={[styles.studentCount, { color: colors.textSecondary }]}>
+
+        <Text style={styles.studentCount}>
           {item.student_count}{' '}
           {Number(item.student_count) === 1 ? 'student' : 'students'}
         </Text>
       </View>
-      <Text style={[styles.chevron, { color: colors.textMuted }]}>›</Text>
+
+      <Text style={styles.chevron}>›</Text>
     </Pressable>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Classes</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Classes</Text>
+        <Text style={styles.subtitle}>
           Student distribution by class level
         </Text>
       </View>
 
       <FlatList
-        data={classes}
+        data={initialLoading ? [] : classes}
         keyExtractor={(item) => item.class_level}
         renderItem={renderClass}
         contentContainerStyle={
-          classes.length === 0 ? styles.emptyContainer : styles.listContent
+          !initialLoading && classes.length === 0
+            ? styles.emptyContainer
+            : styles.listContent
         }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.gold}
           />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎓</Text>
-            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-              No classes yet
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Classes will appear here when students are registered.
-            </Text>
-          </View>
+          initialLoading ? (
+            <View>
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+              <SkeletonClassRow />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🎓</Text>
+              <Text style={styles.emptyTitle}>
+                No classes yet
+              </Text>
+              <Text style={styles.emptyText}>
+                Classes will appear here when students are registered.
+              </Text>
+            </View>
+          )
         }
       />
     </View>
@@ -119,70 +129,106 @@ export default function ClassesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+    backgroundColor: '#F6F8FC',
+  },
+
   header: {
     paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 14,
   },
+
   title: {
-    fontFamily: fontFamily.display,
-    fontSize: 28,
-    letterSpacing: -0.6,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#16324f',
   },
+
   subtitle: {
     marginTop: 4,
-    fontFamily: fontFamily.body,
     fontSize: 14,
+    color: '#667085',
   },
+
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
+
   classCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radius.lg,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    ...shadow.card,
+    borderColor: '#E6EAF0',
   },
+
   classIcon: {
     width: 48,
     height: 48,
     borderRadius: 14,
+    backgroundColor: '#F2EDFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
   },
-  classIconText: { fontSize: 22 },
-  classInfo: { flex: 1 },
-  className: {
-    fontFamily: fontFamily.heading,
-    fontSize: 17,
+
+  classIconText: {
+    fontSize: 22,
   },
+
+  classInfo: {
+    flex: 1,
+  },
+
+  className: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1D2939',
+  },
+
   studentCount: {
     marginTop: 4,
-    fontFamily: fontFamily.body,
     fontSize: 13,
+    color: '#667085',
   },
-  chevron: { fontSize: 28 },
-  emptyContainer: { flexGrow: 1 },
+
+  chevron: {
+    fontSize: 28,
+    color: '#98A2B3',
+  },
+
+  emptyContainer: {
+    flexGrow: 1,
+  },
+
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
   },
-  emptyIcon: { fontSize: 42, marginBottom: 12 },
-  emptyTitle: {
-    fontFamily: fontFamily.heading,
-    fontSize: 18,
+
+  emptyIcon: {
+    fontSize: 42,
+    marginBottom: 12,
   },
+
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1D2939',
+  },
+
   emptyText: {
     marginTop: 6,
     textAlign: 'center',
-    fontFamily: fontFamily.body,
+    color: '#667085',
     lineHeight: 20,
   },
 });

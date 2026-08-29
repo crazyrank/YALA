@@ -11,6 +11,7 @@ const conflictsRoutes = require('./routes/conflicts.routes');
 const permissionsRoutes = require('./routes/permissions.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const devicesRoutes = require('./routes/devices.routes');
+const directoryRoutes = require('./routes/directory.routes');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/conflicts', conflictsRoutes);
 app.use('/permissions', permissionsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/devices', devicesRoutes);
+app.use('/directory', directoryRoutes);
 
 // 404 fallback
 app.use((req, res) => {

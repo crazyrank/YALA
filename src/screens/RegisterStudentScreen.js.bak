@@ -16,14 +16,9 @@ import {
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queueOperation } from '../services/syncEngine';
-import { useTheme } from '../theme/ThemeContext';
-import { fontFamily } from '../theme/typography';
 
 export default function RegisterStudentScreen({ route, navigation }) {
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
   const prefillName = route.params?.prefillName || '';
 
   const [admissionNo, setAdmissionNo] = useState('');
@@ -150,20 +145,17 @@ export default function RegisterStudentScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.safe, { backgroundColor: colors.background }]}
+      style={styles.safe}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={colors.background}
+        backgroundColor="#F6F7F9"
       />
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
-        ]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -443,7 +435,7 @@ function Field({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F6F7F9',
   },
 
   container: {
@@ -464,14 +456,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.7,
-    color: '#5B6472',
+    color: '#667085',
     marginBottom: 8,
   },
 
   lookupCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E4E8EF',
+    borderColor: '#EAECF0',
     borderRadius: 13,
     padding: 14,
     marginBottom: 20,
@@ -479,13 +471,13 @@ const styles = StyleSheet.create({
   lookupLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5B6472',
+    color: '#667085',
     marginBottom: 8,
   },
   lookupBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F6F7F9',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
@@ -493,13 +485,13 @@ const styles = StyleSheet.create({
   lookupInput: {
     flex: 1,
     fontSize: 13,
-    color: '#0A1930',
+    color: '#101828',
     paddingVertical: 0,
   },
   lookupResults: {
     marginTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E4E8EF',
+    borderTopColor: '#EAECF0',
   },
   lookupResultRow: {
     flexDirection: 'row',
@@ -512,11 +504,11 @@ const styles = StyleSheet.create({
   lookupResultName: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0A1930',
+    color: '#101828',
   },
   lookupResultSub: {
     fontSize: 11,
-    color: '#5B6472',
+    color: '#667085',
     marginTop: 2,
   },
 
@@ -525,14 +517,14 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     fontWeight: '900',
     letterSpacing: -0.8,
-    color: '#0A1930',
+    color: '#101828',
   },
 
   subtitle: {
     marginTop: 8,
     fontSize: 13.5,
     lineHeight: 20,
-    color: '#5B6472',
+    color: '#667085',
   },
 
   offlineNotice: {
@@ -577,8 +569,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E4E8EF',
-    shadowColor: '#0A1930',
+    borderColor: '#EAECF0',
+    shadowColor: '#101828',
     shadowOffset: {
       width: 0,
       height: 6,
@@ -591,13 +583,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#0A1930',
+    color: '#101828',
     marginBottom: 16,
   },
 
   sectionHint: {
     fontSize: 10.5,
-    color: '#8A94A3',
+    color: '#98A2B3',
     marginTop: -9,
     marginBottom: 17,
   },
@@ -616,7 +608,7 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     fontWeight: '900',
     letterSpacing: 1.1,
-    color: '#5B6472',
+    color: '#475467',
   },
 
   required: {
@@ -626,18 +618,18 @@ const styles = StyleSheet.create({
   fieldHint: {
     marginLeft: 'auto',
     fontSize: 9,
-    color: '#8A94A3',
+    color: '#98A2B3',
   },
 
   input: {
     height: 51,
     borderWidth: 1,
-    borderColor: '#D5DAE3',
+    borderColor: '#D0D5DD',
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 14,
-    color: '#0A1930',
-    backgroundColor: '#FFFFFF',
+    color: '#101828',
+    backgroundColor: '#FCFCFD',
   },
 
   segmentRow: {
@@ -650,19 +642,19 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D5DAE3',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#D0D5DD',
+    backgroundColor: '#FCFCFD',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
   segmentActive: {
-    backgroundColor: '#0A1930',
-    borderColor: '#0A1930',
+    backgroundColor: '#101828',
+    borderColor: '#101828',
   },
 
   segmentText: {
-    color: '#5B6472',
+    color: '#475467',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -673,7 +665,7 @@ const styles = StyleSheet.create({
 
   sectionDivider: {
     height: 1,
-    backgroundColor: '#E4E8EF',
+    backgroundColor: '#EAECF0',
     marginVertical: 7,
     marginBottom: 20,
   },
@@ -681,7 +673,7 @@ const styles = StyleSheet.create({
   saveButton: {
     height: 54,
     borderRadius: 14,
-    backgroundColor: '#0A1930',
+    backgroundColor: '#101828',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -724,13 +716,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 2,
-    color: '#0A1930',
+    color: '#101828',
   },
 
   footerText: {
     marginTop: 4,
     fontSize: 9,
-    color: '#8A94A3',
+    color: '#98A2B3',
   },
 
   footerSchool: {

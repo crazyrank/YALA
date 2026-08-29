@@ -78,6 +78,8 @@ export default function RootNavigator() {
           headerTitleStyle: {
             fontWeight: '700',
           },
+          headerTitleAlign: 'center',
+          headerBackTitleVisible: false,
         }}
       >
         {status === 'onboarding' && (

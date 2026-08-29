@@ -83,4 +83,15 @@ async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceI
   });
 }
 
-module.exports = { uploadStudentPhoto };
+/**
+ * Uploads a photo for a staff directory card (board / management / class
+ * teacher). Directory cards are display-only — there's no "current photo"
+ * lock like students have, so this is a plain upload-and-return-URL, no
+ * transaction, no isCurrent bookkeeping.
+ */
+async function uploadDirectoryPhoto(imageBase64, entryId) {
+  const publicId = `directory-${entryId}-${Date.now()}`;
+  return uploadBase64Image(imageBase64, publicId);
+}
+
+module.exports = { uploadStudentPhoto, uploadDirectoryPhoto };

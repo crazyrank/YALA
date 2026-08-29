@@ -32,7 +32,6 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily, type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
 import { gradients } from '../theme/colors';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 
 function getInitials(name = '') {
@@ -135,7 +134,6 @@ function StudentCard({ item, navigation, colors }) {
 export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { user, logout } = useAuth();
-  const insets = useSafeAreaInsets();
   const classLevel = route?.params?.classLevel || '';
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -283,7 +281,7 @@ export default function StudentsListScreen({ navigation, route }) {
               colors={gradients.navy}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+              style={styles.hero}
             >
               <View style={styles.heroTopRow}>
                 <View style={{ flex: 1, paddingRight: 12 }}>

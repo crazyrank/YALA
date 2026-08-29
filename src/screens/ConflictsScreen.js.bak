@@ -2,7 +2,6 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../api/client';
 import { useTheme } from '../theme/ThemeContext';
 import { type } from '../theme/typography';
@@ -10,7 +9,6 @@ import { spacing, radius, shadow } from '../theme/spacing';
 
 export default function ConflictsScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [conflicts, setConflicts] = useState([]);
@@ -46,18 +44,7 @@ export default function ConflictsScreen() {
       refreshing={loading}
       onRefresh={load}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={[
-        styles.listContent,
-        { paddingTop: Math.max(insets.top, 12) + 8 },
-      ]}
-      ListHeaderComponent={
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Conflicts</Text>
-          <Text style={styles.pageSub}>
-            Review and resolve disputed student records
-          </Text>
-        </View>
-      }
+      contentContainerStyle={styles.listContent}
       renderItem={({ item }) => (
         <View style={styles.card}>
           <Text style={styles.studentName}>{item.full_name}</Text>
@@ -136,24 +123,6 @@ function createStyles(colors) {
 
     listContent: {
       padding: spacing.lg,
-    },
-
-    pageHeader: {
-      marginBottom: spacing.md,
-    },
-
-    pageTitle: {
-      ...type.h1,
-      fontSize: 28,
-      color: colors.textPrimary,
-      letterSpacing: -0.5,
-    },
-
-    pageSub: {
-      ...type.body,
-      fontSize: 13,
-      marginTop: 4,
-      color: colors.textSecondary,
     },
 
     card: {

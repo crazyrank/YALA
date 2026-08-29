@@ -55,14 +55,28 @@ router.post(
 
       const tempCredential = generateTempCredential();
       const passwordHash = await hashPassword(tempCredential);
+      const directoryTitle = targetRole === 'principal' ? 'Principal' : 'Head Teacher';
 
-      const { rows } = await db.query(
-        `INSERT INTO users (full_name, email, phone, password_hash, role, must_change_password, created_by)
-         VALUES ($1, $2, $3, $4, $5, TRUE, $6)
-         RETURNING id, full_name, email, phone, role, status, created_at`,
-        [fullName, email, phone || null, passwordHash, targetRole, req.auth.userId]
-      );
-      const created = rows[0];
+      // Account + directory card are created as one unit: a Principal or
+      // Head Teacher never exists without also appearing on the staff
+      // slide, no extra form (Staff & Directory spec, Section 5).
+      const created = await db.withTransaction(async (client) => {
+        const { rows } = await client.query(
+          `INSERT INTO users (full_name, email, phone, password_hash, role, must_change_password, created_by)
+           VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+           RETURNING id, full_name, email, phone, role, status, created_at`,
+          [fullName, email, phone || null, passwordHash, targetRole, req.auth.userId]
+        );
+        const user = rows[0];
+
+        await client.query(
+          `INSERT INTO staff_directory (section, full_name, title, linked_user_id, created_by)
+           VALUES ('management', $1, $2, $3, $4)`,
+          [user.full_name, directoryTitle, user.id, req.auth.userId]
+        );
+
+        return user;
+      });
 
       await writeAudit({
         userId: req.auth.userId,
