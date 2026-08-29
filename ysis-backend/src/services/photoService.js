@@ -4,20 +4,33 @@ const db = require('../db');
 const { Errors } = require('../utils/errors');
 
 let configured = false;
+function isCloudinaryConfigured() {
+  const { cloudName, apiKey, apiSecret } = config.cloudinary;
+  return !!(cloudName && apiKey && apiSecret);
+}
 function ensureCloudinaryConfigured() {
   if (configured) return;
-  const { cloudName, apiKey, apiSecret } = config.cloudinary;
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw Errors.badRequest(
-      'PHOTO_STORAGE_NOT_CONFIGURED',
-      'Photo storage is not set up yet. Add your Cloudinary credentials to the environment.'
-    );
-  }
-  cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+  cloudinary.config({
+    cloud_name: config.cloudinary.cloudName,
+    api_key: config.cloudinary.apiKey,
+    api_secret: config.cloudinary.apiSecret,
+  });
   configured = true;
 }
 
+/**
+ * TEMPORARY FALLBACK: when Cloudinary credentials aren't set in the
+ * environment yet, store the image inline as a data: URI in the
+ * `photo_url` TEXT column instead of failing the request. This keeps
+ * the feature usable during development. Swap this out (delete the
+ * `if` block below) once CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET
+ * are set — inline data URIs bloat the DB and don't belong long-term,
+ * especially for student passport photos.
+ */
 function uploadBase64Image(base64Data, publicId) {
+  if (!isCloudinaryConfigured()) {
+    return Promise.resolve(`data:image/jpeg;base64,${base64Data}`);
+  }
   ensureCloudinaryConfigured();
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(
