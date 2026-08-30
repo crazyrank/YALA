@@ -1,228 +1,118 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-
-import DashboardStatCard from './DashboardStatCard';
-import { getDb } from '../db';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { api } from '../api/client';
-import { useTheme } from '../theme/ThemeContext';
-import { fontFamily } from '../theme/typography';
+import { getDb } from '../db';
 
-const PAGE_SIZE = 30;
+export default function DashboardStudentSyncCards({ navigation }) {
+  const [serverCount, setServerCount] = useState(null);
+  const [localCount, setLocalCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
 
-export default function DashboardStudentSyncCards() {
-  const { colors } = useTheme();
+  const loadCounts = useCallback(async () => {
+    const db = await getDb();
 
-  const [totalStudents, setTotalStudents] = useState(null);
-  const [syncedStudents, setSyncedStudents] = useState(null);
-  const [loading, setLoading] = useState(false);
+    const local = await db.getFirstAsync(
+      'SELECT COUNT(*) AS count FROM students'
+    );
 
-  const loadStudentCounts = useCallback(async () => {
-    if (loading) return;
-
-    setLoading(true);
+    setLocalCount(Number(local?.count || 0));
 
     try {
-      const db = await getDb();
+      const response = await api.get('/students?page=1');
 
-      /*
-       * LOCAL SYNC COUNT
-       *
-       * A student is considered synced when:
-       * 1. The local student record is not dirty.
-       * 2. There is no pending, conflicted, or failed sync operation
-       *    belonging to that student.
-       *
-       * This uses the existing local sync architecture.
-       */
-      const localResult = await db.getFirstAsync(`
-        SELECT COUNT(*) AS count
-        FROM students s
-        WHERE s.local_dirty = 0
-          AND NOT EXISTS (
-            SELECT 1
-            FROM sync_operations so
-            WHERE so.entity_id = s.id
-              AND so.status IN ('pending', 'conflicted', 'failed')
-          )
-      `);
-
-      setSyncedStudents(Number(localResult?.count || 0));
-
-      /*
-       * SERVER COUNT
-       *
-       * Uses the EXISTING authenticated /students endpoint.
-       * No new endpoint and no new security flow.
-       *
-       * The endpoint returns 30 students per page, so we continue
-       * requesting pages until the final page is reached.
-       */
-      let page = 1;
-      let serverCount = 0;
-
-      while (true) {
-        const response = await api.get(
-          `/students?page=${page}`
-        );
-
-        const students = Array.isArray(response?.students)
-          ? response.students
-          : [];
-
-        serverCount += students.length;
-
-        if (students.length < PAGE_SIZE) {
-          break;
-        }
-
-        page += 1;
+      if (Array.isArray(response?.students)) {
+        setServerCount(response.students.length);
       }
-
-      setTotalStudents(serverCount);
-    } catch (error) {
-      /*
-       * Do not interfere with the existing authentication/security flow.
-       *
-       * If the server cannot be reached, the existing local data remains
-       * available and the server total is simply left unavailable.
-       */
-      console.warn(
-        'Dashboard student count unavailable:',
-        error?.message || error
-      );
-    } finally {
-      setLoading(false);
+    } catch {
+      // Network failure is expected in offline-first mode.
+      // Keep the local count and do not spam the console.
     }
-  }, [loading]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadStudentCounts();
-    }, [loadStudentCounts])
-  );
+    try {
+      const pending = await db.getFirstAsync(
+        `SELECT COUNT(*) AS count
+         FROM sync_operations
+         WHERE status != 'synced'`
+      );
+
+      setPendingCount(Number(pending?.count || 0));
+    } catch {
+      setPendingCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCounts();
+
+    const interval = setInterval(loadCounts, 10000);
+
+    return () => clearInterval(interval);
+  }, [loadCounts]);
+
+  const studentCount = serverCount ?? localCount;
 
   return (
-    <>
-      <DashboardStatCard
-        icon="people-circle"
-        value={
-          totalStudents === null
-            ? '—'
-            : totalStudents
-        }
-        title="Total Students"
-        subtitle="In database"
-        color={colors.ink}
-        bg={colors.surface}
-        delay={200}
-      />
-
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-          },
-        ]}
+    <View style={styles.container}>
+      <Pressable
+        style={styles.card}
+        onPress={() => navigation?.navigate?.('Students')}
       >
-        <View
-          style={[
-            styles.iconContainer,
-            {
-              backgroundColor: colors.success,
-            },
-          ]}
-        >
-          <Ionicons
-            name="cloud-done"
-            size={19}
-            color="#FFFFFF"
-          />
-        </View>
-
-        <Text
-          style={[
-            styles.value,
-            {
-              color: colors.textPrimary,
-            },
-          ]}
-        >
-          {syncedStudents === null
-            ? '—'
-            : syncedStudents}
+        <Text style={styles.label}>STUDENTS</Text>
+        <Text style={styles.value}>{studentCount}</Text>
+        <Text style={styles.caption}>
+          {serverCount !== null ? 'Synced with server' : 'Saved on this device'}
         </Text>
+      </Pressable>
 
-        <Text
-          style={[
-            styles.title,
-            {
-              color: colors.textPrimary,
-            },
-          ]}
-        >
-          Synced to Database
+      <Pressable
+        style={[styles.card, pendingCount > 0 && styles.warningCard]}
+        onPress={() => navigation?.navigate?.('Conflicts')}
+      >
+        <Text style={styles.label}>PENDING SYNC</Text>
+        <Text style={styles.value}>{pendingCount}</Text>
+        <Text style={styles.caption}>
+          {pendingCount > 0
+            ? 'Changes waiting to sync'
+            : 'Everything is synced'}
         </Text>
-
-        <Text
-          style={[
-            styles.subtitle,
-            {
-              color: colors.textMuted,
-            },
-          ]}
-        >
-          {syncedStudents === null
-            ? 'Checking sync status'
-            : 'Records fully synchronized'}
-        </Text>
-      </View>
-    </>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    width: '48%',
-    minHeight: 118,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
-  },
-
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  container: {
+    flexDirection: 'row',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 10,
     marginBottom: 10,
   },
-
-  value: {
-    fontFamily: fontFamily.display,
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: -0.8,
+  card: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    elevation: 2,
   },
-
-  title: {
-    fontFamily: fontFamily.bodyBold,
+  warningCard: {
+    borderWidth: 1,
+    borderColor: '#f0b429',
+  },
+  label: {
     fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  value: {
+    fontSize: 25,
+    fontWeight: '800',
+    color: '#16324f',
     marginTop: 4,
   },
-
-  subtitle: {
-    fontFamily: fontFamily.body,
-    fontSize: 11,
-    lineHeight: 15,
-    marginTop: 2,
+  caption: {
+    fontSize: 10.5,
+    color: '#64748b',
+    marginTop: 3,
   },
 });
