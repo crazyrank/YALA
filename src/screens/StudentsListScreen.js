@@ -272,7 +272,152 @@ export default function StudentsListScreen({ navigation, route }) {
       <OfflineMarquee />
       <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
 
+      <LinearGradient
+        colors={gradients.navy}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+      >
+        <View style={styles.heroTopRow}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.heroEyebrow}>
+              {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+            </Text>
+            <Text style={styles.heroTitle}>
+              {classLevel ? `${classLevel} Students` : 'Students'}
+            </Text>
+            <Text style={styles.heroSub}>
+              {classLevel
+                ? `Records for ${classLevel}`
+                : 'Manage and access student records'}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setMenuOpen(true);
+            }}
+            style={styles.profileChip}
+            hitSlop={8}
+          >
+            {user?.photo_url || user?.avatar_url ? (
+              <Image
+                source={{ uri: user.photo_url || user.avatar_url }}
+                style={styles.profileAvatarImg}
+              />
+            ) : (
+              <View style={styles.profileAvatar}>
+                <Text style={styles.profileAvatarText}>
+                  {getInitials(user?.full_name || user?.email || 'U')}
+                </Text>
+              </View>
+            )}
+            <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
+          </Pressable>
+        </View>
+
+        <View style={styles.heroMeta}>
+          <View style={styles.heroMetaPill}>
+            {initialLoading ? (
+              <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
+            ) : (
+              <Text style={styles.heroMetaNum}>{results.length}</Text>
+            )}
+            <Text style={styles.heroMetaLabel}>SHOWING</Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuCard}>
+            <View style={styles.menuHeader}>
+              {user?.photo_url || user?.avatar_url ? (
+                <Image
+                  source={{ uri: user.photo_url || user.avatar_url }}
+                  style={styles.menuAvatarImg}
+                />
+              ) : (
+                <View style={styles.menuAvatar}>
+                  <Text style={styles.menuAvatarText}>
+                    {getInitials(user?.full_name || user?.email || 'U')}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuName} numberOfLines={1}>
+                  {user?.full_name || 'Staff'}
+                </Text>
+                <Text style={styles.menuRole}>
+                  {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.menuDivider} />
+            {(user?.role === 'principal' || user?.role === 'director') && (
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuOpen(false);
+                  navigation.navigate('MoreTab', { screen: 'ManageStaff' });
+                }}
+              >
+                <Ionicons name="people-outline" size={18} color="#0A1930" />
+                <Text style={styles.menuItemText}>Manage Staff</Text>
+              </Pressable>
+            )}
+            {(user?.role === 'principal' || user?.role === 'director') && (
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  setMenuOpen(false);
+                  navigation.navigate('ConflictsTab');
+                }}
+              >
+                <Ionicons name="warning-outline" size={18} color="#0A1930" />
+                <Text style={styles.menuItemText}>Conflicts</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate('MoreTab');
+              }}
+            >
+              <Ionicons name="grid-outline" size={18} color="#0A1930" />
+              <Text style={styles.menuItemText}>More</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuOpen(false);
+                Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Sign out',
+                    style: 'destructive',
+                    onPress: () => logout(),
+                  },
+                ]);
+              }}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#C0392B" />
+              <Text style={[styles.menuItemText, { color: '#C0392B' }]}>Sign out</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
       <FlatList
+        style={{ flex: 1 }}
         data={initialLoading ? [] : displayedResults}
         keyExtractor={(item) => String(item.id)}
         refreshControl={
@@ -283,151 +428,6 @@ export default function StudentsListScreen({ navigation, route }) {
           !initialLoading && results.length === 0 && styles.emptyListContent,
         ]}
         ListHeaderComponent={
-          <View>
-            <LinearGradient
-              colors={gradients.navy}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
-            >
-              <View style={styles.heroTopRow}>
-                <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={styles.heroEyebrow}>
-                    {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
-                  </Text>
-                  <Text style={styles.heroTitle}>
-                    {classLevel ? `${classLevel} Students` : 'Students'}
-                  </Text>
-                  <Text style={styles.heroSub}>
-                    {classLevel
-                      ? `Records for ${classLevel}`
-                      : 'Manage and access student records'}
-                  </Text>
-                </View>
-
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                    setMenuOpen(true);
-                  }}
-                  style={styles.profileChip}
-                  hitSlop={8}
-                >
-                  {user?.photo_url || user?.avatar_url ? (
-                    <Image
-                      source={{ uri: user.photo_url || user.avatar_url }}
-                      style={styles.profileAvatarImg}
-                    />
-                  ) : (
-                    <View style={styles.profileAvatar}>
-                      <Text style={styles.profileAvatarText}>
-                        {getInitials(user?.full_name || user?.email || 'U')}
-                      </Text>
-                    </View>
-                  )}
-                  <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
-                </Pressable>
-              </View>
-
-              <View style={styles.heroMeta}>
-                <View style={styles.heroMetaPill}>
-                  {initialLoading ? (
-                    <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
-                  ) : (
-                    <Text style={styles.heroMetaNum}>{results.length}</Text>
-                  )}
-                  <Text style={styles.heroMetaLabel}>SHOWING</Text>
-                </View>
-              </View>
-            </LinearGradient>
-
-            <Modal
-              visible={menuOpen}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setMenuOpen(false)}
-            >
-              <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
-                <View style={styles.menuCard}>
-                  <View style={styles.menuHeader}>
-                    {user?.photo_url || user?.avatar_url ? (
-                      <Image
-                        source={{ uri: user.photo_url || user.avatar_url }}
-                        style={styles.menuAvatarImg}
-                      />
-                    ) : (
-                      <View style={styles.menuAvatar}>
-                        <Text style={styles.menuAvatarText}>
-                          {getInitials(user?.full_name || user?.email || 'U')}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.menuName} numberOfLines={1}>
-                        {user?.full_name || 'Staff'}
-                      </Text>
-                      <Text style={styles.menuRole}>
-                        {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.menuDivider} />
-                  {(user?.role === 'principal' || user?.role === 'director') && (
-                    <Pressable
-                      style={styles.menuItem}
-                      onPress={() => {
-                        setMenuOpen(false);
-                        navigation.navigate('MoreTab', { screen: 'ManageStaff' });
-                      }}
-                    >
-                      <Ionicons name="people-outline" size={18} color="#0A1930" />
-                      <Text style={styles.menuItemText}>Manage Staff</Text>
-                    </Pressable>
-                  )}
-                  {(user?.role === 'principal' || user?.role === 'director') && (
-                    <Pressable
-                      style={styles.menuItem}
-                      onPress={() => {
-                        setMenuOpen(false);
-                        navigation.navigate('ConflictsTab');
-                      }}
-                    >
-                      <Ionicons name="warning-outline" size={18} color="#0A1930" />
-                      <Text style={styles.menuItemText}>Conflicts</Text>
-                    </Pressable>
-                  )}
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setMenuOpen(false);
-                      navigation.navigate('MoreTab');
-                    }}
-                  >
-                    <Ionicons name="grid-outline" size={18} color="#0A1930" />
-                    <Text style={styles.menuItemText}>More</Text>
-                  </Pressable>
-                  <View style={styles.menuDivider} />
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setMenuOpen(false);
-                      Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Sign out',
-                          style: 'destructive',
-                          onPress: () => logout(),
-                        },
-                      ]);
-                    }}
-                  >
-                    <Ionicons name="log-out-outline" size={18} color="#C0392B" />
-                    <Text style={[styles.menuItemText, { color: '#C0392B' }]}>Sign out</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            </Modal>
-
             <View style={styles.bodyPad}>
               {!classLevel && (
                 <>
@@ -499,7 +499,6 @@ export default function StudentsListScreen({ navigation, route }) {
                 </Text>
               </View>
             </View>
-          </View>
         }
         renderItem={({ item }) => (
           <View style={styles.listPad}>
