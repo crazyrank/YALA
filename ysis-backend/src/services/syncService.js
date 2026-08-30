@@ -254,6 +254,7 @@ async function processOperation({
               operationId,
               status: 'conflicted',
               error: 'ADMISSION_NUMBER_COLLISION',
+              message: `Admission number "${admissionNo}" is already used by another student. Change it and resave.`,
             };
           }
 
@@ -265,15 +266,13 @@ async function processOperation({
         }
 
         if (dbErr.code === '23505') {
-          await markOpStatus(
-            syncOpRowId,
-            'failed',
-            dbErr.detail || dbErr.message || 'A unique database constraint was violated.'
-          );
+          const detail = dbErr.detail || dbErr.message || 'A unique database constraint was violated.';
+          await markOpStatus(syncOpRowId, 'failed', detail);
           return {
             operationId,
             status: 'failed',
             error: 'CREATE_STUDENT_DUPLICATE',
+            message: detail,
           };
         }
 
@@ -282,6 +281,7 @@ async function processOperation({
           operationId,
           status: 'failed',
           error: 'CREATE_STUDENT_FAILED',
+          message: dbErr.message || 'This record could not be saved to the server.',
         };
       }
     }

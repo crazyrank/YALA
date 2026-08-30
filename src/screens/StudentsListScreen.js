@@ -194,6 +194,8 @@ export default function StudentsListScreen({ navigation, route }) {
   const refreshFromServer = useCallback(async () => {
     try {
       const response = await api.get('/students?page=1');
+      console.log('[STUDENTS API COUNT]', response.students?.length);
+      console.log('[STUDENTS API DATA]', JSON.stringify(response.students, null, 2));
       const db = await getDb();
       for (const s of response.students || []) {
         await db.runAsync(
@@ -229,9 +231,22 @@ export default function StudentsListScreen({ navigation, route }) {
 
   useFocusEffect(
     useCallback(() => {
-      runLocalSearch(query);
-      refreshFromServer();
-    }, [query, runLocalSearch, refreshFromServer])
+      let active = true;
+
+      const loadStudents = async () => {
+        await refreshFromServer();
+
+        if (active) {
+          await runLocalSearch(query);
+        }
+      };
+
+      loadStudents();
+
+      return () => {
+        active = false;
+      };
+    }, [query, refreshFromServer, runLocalSearch])
   );
 
   const handleChange = (text) => {

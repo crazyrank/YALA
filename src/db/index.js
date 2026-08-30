@@ -10,7 +10,31 @@ export async function getDb() {
     // eslint-disable-next-line no-await-in-loop
     await dbInstance.execAsync(statement);
   }
+  await runColumnMigrations(dbInstance);
   return dbInstance;
+}
+
+/**
+ * CREATE TABLE IF NOT EXISTS never adds columns to a table that already
+ * exists on-device. Any column added after launch needs an explicit,
+ * idempotent ALTER TABLE here. SQLite has no IF NOT EXISTS for columns,
+ * so we just swallow the "duplicate column name" error on repeat runs.
+ */
+async function runColumnMigrations(db) {
+  const columnMigrations = [
+    `ALTER TABLE sync_operations ADD COLUMN error_code TEXT`,
+    `ALTER TABLE sync_operations ADD COLUMN error_message TEXT`,
+  ];
+  for (const statement of columnMigrations) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await db.execAsync(statement);
+    } catch (err) {
+      if (!/duplicate column name/i.test(err?.message || '')) {
+        throw err;
+      }
+    }
+  }
 }
 
 // --- device_meta helpers -------------------------------------------------

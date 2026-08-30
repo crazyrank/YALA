@@ -51,7 +51,9 @@ export const SCHEMA_STATEMENTS = [
     created_at_client TEXT NOT NULL,
     status            TEXT NOT NULL DEFAULT 'pending'
       CHECK (status IN ('pending','synced','conflicted','failed')),
-    last_attempt_at   TEXT
+    last_attempt_at   TEXT,
+    error_code        TEXT,   -- e.g. 'ADMISSION_NUMBER_COLLISION' (added post-launch, see index.js migration)
+    error_message     TEXT    -- human-readable reason the server rejected this op
   );`,
 
   `CREATE TABLE IF NOT EXISTS notifications_cache (
