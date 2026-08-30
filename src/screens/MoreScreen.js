@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
@@ -115,6 +116,7 @@ function getInitials(name = '') {
 export default function MoreScreen({ navigation }) {
   const { user, logout, updateProfilePhoto, removeProfilePhoto } = useAuth();
   const { colors, preference, setPreference } = useTheme();
+  const insets = useSafeAreaInsets();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -226,7 +228,10 @@ export default function MoreScreen({ navigation }) {
     <>
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: Math.max(insets.top, 12) + 12 },
+        ]}
       >
         <View
           style={[

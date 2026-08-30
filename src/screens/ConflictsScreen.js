@@ -47,7 +47,7 @@ export default function ConflictsScreen() {
       onRefresh={load}
       keyExtractor={(item) => item.id}
       contentContainerStyle={[
-        styles.listContent,
+        conflicts.length === 0 ? styles.emptyListContent : styles.listContent,
         { paddingTop: Math.max(insets.top, 12) + 8 },
       ]}
       ListHeaderComponent={
@@ -135,6 +135,11 @@ function createStyles(colors) {
     },
 
     listContent: {
+      padding: spacing.lg,
+    },
+
+    emptyListContent: {
+      flexGrow: 1,
       padding: spacing.lg,
     },
 
@@ -298,8 +303,9 @@ function createStyles(colors) {
     },
 
     empty: {
+      flex: 1,
       alignItems: 'center',
-      paddingTop: spacing.xxl * 2,
+      justifyContent: 'center',
       paddingHorizontal: spacing.xl,
     },
 

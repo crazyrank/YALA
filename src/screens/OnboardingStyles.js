@@ -61,12 +61,13 @@ export function createOnboardingStyles(colors) {
     },
 
     pager: {
-      flexGrow: 0,
+      flex: 1,
     },
 
     page: {
       width,
       paddingHorizontal: spacing.xxl,
+      justifyContent: 'center',
     },
 
     pageScroll: {

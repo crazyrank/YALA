@@ -51,7 +51,7 @@ export default function MergeQueueScreen({ navigation }) {
       refreshing={loading}
       onRefresh={load}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={items.length === 0 ? styles.emptyListContent : styles.listContent}
       renderItem={({ item }) => (
         <View style={styles.card}>
           <Text style={styles.admissionNo}>Admission No: {item.admission_no}</Text>
@@ -111,6 +111,11 @@ function createStyles(colors) {
       padding: spacing.lg,
     },
 
+    emptyListContent: {
+      flexGrow: 1,
+      padding: spacing.lg,
+    },
+
     card: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -167,8 +172,9 @@ function createStyles(colors) {
     },
 
     empty: {
+      flex: 1,
       alignItems: 'center',
-      paddingTop: spacing.xxl * 2,
+      justifyContent: 'center',
       paddingHorizontal: spacing.xl,
     },
 
