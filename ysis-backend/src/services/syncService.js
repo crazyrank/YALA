@@ -7,11 +7,6 @@ const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
 
-/**
- * Processes one sync operation. Idempotent on operation_id: if we've
- * already seen this exact operation_id, return its existing recorded
- * status instead of reprocessing (handles retry-on-reconnect safely).
- */
 async function processOperation({
   operation,
   userId,
@@ -80,7 +75,6 @@ async function processOperation({
             'failed',
             'You do not have permission to promote students right now.'
           );
-
           return {
             operationId,
             status: 'failed',
@@ -98,7 +92,6 @@ async function processOperation({
             'failed',
             'That student could not be found.'
           );
-
           return {
             operationId,
             status: 'failed',
@@ -112,7 +105,6 @@ async function processOperation({
             'failed',
             'This student is already at SS3, the highest class. They should be graduated, not promoted.'
           );
-
           return {
             operationId,
             status: 'failed',
@@ -133,7 +125,6 @@ async function processOperation({
 
       if (noOp) {
         await markOpStatus(syncOpRowId, 'synced');
-
         return {
           operationId,
           status: 'synced',
@@ -160,7 +151,6 @@ async function processOperation({
         );
 
         await markOpStatus(syncOpRowId, 'conflicted');
-
         return {
           operationId,
           status: 'conflicted',
@@ -168,7 +158,6 @@ async function processOperation({
       }
 
       await markOpStatus(syncOpRowId, 'synced');
-
       return {
         operationId,
         status: 'synced',
@@ -177,12 +166,119 @@ async function processOperation({
     }
 
     if (opType === 'create_student') {
-      await markOpStatus(syncOpRowId, 'synced');
+      const {
+        id,
+        admissionNo,
+        fullName,
+        division,
+        classLevel,
+        arm,
+        dateOfBirth,
+        gender,
+        guardianName,
+        guardianPhone,
+      } = payload || {};
 
-      return {
-        operationId,
-        status: 'synced',
-      };
+      if (!id || !admissionNo || !fullName || !division || !classLevel) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'create_student payload is missing required fields.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'VALIDATION_ERROR',
+        };
+      }
+
+      try {
+        await db.query(
+          `INSERT INTO students
+             (
+               id,
+               admission_no,
+               full_name,
+               division,
+               class_level,
+               arm,
+               date_of_birth,
+               gender,
+               guardian_name,
+               guardian_phone,
+               registered_by,
+               registered_device_id
+             )
+           VALUES
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [
+            id,
+            admissionNo,
+            fullName,
+            division,
+            classLevel,
+            arm || null,
+            dateOfBirth || null,
+            gender || null,
+            guardianName || null,
+            guardianPhone || null,
+            userId,
+            deviceId,
+          ]
+        );
+
+        await markOpStatus(syncOpRowId, 'synced');
+        return {
+          operationId,
+          status: 'synced',
+        };
+      } catch (dbErr) {
+        if (
+          dbErr.code === '23505' &&
+          (dbErr.constraint === 'students_admission_no_key' ||
+            (dbErr.detail && String(dbErr.detail).includes('admission_no')))
+        ) {
+          const existing = await db.query(
+            'SELECT id FROM students WHERE admission_no = $1',
+            [admissionNo]
+          );
+          const existingId = existing.rows[0]?.id;
+
+          if (existingId && existingId !== id) {
+            await markOpStatus(
+              syncOpRowId,
+              'conflicted',
+              'Admission number already in use by another student.'
+            );
+            return {
+              operationId,
+              status: 'conflicted',
+              error: 'ADMISSION_NUMBER_COLLISION',
+            };
+          }
+
+          await markOpStatus(syncOpRowId, 'synced');
+          return {
+            operationId,
+            status: 'synced',
+          };
+        }
+
+        if (dbErr.code === '23505') {
+          await markOpStatus(syncOpRowId, 'synced');
+          return {
+            operationId,
+            status: 'synced',
+          };
+        }
+
+        await markOpStatus(syncOpRowId, 'failed', dbErr.message);
+        return {
+          operationId,
+          status: 'failed',
+          error: 'CREATE_STUDENT_FAILED',
+        };
+      }
     }
 
     if (opType === 'upload_photo') {
@@ -197,7 +293,6 @@ async function processOperation({
         });
 
         await markOpStatus(syncOpRowId, 'synced');
-
         return {
           operationId,
           status: 'synced',
@@ -208,7 +303,6 @@ async function processOperation({
           'failed',
           photoErr.message
         );
-
         return {
           operationId,
           status: 'failed',
@@ -233,7 +327,6 @@ async function processOperation({
       'failed',
       err.message
     );
-
     return {
       operationId,
       status: 'failed',
@@ -255,13 +348,6 @@ async function markOpStatus(
   );
 }
 
-/**
- * Processes a batch of operations from ONE device, strictly in the
- * sequence_no order the client provided (FIFO per device — Principle 3
- * and 11). Operations across different devices are NOT interleaved
- * within a single request; each device's own queue is always processed
- * front-to-back.
- */
 async function processBatch({
   operations,
   userId,

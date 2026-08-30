@@ -31,7 +31,6 @@ export async function queueOperation({ opType, entityId, payload }) {
   );
 
   triggerSync();
-
   return operationId;
 }
 
@@ -101,15 +100,23 @@ export async function triggerSync() {
 
 async function clearLocalDirtyFlag(operationId) {
   const db = await getDb();
-  const op = await db.getFirstAsync('SELECT entity_id FROM sync_operations WHERE operation_id = ?', [operationId]);
+  const op = await db.getFirstAsync(
+    'SELECT entity_id FROM sync_operations WHERE operation_id = ?',
+    [operationId]
+  );
   if (op) {
-    await db.runAsync('UPDATE students SET local_dirty = 0 WHERE id = ?', [op.entity_id]);
+    await db.runAsync(
+      'UPDATE students SET local_dirty = 0 WHERE id = ?',
+      [op.entity_id]
+    );
   }
 }
 
 export async function hasPendingChanges() {
   const db = await getDb();
-  const row = await db.getFirstAsync(`SELECT COUNT(*) as count FROM sync_operations WHERE status = 'pending'`);
+  const row = await db.getFirstAsync(
+    `SELECT COUNT(*) as count FROM sync_operations WHERE status = 'pending'`
+  );
   return row.count > 0;
 }
 
