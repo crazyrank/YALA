@@ -265,10 +265,15 @@ async function processOperation({
         }
 
         if (dbErr.code === '23505') {
-          await markOpStatus(syncOpRowId, 'synced');
+          await markOpStatus(
+            syncOpRowId,
+            'failed',
+            dbErr.detail || dbErr.message || 'A unique database constraint was violated.'
+          );
           return {
             operationId,
-            status: 'synced',
+            status: 'failed',
+            error: 'CREATE_STUDENT_DUPLICATE',
           };
         }
 
