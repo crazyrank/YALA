@@ -17,13 +17,6 @@ function notify(status) {
   listeners.forEach((fn) => fn(status));
 }
 
-/**
- * Queues a local operation. This is the "local commit first" boundary
- * (Principle 2): the caller (a screen) should update the local `students`
- * table AND call this in the same local transaction, so the save
- * completes instantly regardless of network state. This function itself
- * never blocks on the network.
- */
 export async function queueOperation({ opType, entityId, payload }) {
   const db = await getDb();
   const sequenceNo = await getNextSequenceNo();
@@ -37,24 +30,18 @@ export async function queueOperation({ opType, entityId, payload }) {
     [uuidv4(), operationId, opType, entityId, JSON.stringify(payload), sequenceNo, createdAtClient]
   );
 
-  // Fire-and-forget attempt — if offline, this just fails silently and
-  // the operation sits in the queue until the next explicit sync trigger
-  // (app foreground, pull-to-refresh, or network-reconnect listener).
   triggerSync();
 
   return operationId;
 }
 
-/**
- * Attempts to flush the pending queue to the server, in FIFO order
- * (sequence_no ascending — Principle 3/11). Safe to call repeatedly;
- * guards against overlapping runs.
- */
 export async function triggerSync() {
   if (syncInFlight) return;
 
   const netState = await NetInfo.fetch();
-  if (!netState.isConnected || !netState.isInternetReachable) {
+  const explicitlyOffline =
+    netState.isConnected === false || netState.isInternetReachable === false;
+  if (explicitlyOffline) {
     notify({ state: 'offline' });
     return;
   }
@@ -86,25 +73,18 @@ export async function triggerSync() {
     const response = await api.post('/sync', { operations });
 
     for (const result of response.results) {
-      // eslint-disable-next-line no-await-in-loop
       await db.runAsync(
         `UPDATE sync_operations SET status = ?, last_attempt_at = ? WHERE operation_id = ?`,
         [result.status, new Date().toISOString(), result.operationId]
       );
 
       if (result.status === 'synced') {
-        // eslint-disable-next-line no-await-in-loop
         await clearLocalDirtyFlag(result.operationId);
       }
-      // 'conflicted' operations are left as-is locally — the server's
-      // `conflicts` table is the record of truth for those; the Principal
-      // resolves them server-side, and this device picks up the resolved
-      // state on its next regular student-record refresh.
     }
 
     notify({ state: 'idle', processedCount: response.results.length });
 
-    // More pending than one batch? Keep going.
     const remaining = await db.getFirstAsync(
       `SELECT COUNT(*) as count FROM sync_operations WHERE status = 'pending'`
     );
@@ -127,19 +107,19 @@ async function clearLocalDirtyFlag(operationId) {
   }
 }
 
-/** True if there's anything sitting unsynced — drives the passive marquee only, never a live count. */
 export async function hasPendingChanges() {
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT COUNT(*) as count FROM sync_operations WHERE status = 'pending'`);
   return row.count > 0;
 }
 
-/** Start listening for connectivity changes and auto-trigger sync on reconnect. */
 export function startAutoSyncListener() {
   let wasOffline = false;
 
   const unsubscribe = NetInfo.addEventListener((state) => {
-    const isOnline = !!(state.isConnected && state.isInternetReachable);
+    const explicitlyOffline =
+      state.isConnected === false || state.isInternetReachable === false;
+    const isOnline = !explicitlyOffline;
 
     if (!isOnline) {
       wasOffline = true;
