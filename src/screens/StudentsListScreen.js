@@ -46,6 +46,11 @@ function tap(style = Haptics.ImpactFeedbackStyle.Light) {
   Haptics.impactAsync(style).catch(() => {});
 }
 
+// How many student records show on the dashboard before "See more" is
+// needed. The rest aren't lost or hidden anywhere else -- tapping "See
+// more" expands this same list in place; "See less" collapses it back.
+const DASHBOARD_PREVIEW_COUNT = 3;
+
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
   const pressIn = () => {
@@ -258,7 +263,7 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
-  const displayedResults = (query || showAll) ? results : results.slice(0, 5);
+  const displayedResults = (query || showAll) ? results : results.slice(0, DASHBOARD_PREVIEW_COUNT);
   const activeCount = results.filter((s) => s.status === 'active').length;
   const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
 
@@ -502,14 +507,14 @@ export default function StudentsListScreen({ navigation, route }) {
           </View>
         )}
         ListFooterComponent={
-          !initialLoading && !query && results.length > 5 ? (
+          !initialLoading && !query && results.length > DASHBOARD_PREVIEW_COUNT ? (
             <View style={styles.listPad}>
               <Squish
                 style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
                 onPress={() => setShowAll((prev) => !prev)}
               >
                 <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
-                  {showAll ? 'See less' : `See more (${results.length - 5})`}
+                  {showAll ? 'See less' : `See more (${results.length - DASHBOARD_PREVIEW_COUNT})`}
                 </Text>
                 <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimary} />
               </Squish>
@@ -519,8 +524,6 @@ export default function StudentsListScreen({ navigation, route }) {
         ListEmptyComponent={
           initialLoading ? (
             <View style={styles.listPad}>
-              <SkeletonStudentRow />
-              <SkeletonStudentRow />
               <SkeletonStudentRow />
               <SkeletonStudentRow />
               <SkeletonStudentRow />

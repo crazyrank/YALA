@@ -10,6 +10,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,6 +19,15 @@ import { api } from '../api/client';
 import { useTheme } from '../theme/ThemeContext';
 import { type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// How much a card grows / lifts as it nears the center of the row, versus
+// its resting state at the edges. Tuned to read as "raised", not "popping".
+const COVERFLOW_SCALE = [0.88, 1.08];
+const COVERFLOW_LIFT = 8; // px of translateY at rest vs peak
+const COVERFLOW_ELEVATION = [2, 12]; // Android
+const COVERFLOW_SHADOW_OPACITY = [0.15, 0.4]; // iOS
 
 // Mirrors the backend's SECTION_CREATORS — used only to decide whether to
 // show the "+" button. The server re-checks this on every write regardless.
@@ -58,10 +68,15 @@ function AutoScrollRow({ entries, cardWidth, itemGap, rowHeight, renderCard, add
   const offsetRef = useRef(0);
   const pausedRef = useRef(false);
   const rafRef = useRef(null);
+  // Tracks the same value as offsetRef, but as an Animated.Value so each
+  // card's scale/lift/shadow can be interpolated straight off it -- during
+  // both the auto-drift (set via rAF) and manual drags (set via onScroll).
+  const scrollAnim = useRef(new Animated.Value(0)).current;
   const itemStride = cardWidth + itemGap;
   const singleSetWidth = entries.length * itemStride;
   const canLoop = entries.length > 1;
   const loopEntries = canLoop ? [...entries, ...entries] : entries;
+  const viewportWidth = Dimensions.get('window').width;
 
   useEffect(() => {
     if (!canLoop) return undefined;
@@ -73,6 +88,7 @@ function AutoScrollRow({ entries, cardWidth, itemGap, rowHeight, renderCard, add
           offsetRef.current -= singleSetWidth;
         }
         scrollRef.current?.scrollTo({ x: offsetRef.current, animated: false });
+        scrollAnim.setValue(offsetRef.current);
       }
       rafRef.current = requestAnimationFrame(step);
     };
@@ -104,6 +120,9 @@ function AutoScrollRow({ entries, cardWidth, itemGap, rowHeight, renderCard, add
       style={{ height: rowHeight, flexGrow: 0 }}
       contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: itemGap }}
       scrollEventThrottle={16}
+      onScroll={(e) => {
+        scrollAnim.setValue(e.nativeEvent.contentOffset.x);
+      }}
       onTouchStart={() => {
         pausedRef.current = true;
       }}
@@ -121,7 +140,43 @@ function AutoScrollRow({ entries, cardWidth, itemGap, rowHeight, renderCard, add
         }, 150);
       }}
     >
-      {loopEntries.map((item, idx) => renderCard(item, idx))}
+      {loopEntries.map((item, idx) => {
+        // The scroll offset at which THIS card sits exactly centered in
+        // the viewport. Interpolating scrollAnim against that value is
+        // what makes each card individually swell and lift as it drifts
+        // through the middle, then settle back down toward the edges.
+        const centerScrollValue = idx * itemStride + spacing.lg + cardWidth / 2 - viewportWidth / 2;
+        const inputRange = [centerScrollValue - itemStride, centerScrollValue, centerScrollValue + itemStride];
+        const cardAnimatedStyle = {
+          transform: [
+            {
+              scale: scrollAnim.interpolate({
+                inputRange,
+                outputRange: [COVERFLOW_SCALE[0], COVERFLOW_SCALE[1], COVERFLOW_SCALE[0]],
+                extrapolate: 'clamp',
+              }),
+            },
+            {
+              translateY: scrollAnim.interpolate({
+                inputRange,
+                outputRange: [COVERFLOW_LIFT, -COVERFLOW_LIFT, COVERFLOW_LIFT],
+                extrapolate: 'clamp',
+              }),
+            },
+          ],
+          elevation: scrollAnim.interpolate({
+            inputRange,
+            outputRange: [COVERFLOW_ELEVATION[0], COVERFLOW_ELEVATION[1], COVERFLOW_ELEVATION[0]],
+            extrapolate: 'clamp',
+          }),
+          shadowOpacity: scrollAnim.interpolate({
+            inputRange,
+            outputRange: [COVERFLOW_SHADOW_OPACITY[0], COVERFLOW_SHADOW_OPACITY[1], COVERFLOW_SHADOW_OPACITY[0]],
+            extrapolate: 'clamp',
+          }),
+        };
+        return renderCard(item, idx, cardAnimatedStyle);
+      })}
       {addCardEl}
     </ScrollView>
   );
@@ -221,10 +276,10 @@ export default function StaffDirectoryScreen({ navigation }) {
                     <Text style={styles.emptyHint}>No one here yet — tap + to add someone.</Text>
                   ) : null
                 }
-                renderCard={(item, idx) => (
-                  <Pressable
+                renderCard={(item, idx, animatedStyle) => (
+                  <AnimatedPressable
                     key={`${item.id}-${idx}`}
-                    style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+                    style={({ pressed }) => [styles.card, pressed && styles.cardPressed, animatedStyle]}
                     onPress={() => handleCardPress(section.key, item)}
                   >
                     {item.photoUrl ? (
@@ -242,7 +297,7 @@ export default function StaffDirectoryScreen({ navigation }) {
                         {item.title}
                       </Text>
                     </View>
-                  </Pressable>
+                  </AnimatedPressable>
                 )}
                 addCardEl={
                   canCreate ? (
