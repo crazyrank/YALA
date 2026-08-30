@@ -265,7 +265,9 @@ export default function StudentsListScreen({ navigation, route }) {
   };
 
   const displayedResults = (query || showAll) ? results : results.slice(0, DASHBOARD_PREVIEW_COUNT);
-  const activeCount = results.filter((s) => s.status === 'active').length;
+  const enrolledCount = results.filter(
+  (s) => ['registered', 'active', 'promoted'].includes(s.status)
+).length;
   const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
 
   return (
@@ -442,7 +444,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   ) : (
                     <View style={styles.statsGrid}>
                       <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
-                      <DashboardStatCard icon="checkmark-circle" value={activeCount} title="Active" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
+                      <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
                       <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
                       <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
                       <DashboardStudentSyncCards />
