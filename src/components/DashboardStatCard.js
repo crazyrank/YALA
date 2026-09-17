@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -16,7 +16,10 @@ export default function DashboardStatCard({
 }) {
   const { colors } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
+  const valueAnim = useRef(new Animated.Value(0)).current;
+  const [displayValue, setDisplayValue] = useState(value);
 
+  // Entrance animation (runs once on mount)
   useEffect(() => {
     Animated.timing(anim, {
       toValue: 1,
@@ -26,6 +29,35 @@ export default function DashboardStatCard({
       useNativeDriver: true,
     }).start();
   }, [anim, delay]);
+
+  // Animate the number when the value prop changes
+  useEffect(() => {
+    const numeric = typeof value === 'number' ? value : parseFloat(value);
+    if (Number.isNaN(numeric)) {
+      setDisplayValue(value);
+      return;
+    }
+
+    valueAnim.setValue(0);
+    const start = typeof displayValue === 'number' ? displayValue : 0;
+    const end = numeric;
+
+    const listener = valueAnim.addListener(({ value: v }) => {
+      setDisplayValue(Math.round(start + (end - start) * v));
+    });
+
+    Animated.timing(valueAnim, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // we need the JS listener
+    }).start(() => {
+      valueAnim.removeListener(listener);
+      setDisplayValue(end);
+    });
+
+    return () => valueAnim.removeListener(listener);
+  }, [value]);
 
   const animatedStyle = {
     opacity: anim,
@@ -61,7 +93,7 @@ export default function DashboardStatCard({
       </View>
 
       <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
-        {value}
+        {displayValue}
       </Text>
 
       <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
