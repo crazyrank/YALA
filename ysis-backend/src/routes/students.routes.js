@@ -10,7 +10,7 @@ const {
   getCurrentServerState,
 } = require('../services/studentService');
 const { uploadStudentPhoto } = require('../services/photoService');
-const { isAtMaxClass } = require('../utils/classProgression');
+const { isAtMaxClass, getNextClass } = require('../utils/classProgression');
 
 const router = express.Router();
 
@@ -414,7 +414,9 @@ router.patch(
  *
  * IMPORTANT:
  * The server checks the student's CURRENT class before applying
- * the promotion. SS3 is the hard ceiling.
+ * the promotion, and now also verifies that newClassLevel is
+ * EXACTLY the next class in CLASS_ORDER — not just any string.
+ * SS3 is the hard ceiling.
  */
 router.post(
   '/:id/promote',
@@ -470,6 +472,20 @@ router.post(
         throw Errors.badRequest(
           'ALREADY_AT_MAX_CLASS',
           'This student is already at SS3, the highest class. They should be graduated, not promoted.'
+        );
+      }
+
+      const expectedNextClass = getNextClass(
+        currentStudent.class_level
+      );
+
+      if (
+        req.body.newClassLevel !==
+        expectedNextClass
+      ) {
+        throw Errors.badRequest(
+          'INVALID_CLASS_PROGRESSION',
+          `This student can only be promoted to ${expectedNextClass}.`
         );
       }
 
