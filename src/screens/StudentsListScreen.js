@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { getDb } from '../db';
 import { api } from '../api/client';
+import { fetchAndCacheAllStudents } from '../services/studentSync';
 import { exportStudentsToCsv } from '../services/csvExport';
 import OfflineMarquee from '../components/OfflineMarquee';
 import SyncIssueBanner from '../components/SyncIssueBanner';
@@ -191,34 +192,9 @@ export default function StudentsListScreen({ navigation, route }) {
     setInitialLoading(false);
   }, [classLevel]);
 
-  const refreshFromServer = useCallback(async () => {
+  const refreshFromServer = useCallback(async (force = false) => {
     try {
-      const response = await api.get('/students?page=1');
-      console.log('[STUDENTS API COUNT]', response.students?.length);
-      console.log('[STUDENTS API DATA]', JSON.stringify(response.students, null, 2));
-      const db = await getDb();
-      for (const s of response.students || []) {
-        await db.runAsync(
-          `INSERT INTO students
-             (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             admission_no=excluded.admission_no,
-             full_name=excluded.full_name,
-             division=excluded.division,
-             class_level=excluded.class_level,
-             arm=excluded.arm,
-             status=excluded.status,
-             sync_version=excluded.sync_version,
-             updated_at=excluded.updated_at
-           WHERE students.local_dirty = 0`,
-          [
-            s.id, s.admission_no, s.full_name, s.division || 'secondary',
-            s.class_level, s.arm, s.status, s.sync_version,
-            new Date().toISOString(), new Date().toISOString(),
-          ]
-        );
-      }
+      await fetchAndCacheAllStudents({ force });
       await runLocalSearch(query);
       setPullError(null);
     } catch (err) {
@@ -234,10 +210,16 @@ export default function StudentsListScreen({ navigation, route }) {
       let active = true;
 
       const loadStudents = async () => {
-        await refreshFromServer();
-
+        // 1. Instant paint from local SQLite
         if (active) {
           await runLocalSearch(query);
+        }
+
+        // 2. Background revalidation (never blocks the UI)
+        try {
+          await refreshFromServer(false);
+        } catch (_) {
+          // already handled inside refreshFromServer
         }
       };
 
@@ -257,7 +239,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await refreshFromServer();
+      await refreshFromServer(true);
     } finally {
       setRefreshing(false);
     }
