@@ -21,22 +21,12 @@ export default function DashboardStudentSyncCards() {
 
   const loadStudentCounts = useCallback(async () => {
     if (loading) return;
-
     setLoading(true);
 
     try {
       const db = await getDb();
 
-      /*
-       * LOCAL SYNC COUNT
-       *
-       * A student is considered synced when:
-       * 1. The local student record is not dirty.
-       * 2. There is no pending, conflicted, or failed sync operation
-       *    belonging to that student.
-       *
-       * This uses the existing local sync architecture.
-       */
+      // Local synced count (always available offline)
       const localResult = await db.getFirstAsync(`
         SELECT COUNT(*) AS count
         FROM students s
@@ -48,23 +38,22 @@ export default function DashboardStudentSyncCards() {
               AND so.status IN ('pending', 'conflicted', 'failed')
           )
       `);
-
       setSyncedStudents(Number(localResult?.count || 0));
 
-      // Use the shared service (one network call path for list + dashboard)
-      const { total } = await fetchAndCacheAllStudents({ force: false });
-      setTotalStudents(total);
+      // Prefer server total; fall back to local total on any network/auth error
+      try {
+        const { total } = await fetchAndCacheAllStudents({ force: false });
+        setTotalStudents(total);
+      } catch (netErr) {
+        const localTotal = await getLocalStudentCount();
+        setTotalStudents(localTotal);
+        // Only log if it is not a plain network/offline case
+        if (!netErr?.isNetworkError) {
+          console.warn('Dashboard student count unavailable:', netErr?.message || netErr);
+        }
+      }
     } catch (error) {
-      /*
-       * Do not interfere with the existing authentication/security flow.
-       *
-       * If the server cannot be reached, the existing local data remains
-       * available and the server total is simply left unavailable.
-       */
-      console.warn(
-        'Dashboard student count unavailable:',
-        error?.message || error
-      );
+      console.warn('Dashboard student count unavailable:', error?.message || error);
     } finally {
       setLoading(false);
     }
