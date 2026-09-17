@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config';
 
 const ACCESS_TOKEN_KEY = 'ysis_access_token';
+const DEFAULT_TIMEOUT_MS = 15000; // 15 seconds
 
 export async function getAccessToken() {
   return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
@@ -31,20 +32,28 @@ async function apiFetch(path, options = {}, isRetry = false) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`\( {API_BASE_URL} \){path}`, {
       ...options,
       headers,
       credentials: 'include', // sends the httpOnly refresh cookie
+      signal: controller.signal,
     });
   } catch (networkErr) {
-    // Genuine offline/network failure — the caller (usually the sync
-    // engine or a screen with local-first data) should treat this as
-    // "queue it, try again later", not a hard error to show the user.
-    const err = new Error('Network unavailable');
+    clearTimeout(timeoutId);
+    const err = new Error(
+      networkErr.name === 'AbortError'
+        ? 'Request timed out'
+        : 'Network unavailable'
+    );
     err.isNetworkError = true;
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (response.status === 401 && !isRetry && path !== '/auth/refresh') {
