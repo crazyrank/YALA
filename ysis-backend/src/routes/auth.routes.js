@@ -7,6 +7,8 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -14,8 +16,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' } },
   keyGenerator: (req) => {
-    const id = (req.body && (req.body.email || req.body.username)) || req.ip;
-    return String(id);
+    const id = req.body && (req.body.email || req.body.username);
+    return id ? String(id) : ipKeyGenerator(req.ip);
   },
 });
 
@@ -32,14 +34,9 @@ const REFRESH_COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict',
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
-/**
- * POST /auth/login
- * First login for a NEW device must succeed here while online — this is
- * also where device registration happens (Build Spec Section 4).
- */
 router.post(
   '/login',
   authLimiter,
@@ -66,7 +63,6 @@ router.post(
         throw Errors.forbidden('This account is not active. Contact your administrator.');
       }
 
-      // Device registration / lookup
       let device;
       const existingDevice = await db.query(
         'SELECT * FROM devices WHERE user_id = $1 AND device_fingerprint = $2',
@@ -77,8 +73,6 @@ router.post(
         if (device.status === 'revoked') {
           throw Errors.deviceNotTrusted('This device has been disabled. Contact your Principal.');
         }
-        // First-ever login on this device auto-trusts it since credentials
-        // were just verified online; subsequent devices follow the same rule.
         if (device.status === 'pending_verification') {
           const updated = await db.query(
             `UPDATE devices SET status = 'trusted', last_seen_at = now() WHERE id = $1 RETURNING *`,
@@ -122,7 +116,6 @@ router.post(
   }
 );
 
-/** POST /auth/refresh */
 router.post('/refresh', async (req, res, next) => {
   try {
     const token = req.cookies?.refreshToken;
@@ -156,7 +149,6 @@ router.post('/refresh', async (req, res, next) => {
   }
 });
 
-/** POST /auth/logout */
 router.post('/logout', requireAuth, async (req, res, next) => {
   try {
     res.clearCookie('refreshToken', REFRESH_COOKIE_OPTS);
@@ -167,12 +159,6 @@ router.post('/logout', requireAuth, async (req, res, next) => {
   }
 });
 
-/**
- * POST /auth/reset-password
- * Caller must be Principal (resetting a Head Teacher) or Director
- * (resetting a Principal) — Build Spec Section 9. Director lockout is
- * deliberately NOT handled here; see the build spec's operational runbook note.
- */
 router.post(
   '/reset-password',
   requireAuth,
@@ -192,7 +178,6 @@ router.post(
         (callerRole === 'director' && target.role === 'principal');
       if (!validPair) throw Errors.forbidden('You are not able to reset this account.');
 
-      // Invalidate any prior unused token for this user — only one live token at a time.
       await db.query(
         `UPDATE password_reset_tokens SET invalidated_at = now()
          WHERE user_id = $1 AND used_at IS NULL AND invalidated_at IS NULL`,
@@ -201,7 +186,7 @@ router.post(
 
       const tempCredential = generateTempCredential();
       const tokenHash = sha256(tempCredential);
-      const expiresAt = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes
+      const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
 
       await db.query(
         `INSERT INTO password_reset_tokens (user_id, token_hash, issued_by, expires_at)
@@ -218,7 +203,6 @@ router.post(
         result: 'success',
       });
 
-      // Shown ONCE — the Principal relays this verbally, per the design.
       return res.json({ tempCredential, expiresAt });
     } catch (err) {
       return next(err);
@@ -226,7 +210,6 @@ router.post(
   }
 );
 
-/** POST /auth/complete-reset */
 router.post(
   '/complete-reset',
   authLimiter,
