@@ -9,6 +9,11 @@ const {
   applyConditionalUpdate,
   getCurrentServerState,
 } = require('../services/studentService');
+const {
+  getScopeForUser,
+  scopeToSqlClause,
+  isWithinScope,
+} = require('../services/studentScopeService');
 const { uploadStudentPhoto } = require('../services/photoService');
 const { isAtMaxClass, getNextClass, CLASS_ORDER } = require('../utils/classProgression');
 
@@ -23,72 +28,6 @@ function checkValidation(req) {
       result.array()[0].msg
     );
   }
-}
-
-async function getScopeForUser(auth) {
-  if (
-    auth.role === 'principal' ||
-    auth.role === 'director'
-  ) {
-    return null;
-  }
-
-  const { rows } = await db.query(
-    `SELECT division, class_level, arm
-     FROM head_teacher_class_assignments
-     WHERE user_id = $1`,
-    [auth.userId]
-  );
-
-  return rows;
-}
-
-function scopeToSqlClause(scope, startIndex) {
-  if (!scope || scope.length === 0) {
-    return {
-      clause: 'FALSE',
-      params: [],
-    };
-  }
-
-  const clauses = [];
-  const params = [];
-  let idx = startIndex;
-
-  for (const s of scope) {
-    if (s.arm) {
-      clauses.push(
-        `(division = $${idx}
-          AND class_level = $${idx + 1}
-          AND arm = $${idx + 2})`
-      );
-
-      params.push(
-        s.division,
-        s.class_level,
-        s.arm
-      );
-
-      idx += 3;
-    } else {
-      clauses.push(
-        `(division = $${idx}
-          AND class_level = $${idx + 1})`
-      );
-
-      params.push(
-        s.division,
-        s.class_level
-      );
-
-      idx += 2;
-    }
-  }
-
-  return {
-    clause: `(${clauses.join(' OR ')})`,
-    params,
-  };
 }
 
 /**
@@ -257,6 +196,23 @@ router.post(
         guardianPhone,
       } = req.body;
 
+      // Security fix: a head_teacher could previously register a student
+      // into ANY division/class by simply putting it in the request body.
+      // Registration must land inside the caller's own assigned scope.
+      const scope = await getScopeForUser(req.auth);
+
+      if (
+        !isWithinScope(scope, {
+          division,
+          classLevel,
+          arm: arm || null,
+        })
+      ) {
+        throw Errors.forbidden(
+          'You do not have permission to register students in this class.'
+        );
+      }
+
       try {
         const { rows } = await db.query(
           `INSERT INTO students
@@ -377,6 +333,70 @@ router.patch(
         ...changes
       } = req.body;
 
+      // Security fix: previously this route trusted `changes` completely,
+      // so a head_teacher could edit (or division-hop) a student outside
+      // their scope. Both the student's CURRENT class and, if the edit
+      // touches division/class_level/arm, its RESULTING class must be
+      // inside the caller's scope.
+      const currentStudent = await getCurrentServerState(
+        req.params.id
+      );
+
+      if (!currentStudent) {
+        throw Errors.notFound(
+          'That student could not be found.'
+        );
+      }
+
+      const scope = await getScopeForUser(req.auth);
+
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden(
+          'You do not have permission to edit this student.'
+        );
+      }
+
+      const touchesClassFields = [
+        'division',
+        'class_level',
+        'arm',
+      ].some((field) => field in changes);
+
+      if (touchesClassFields) {
+        const nextDivision =
+          'division' in changes
+            ? changes.division
+            : currentStudent.division;
+
+        const nextClassLevel =
+          'class_level' in changes
+            ? changes.class_level
+            : currentStudent.class_level;
+
+        const nextArm =
+          'arm' in changes
+            ? changes.arm
+            : currentStudent.arm;
+
+        if (
+          !isWithinScope(scope, {
+            division: nextDivision,
+            classLevel: nextClassLevel,
+            arm: nextArm,
+          })
+        ) {
+          throw Errors.forbidden(
+            'You do not have permission to move this student into that class.'
+          );
+        }
+      }
+
       const result =
         await applyConditionalUpdate({
           studentId: req.params.id,
@@ -457,6 +477,24 @@ router.post(
       if (!currentStudent) {
         throw Errors.notFound(
           'That student could not be found.'
+        );
+      }
+
+      // Security fix: PROMOTE_STUDENT only ever checked a role-level
+      // permission, never whether THIS student is inside the caller's
+      // division/class scope. A Secondary HT with delegated promote
+      // rights could previously promote any Primary student too.
+      const scope = await getScopeForUser(req.auth);
+
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden(
+          'You do not have permission to promote this student.'
         );
       }
 
@@ -550,6 +588,34 @@ router.post(
         throw Errors.badRequest(
           'VALIDATION_ERROR',
           result.array()[0].msg
+        );
+      }
+
+      // Security fix: photo upload never checked the student existed or
+      // was in scope at all — any authenticated staff member could upload
+      // a photo for any student ID, in or out of their division.
+      const currentStudent =
+        await getCurrentServerState(
+          req.params.id
+        );
+
+      if (!currentStudent) {
+        throw Errors.notFound(
+          'That student could not be found.'
+        );
+      }
+
+      const scope = await getScopeForUser(req.auth);
+
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden(
+          'You do not have permission to update this student\'s photo.'
         );
       }
 

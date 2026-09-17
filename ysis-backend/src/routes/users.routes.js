@@ -5,6 +5,8 @@ const { hashPassword, generateTempCredential } = require('../utils/hash');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
+const { userHasPermission } = require('../services/permissionService');
+const { CLASS_ORDER } = require('../utils/classProgression');
 
 const router = express.Router();
 
@@ -19,6 +21,44 @@ const CREATABLE_ROLE_BY_CALLER = {
   director: 'principal',
   principal: 'head_teacher',
 };
+
+/**
+ * Shared gate for the class-assignment endpoints below. Director can
+ * manage any head_teacher's assignments. Principal can only manage
+ * assignments for head_teachers they personally created (same ownership
+ * rule as PATCH /:id/status). Anyone else needs the delegated
+ * MANAGE_CLASS_ASSIGNMENTS permission (via user_permissions) and, since
+ * this system has no notion of "delegate owns HT X", is treated as
+ * unscoped like director once granted.
+ */
+async function assertCanManageClassAssignments(req, target) {
+  if (req.auth.role !== 'director' && req.auth.role !== 'principal') {
+    const allowed = await userHasPermission({
+      userId: req.auth.userId,
+      role: req.auth.role,
+      permissionCode: 'MANAGE_CLASS_ASSIGNMENTS',
+      atTime: new Date(),
+    });
+    if (!allowed) {
+      throw Errors.forbidden('You do not have permission to manage class assignments.');
+    }
+    return;
+  }
+
+  if (req.auth.role === 'principal' && target.created_by !== req.auth.userId) {
+    throw Errors.forbidden('You are not able to manage this account.');
+  }
+}
+
+async function loadHeadTeacherTarget(userId) {
+  const { rows } = await db.query('SELECT id, role, created_by FROM users WHERE id = $1', [userId]);
+  const target = rows[0];
+  if (!target) throw Errors.notFound('That account could not be found.');
+  if (target.role !== 'head_teacher') {
+    throw Errors.badRequest('INVALID_TARGET_ROLE', 'Only Head Teacher accounts have class assignments.');
+  }
+  return target;
+}
 
 /**
  * POST /users
@@ -182,6 +222,125 @@ router.patch(
           createdAt: user.created_at,
         },
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * POST /users/:id/class-assignments
+ */
+router.post(
+  '/:id/class-assignments',
+  requireAuth,
+  [
+    param('id').isUUID(),
+    body('division').isIn(['primary', 'secondary']),
+    body('classLevel').isIn(CLASS_ORDER),
+    body('arm').optional().isString().trim(),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const target = await loadHeadTeacherTarget(req.params.id);
+      await assertCanManageClassAssignments(req, target);
+
+      const { division, classLevel, arm } = req.body;
+
+      const inserted = await db.query(
+        `INSERT INTO head_teacher_class_assignments (user_id, division, class_level, arm, assigned_by)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, division, class_level, arm, assigned_at`,
+        [target.id, division, classLevel, arm || null, req.auth.userId]
+      );
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'CLASS_ASSIGNMENT_CREATED',
+        entityType: 'user',
+        entityId: target.id,
+        result: 'success',
+        metadata: { division, classLevel, arm: arm || null },
+      });
+
+      return res.status(201).json({ assignment: inserted.rows[0] });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * GET /users/:id/class-assignments
+ */
+router.get(
+  '/:id/class-assignments',
+  requireAuth,
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const target = await loadHeadTeacherTarget(req.params.id);
+      await assertCanManageClassAssignments(req, target);
+
+      const { rows } = await db.query(
+        `SELECT id, division, class_level, arm, assigned_at
+         FROM head_teacher_class_assignments
+         WHERE user_id = $1
+         ORDER BY assigned_at ASC`,
+        [target.id]
+      );
+
+      return res.json({ assignments: rows });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * DELETE /users/:id/class-assignments/:assignmentId
+ */
+router.delete(
+  '/:id/class-assignments/:assignmentId',
+  requireAuth,
+  [
+    param('id').isUUID(),
+    param('assignmentId').isUUID(),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const target = await loadHeadTeacherTarget(req.params.id);
+      await assertCanManageClassAssignments(req, target);
+
+      const deleted = await db.query(
+        `DELETE FROM head_teacher_class_assignments
+         WHERE id = $1 AND user_id = $2
+         RETURNING id`,
+        [req.params.assignmentId, target.id]
+      );
+
+      if (deleted.rows.length === 0) {
+        throw Errors.notFound('That class assignment could not be found.');
+      }
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'CLASS_ASSIGNMENT_REMOVED',
+        entityType: 'user',
+        entityId: target.id,
+        result: 'success',
+        metadata: { assignmentId: req.params.assignmentId },
+      });
+
+      return res.status(204).send();
     } catch (err) {
       return next(err);
     }

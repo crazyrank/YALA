@@ -4,6 +4,10 @@ const {
   applyConditionalUpdate,
   getCurrentServerState,
 } = require('./studentService');
+const {
+  getScopeForUser,
+  isWithinScope,
+} = require('./studentScopeService');
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
@@ -86,22 +90,96 @@ async function processOperation({
         }
       }
 
-      if (opType === 'promote_student') {
-        const currentStudent = await getCurrentServerState(entityId);
+      // Security fix: this sync path is a second, previously-unguarded
+      // way to reach the same edit/promote writes as students.routes.js.
+      // Both operations must be scope-checked against the student's
+      // CURRENT class, mirroring PATCH /:id and POST /:id/promote there.
+      const currentStudent = await getCurrentServerState(entityId);
 
-        if (!currentStudent) {
-          await markOpStatus(
-            syncOpRowId,
-            'failed',
-            'That student could not be found.'
-          );
-          return {
-            operationId,
-            status: 'failed',
-            error: 'NOT_FOUND',
-          };
+      if (!currentStudent) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'That student could not be found.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'NOT_FOUND',
+        };
+      }
+
+      const scope = await getScopeForUser({
+        role: userRole,
+        userId,
+      });
+
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'You do not have permission to modify this student.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'FORBIDDEN',
+        };
+      }
+
+      if (opType === 'edit_student') {
+        const changes = payload.changes || {};
+
+        const touchesClassFields = [
+          'division',
+          'class_level',
+          'arm',
+        ].some((field) => field in changes);
+
+        if (touchesClassFields) {
+          const nextDivision =
+            'division' in changes
+              ? changes.division
+              : currentStudent.division;
+
+          const nextClassLevel =
+            'class_level' in changes
+              ? changes.class_level
+              : currentStudent.class_level;
+
+          const nextArm =
+            'arm' in changes
+              ? changes.arm
+              : currentStudent.arm;
+
+          if (
+            !isWithinScope(scope, {
+              division: nextDivision,
+              classLevel: nextClassLevel,
+              arm: nextArm,
+            })
+          ) {
+            await markOpStatus(
+              syncOpRowId,
+              'failed',
+              'You do not have permission to move this student into that class.'
+            );
+            return {
+              operationId,
+              status: 'failed',
+              error: 'FORBIDDEN',
+            };
+          }
         }
+      }
 
+      if (opType === 'promote_student') {
         if (isAtMaxClass(currentStudent.class_level)) {
           await markOpStatus(
             syncOpRowId,
@@ -221,6 +299,33 @@ async function processOperation({
         };
       }
 
+      // Security fix: this sync path is a second, previously-unguarded
+      // way to register a student — mirrors the guard added to
+      // POST /students in students.routes.js.
+      const scope = await getScopeForUser({
+        role: userRole,
+        userId,
+      });
+
+      if (
+        !isWithinScope(scope, {
+          division,
+          classLevel,
+          arm: arm || null,
+        })
+      ) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'You do not have permission to register students in this class.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'FORBIDDEN',
+        };
+      }
+
       try {
         await db.query(
           `INSERT INTO students
@@ -316,6 +421,48 @@ async function processOperation({
     }
 
     if (opType === 'upload_photo') {
+      // Security fix: this sync path never checked the student existed
+      // or was in scope at all — mirrors the guard added to
+      // POST /students/:id/photo in students.routes.js.
+      const currentStudent = await getCurrentServerState(entityId);
+
+      if (!currentStudent) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'That student could not be found.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'NOT_FOUND',
+        };
+      }
+
+      const scope = await getScopeForUser({
+        role: userRole,
+        userId,
+      });
+
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          "You do not have permission to update this student's photo."
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'FORBIDDEN',
+        };
+      }
+
       try {
         await uploadStudentPhoto({
           studentId: entityId,
