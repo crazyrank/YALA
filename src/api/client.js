@@ -37,7 +37,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(`\( {API_BASE_URL} \){path}`, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
       credentials: 'include', // sends the httpOnly refresh cookie
