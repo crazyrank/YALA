@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DashboardStatCard from './DashboardStatCard';
 import { getDb } from '../db';
 import { api } from '../api/client';
+import { fetchAndCacheAllStudents, getLocalStudentCount } from '../services/studentSync';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
@@ -50,37 +51,9 @@ export default function DashboardStudentSyncCards() {
 
       setSyncedStudents(Number(localResult?.count || 0));
 
-      /*
-       * SERVER COUNT
-       *
-       * Uses the EXISTING authenticated /students endpoint.
-       * No new endpoint and no new security flow.
-       *
-       * The endpoint returns 30 students per page, so we continue
-       * requesting pages until the final page is reached.
-       */
-      let page = 1;
-      let serverCount = 0;
-
-      while (true) {
-        const response = await api.get(
-          `/students?page=${page}`
-        );
-
-        const students = Array.isArray(response?.students)
-          ? response.students
-          : [];
-
-        serverCount += students.length;
-
-        if (students.length < PAGE_SIZE) {
-          break;
-        }
-
-        page += 1;
-      }
-
-      setTotalStudents(serverCount);
+      // Use the shared service (one network call path for list + dashboard)
+      const { total } = await fetchAndCacheAllStudents({ force: false });
+      setTotalStudents(total);
     } catch (error) {
       /*
        * Do not interfere with the existing authentication/security flow.
