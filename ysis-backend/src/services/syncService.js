@@ -1,4 +1,5 @@
 const db = require('../db');
+const { validate: isUuid } = require('uuid');
 const {
   applyConditionalUpdate,
   getCurrentServerState,
@@ -6,6 +7,8 @@ const {
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
+
+const VALID_DIVISIONS = ['primary', 'secondary'];
 
 async function processOperation({
   operation,
@@ -184,6 +187,32 @@ async function processOperation({
           syncOpRowId,
           'failed',
           'create_student payload is missing required fields.'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'VALIDATION_ERROR',
+        };
+      }
+
+      if (!isUuid(id)) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          'create_student payload has an invalid id (must be a UUID).'
+        );
+        return {
+          operationId,
+          status: 'failed',
+          error: 'VALIDATION_ERROR',
+        };
+      }
+
+      if (!VALID_DIVISIONS.includes(division)) {
+        await markOpStatus(
+          syncOpRowId,
+          'failed',
+          `create_student payload has an invalid division (must be one of: ${VALID_DIVISIONS.join(', ')}).`
         );
         return {
           operationId,
