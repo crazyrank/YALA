@@ -25,7 +25,7 @@ async function requireAuth(req, res, next) {
       `SELECT u.id, u.role, u.status, u.session_version,
               d.status AS device_status
        FROM users u
-       JOIN devices d ON d.id = $2
+       JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
       [payload.userId, payload.deviceId]
     );

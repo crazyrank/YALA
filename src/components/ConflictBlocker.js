@@ -63,10 +63,10 @@ export default function ConflictBlocker({ navigation, children }) {
         <Text style={styles.blockTitle}>Unresolved records need your decision</Text>
         <Text style={styles.blockBody}>
           {openCount > 0 &&
-            `\( {openCount} conflicting student record \){openCount > 1 ? 's' : ''}`}
+            `${openCount} conflicting student record${openCount > 1 ? 's' : ''}`}
           {openCount > 0 && mergeCount > 0 && ' and '}
           {mergeCount > 0 &&
-            `\( {mergeCount} duplicate registration \){mergeCount > 1 ? 's' : ''} to reconcile`}
+            `${mergeCount} duplicate registration${mergeCount > 1 ? 's' : ''} to reconcile`}
           {'. '}
           Other dashboard actions are paused until these are resolved.
         </Text>

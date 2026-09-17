@@ -137,7 +137,7 @@ router.post('/refresh', async (req, res, next) => {
 
     const { rows } = await db.query(
       `SELECT u.role, u.session_version, d.status AS device_status
-       FROM users u JOIN devices d ON d.id = $2
+       FROM users u JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
       [payload.userId, payload.deviceId]
     );
