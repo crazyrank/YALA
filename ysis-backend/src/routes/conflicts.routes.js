@@ -4,6 +4,7 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
+const { EDITABLE_FIELDS } = require('../services/studentService');
 
 const router = express.Router();
 
@@ -33,6 +34,11 @@ router.get('/', requireAuth, requireRole('principal', 'director'), async (req, r
  * resolution: 'restore' (apply incoming_change over server_state),
  *             'keep_deleted' (discard incoming_change, no-op on students),
  *             'manual_merge' (Principal supplies the final field values directly)
+ *
+ * Both 'restore' and 'manual_merge' filter field names through
+ * EDITABLE_FIELDS before they ever reach SQL — same allowlist
+ * applyConditionalUpdate uses. Column names can never come from
+ * unfiltered request/sync-payload data.
  */
 router.post(
   '/:id/resolve',
@@ -51,7 +57,7 @@ router.post(
 
       if (resolution === 'restore') {
         const changes = conflict.incoming_change.changes || {};
-        const setFields = Object.keys(changes);
+        const setFields = Object.keys(changes).filter((f) => EDITABLE_FIELDS.includes(f));
         if (setFields.length > 0) {
           const setClauses = setFields.map((f, i) => `${f} = $${i + 2}`).join(', ');
           await db.query(
@@ -60,7 +66,7 @@ router.post(
           );
         }
       } else if (resolution === 'manual_merge' && manualFields) {
-        const setFields = Object.keys(manualFields);
+        const setFields = Object.keys(manualFields).filter((f) => EDITABLE_FIELDS.includes(f));
         if (setFields.length > 0) {
           const setClauses = setFields.map((f, i) => `${f} = $${i + 2}`).join(', ');
           await db.query(
@@ -137,11 +143,6 @@ router.post(
          WHERE id = $1`,
         [req.params.id, req.auth.userId, canonicalId, discardedId]
       );
-
-      // Notify: any Head Teacher device that had the discarded record
-      // will see "this record was merged" the next time it opens that
-      // student — implemented client-side by checking canonical_id
-      // against the merge queue for a 404'd/discarded id.
 
       await writeAudit({
         userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'ADMISSION_MERGE_RESOLVED',
