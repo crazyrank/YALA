@@ -40,8 +40,9 @@ const REFRESH_COOKIE_OPTS = {
  * First login for a NEW device must succeed here while online — this is
  * also where device registration happens (Build Spec Section 4).
  */
-router.post(authLimiter, 
+router.post(
   '/login',
+  authLimiter,
   [
     body('email').isEmail(),
     body('password').isString().notEmpty(),
@@ -226,8 +227,9 @@ router.post(
 );
 
 /** POST /auth/complete-reset */
-router.post(authLimiter, 
+router.post(
   '/complete-reset',
+  authLimiter,
   [
     body('email').isEmail(),
     body('tempCredential').isString().notEmpty(),
