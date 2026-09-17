@@ -6,6 +6,18 @@ const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../ut
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
+const rateLimit = require('express-rate-limit');
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' } },
+  keyGenerator: (req) => {
+    const id = (req.body && (req.body.email || req.body.username)) || req.ip;
+    return String(id);
+  },
+});
 
 const router = express.Router();
 
@@ -28,7 +40,7 @@ const REFRESH_COOKIE_OPTS = {
  * First login for a NEW device must succeed here while online — this is
  * also where device registration happens (Build Spec Section 4).
  */
-router.post(
+router.post(authLimiter, 
   '/login',
   [
     body('email').isEmail(),
@@ -214,7 +226,7 @@ router.post(
 );
 
 /** POST /auth/complete-reset */
-router.post(
+router.post(authLimiter, 
   '/complete-reset',
   [
     body('email').isEmail(),
