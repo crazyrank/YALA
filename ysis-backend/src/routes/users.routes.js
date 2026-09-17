@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
 const { hashPassword, generateTempCredential } = require('../utils/hash');
 const { requireAuth, requireRole } = require('../middleware/auth');
@@ -15,9 +15,6 @@ function checkValidation(req) {
   }
 }
 
-// Caller's role determines the ONLY role they're allowed to create — this
-// is inferred, never taken from the request body, so there's no field to
-// tamper with to escalate privilege (Build Spec Section 3 hierarchy).
 const CREATABLE_ROLE_BY_CALLER = {
   director: 'principal',
   principal: 'head_teacher',
@@ -25,11 +22,6 @@ const CREATABLE_ROLE_BY_CALLER = {
 
 /**
  * POST /users
- * Director creates a Principal, or Principal creates a Head Teacher.
- * Mirrors the /auth/reset-password flow: generates a temp credential,
- * returns it ONCE in the response body, forces a password change on
- * first login. No route exists for creating a Director (Build Spec
- * Section 3 — Director is DB-seeded only, no in-app recovery/creation).
  */
 router.post(
   '/',
@@ -57,9 +49,6 @@ router.post(
       const passwordHash = await hashPassword(tempCredential);
       const directoryTitle = targetRole === 'principal' ? 'Principal' : 'Head Teacher';
 
-      // Account + directory card are created as one unit: a Principal or
-      // Head Teacher never exists without also appearing on the staff
-      // slide, no extra form (Staff & Directory spec, Section 5).
       const created = await db.withTransaction(async (client) => {
         const { rows } = await client.query(
           `INSERT INTO users (full_name, email, phone, password_hash, role, must_change_password, created_by)
@@ -88,8 +77,6 @@ router.post(
         metadata: { role: targetRole },
       });
 
-      // Shown ONCE — the caller relays this verbally to the new user,
-      // same discipline as the reset-password temp credential.
       return res.status(201).json({
         user: {
           id: created.id,
@@ -103,8 +90,6 @@ router.post(
         tempCredential,
       });
     } catch (err) {
-      // Belt-and-suspenders: a race between the SELECT check and INSERT
-      // still hits the DB's UNIQUE constraint on email (citext).
       if (err.code === '23505') {
         return next(Errors.conflict('EMAIL_IN_USE', 'An account with this email already exists.'));
       }
@@ -115,9 +100,6 @@ router.post(
 
 /**
  * GET /users
- * Returns the staff the caller manages: Director sees the Principals they
- * created, Principal sees the Head Teachers they created. Scoped by
- * created_by so one Principal never sees another Principal's staff.
  */
 router.get('/', requireAuth, requireRole('director', 'principal'), async (req, res, next) => {
   try {
@@ -149,17 +131,15 @@ router.get('/', requireAuth, requireRole('director', 'principal'), async (req, r
 
 /**
  * PATCH /users/:id/status
- * Disable ('suspended') or re-enable ('active') a staff account the caller
- * created — same hierarchy + ownership rule as everywhere else here.
- * Suspending also bumps session_version, which immediately invalidates
- * any access/refresh token already issued to that account (requireAuth
- * checks session_version against the DB on every request).
  */
 router.patch(
   '/:id/status',
   requireAuth,
   requireRole('director', 'principal'),
-  [body('status').isIn(['active', 'suspended'])],
+  [
+    param('id').isUUID(),
+    body('status').isIn(['active', 'suspended']),
+  ],
   async (req, res, next) => {
     try {
       checkValidation(req);

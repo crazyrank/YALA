@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
@@ -15,15 +15,12 @@ function checkValidation(req) {
   }
 }
 
-// Staff & Directory spec, Section 3 — who may create/edit each section.
 const SECTION_CREATORS = {
   board: ['director'],
   management: ['director', 'principal'],
   class_teacher: ['director', 'principal', 'head_teacher'],
 };
 
-// Staff & Directory spec, Section 4 — same UI for everyone, sections
-// filtered by the viewer's own role.
 const VISIBLE_SECTIONS_BY_ROLE = {
   director: ['board', 'management', 'class_teacher'],
   principal: ['management', 'class_teacher'],
@@ -44,8 +41,6 @@ function serialize(row) {
 
 /**
  * GET /directory
- * One screen, three sections, filtered server-side by role — the client
- * never has to know or enforce the visibility rule itself.
  */
 router.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -78,8 +73,6 @@ router.get('/', requireAuth, async (req, res, next) => {
 
 /**
  * POST /directory
- * Creates a display-only card. Never touches `users` — creating a
- * directory entry never creates a password or account (Section 2).
  */
 router.post(
   '/',
@@ -134,14 +127,12 @@ router.post(
 
 /**
  * PATCH /directory/:id
- * Edits a card's name/title/photo. Entries auto-created for a login
- * account (linked_user_id set) are not editable here — they follow the
- * account, not a manual edit (Section 5).
  */
 router.patch(
   '/:id',
   requireAuth,
   [
+    param('id').isUUID(),
     body('fullName').optional().isString().trim().notEmpty(),
     body('title').optional().isString().trim().notEmpty(),
     body('photoBase64').optional().isString(),
@@ -201,43 +192,47 @@ router.patch(
 
 /**
  * DELETE /directory/:id
- * Same ownership rule as edit; linked (auto-created) cards can't be
- * removed here — disabling the underlying account is the equivalent action.
  */
-router.delete('/:id', requireAuth, async (req, res, next) => {
-  try {
-    const { id } = req.params;
+router.delete(
+  '/:id',
+  requireAuth,
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { id } = req.params;
 
-    const { rows } = await db.query(
-      'SELECT id, section, linked_user_id FROM staff_directory WHERE id = $1',
-      [id]
-    );
-    const existing = rows[0];
-    if (!existing) throw Errors.notFound('That staff directory entry could not be found.');
+      const { rows } = await db.query(
+        'SELECT id, section, linked_user_id FROM staff_directory WHERE id = $1',
+        [id]
+      );
+      const existing = rows[0];
+      if (!existing) throw Errors.notFound('That staff directory entry could not be found.');
 
-    const allowed = SECTION_CREATORS[existing.section] || [];
-    if (!allowed.includes(req.auth.role)) {
-      throw Errors.forbidden('You are not able to remove this entry.');
+      const allowed = SECTION_CREATORS[existing.section] || [];
+      if (!allowed.includes(req.auth.role)) {
+        throw Errors.forbidden('You are not able to remove this entry.');
+      }
+      if (existing.linked_user_id) {
+        throw Errors.forbidden('This card is linked to a login account and cannot be removed here.');
+      }
+
+      await db.query('DELETE FROM staff_directory WHERE id = $1', [id]);
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'DIRECTORY_ENTRY_REMOVED',
+        entityType: 'staff_directory',
+        entityId: id,
+        result: 'success',
+      });
+
+      return res.status(204).send();
+    } catch (err) {
+      return next(err);
     }
-    if (existing.linked_user_id) {
-      throw Errors.forbidden('This card is linked to a login account and cannot be removed here.');
-    }
-
-    await db.query('DELETE FROM staff_directory WHERE id = $1', [id]);
-
-    await writeAudit({
-      userId: req.auth.userId,
-      deviceId: req.auth.deviceId,
-      action: 'DIRECTORY_ENTRY_REMOVED',
-      entityType: 'staff_directory',
-      entityId: id,
-      result: 'success',
-    });
-
-    return res.status(204).send();
-  } catch (err) {
-    return next(err);
   }
-});
+);
 
 module.exports = router;

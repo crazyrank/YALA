@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, query, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
@@ -10,7 +10,7 @@ const {
   getCurrentServerState,
 } = require('../services/studentService');
 const { uploadStudentPhoto } = require('../services/photoService');
-const { isAtMaxClass, getNextClass } = require('../utils/classProgression');
+const { isAtMaxClass, getNextClass, CLASS_ORDER } = require('../utils/classProgression');
 
 const router = express.Router();
 
@@ -25,11 +25,6 @@ function checkValidation(req) {
   }
 }
 
-/**
- * Returns the caller's class scope.
- * Principal/Director: unrestricted.
- * Head Teacher: only assigned classes.
- */
 async function getScopeForUser(auth) {
   if (
     auth.role === 'principal' ||
@@ -105,6 +100,13 @@ router.get(
   [
     query('search').optional().isString(),
     query('page').optional().isInt({ min: 1 }),
+    query('status').optional().isIn([
+      'registered', 'active', 'promoted', 'graduated',
+      'transferred', 'withdrawn', 'expelled', 'archived',
+    ]),
+    query('division').optional().isIn(['primary', 'secondary']),
+    query('classLevel').optional().isIn(CLASS_ORDER),
+    query('arm').optional().isString(),
   ],
   async (req, res, next) => {
     try {
@@ -362,6 +364,7 @@ router.patch(
   '/:id',
   requireAuth,
   [
+    param('id').isUUID(),
     body('basedOnVersion')
       .isInt({ min: 1 }),
   ],
@@ -408,20 +411,13 @@ router.patch(
 
 /**
  * POST /students/:id/promote
- *
- * Principal/Director can promote directly.
- * Head Teacher requires a live PROMOTE_STUDENT permission.
- *
- * IMPORTANT:
- * The server checks the student's CURRENT class before applying
- * the promotion, and now also verifies that newClassLevel is
- * EXACTLY the next class in CLASS_ORDER — not just any string.
- * SS3 is the hard ceiling.
  */
 router.post(
   '/:id/promote',
   requireAuth,
   [
+    param('id').isUUID(),
+
     body('newClassLevel')
       .isString()
       .notEmpty(),
@@ -535,13 +531,12 @@ router.post(
 
 /**
  * POST /students/:id/photo
- *
- * Online-only equivalent of the queued upload_photo operation.
  */
 router.post(
   '/:id/photo',
   requireAuth,
   [
+    param('id').isUUID(),
     body('imageBase64')
       .isString()
       .notEmpty(),

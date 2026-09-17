@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
@@ -31,20 +31,15 @@ router.get('/', requireAuth, requireRole('principal', 'director'), async (req, r
 
 /**
  * POST /conflicts/:id/resolve
- * resolution: 'restore' (apply incoming_change over server_state),
- *             'keep_deleted' (discard incoming_change, no-op on students),
- *             'manual_merge' (Principal supplies the final field values directly)
- *
- * Both 'restore' and 'manual_merge' filter field names through
- * EDITABLE_FIELDS before they ever reach SQL — same allowlist
- * applyConditionalUpdate uses. Column names can never come from
- * unfiltered request/sync-payload data.
  */
 router.post(
   '/:id/resolve',
   requireAuth,
   requireRole('principal', 'director'),
-  [body('resolution').isIn(['restore', 'keep_deleted', 'manual_merge'])],
+  [
+    param('id').isUUID(),
+    body('resolution').isIn(['restore', 'keep_deleted', 'manual_merge']),
+  ],
   async (req, res, next) => {
     try {
       checkValidation(req);
@@ -75,7 +70,6 @@ router.post(
           );
         }
       }
-      // 'keep_deleted' => intentionally no student mutation
 
       await db.query(
         `UPDATE conflicts SET status = 'resolved', resolved_by = $2, resolution = $3, resolved_at = now()
@@ -121,7 +115,11 @@ router.post(
   '/admission-merge-queue/:id/resolve',
   requireAuth,
   requireRole('principal', 'director'),
-  [body('canonicalId').isUUID(), body('discardedId').isUUID()],
+  [
+    param('id').isUUID(),
+    body('canonicalId').isUUID(),
+    body('discardedId').isUUID(),
+  ],
   async (req, res, next) => {
     try {
       checkValidation(req);
@@ -132,9 +130,6 @@ router.post(
       if (!item) throw Errors.notFound('That item could not be found.');
       if (item.status !== 'open') throw Errors.badRequest('ALREADY_RESOLVED', 'This was already resolved.');
 
-      // Hard delete the discarded row — the ONE place in this schema
-      // where a hard delete is correct, since it was never a real second
-      // student (Build Spec Section 6).
       await db.query('DELETE FROM students WHERE id = $1', [discardedId]);
 
       await db.query(

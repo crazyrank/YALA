@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { Errors } = require('../utils/errors');
@@ -7,28 +7,39 @@ const { Errors } = require('../utils/errors');
 const router = express.Router();
 
 /** GET /notifications?status=unread — scoped to caller only */
-router.get('/', requireAuth, async (req, res, next) => {
-  try {
-    const status = req.query.status;
-    const params = [req.auth.userId];
-    let where = 'WHERE user_id = $1';
-    if (status) { where += ' AND status = $2'; params.push(status); }
+router.get(
+  '/',
+  requireAuth,
+  [query('status').optional().isIn(['unread', 'read', 'archived'])],
+  async (req, res, next) => {
+    try {
+      const result = validationResult(req);
+      if (!result.isEmpty()) throw Errors.badRequest('VALIDATION_ERROR', result.array()[0].msg);
 
-    const { rows } = await db.query(
-      `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT 50`,
-      params
-    );
-    return res.json({ notifications: rows });
-  } catch (err) {
-    return next(err);
+      const status = req.query.status;
+      const params = [req.auth.userId];
+      let where = 'WHERE user_id = $1';
+      if (status) { where += ' AND status = $2'; params.push(status); }
+
+      const { rows } = await db.query(
+        `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT 50`,
+        params
+      );
+      return res.json({ notifications: rows });
+    } catch (err) {
+      return next(err);
+    }
   }
-});
+);
 
 /** PATCH /notifications/:id — body { status: 'read' | 'archived' } */
 router.patch(
   '/:id',
   requireAuth,
-  [body('status').isIn(['read', 'archived'])],
+  [
+    param('id').isUUID(),
+    body('status').isIn(['read', 'archived']),
+  ],
   async (req, res, next) => {
     try {
       const result = validationResult(req);

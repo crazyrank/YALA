@@ -3,6 +3,47 @@ const config = require('../config');
 const db = require('../db');
 const { Errors } = require('../utils/errors');
 
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+function validateImageBase64(base64Data) {
+  if (typeof base64Data !== 'string' || base64Data.length === 0) {
+    throw Errors.badRequest('INVALID_IMAGE', 'No image data was provided.');
+  }
+
+  const raw = base64Data.startsWith('data:')
+    ? base64Data.slice(base64Data.indexOf(',') + 1)
+    : base64Data;
+
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) {
+    throw Errors.badRequest('INVALID_IMAGE', 'Image data is not valid base64.');
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(raw, 'base64');
+  } catch (e) {
+    throw Errors.badRequest('INVALID_IMAGE', 'Image data could not be decoded.');
+  }
+
+  if (buffer.length === 0) {
+    throw Errors.badRequest('INVALID_IMAGE', 'Decoded image data is empty.');
+  }
+  if (buffer.length > MAX_PHOTO_BYTES) {
+    throw Errors.badRequest('IMAGE_TOO_LARGE', 'Image exceeds the 2MB size limit.');
+  }
+
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isPng =
+    buffer.length > 3 &&
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+
+  if (!isJpeg && !isPng) {
+    throw Errors.badRequest('INVALID_IMAGE', 'Only JPEG or PNG images are accepted.');
+  }
+
+  return { raw, mimeType: isPng ? 'image/png' : 'image/jpeg' };
+}
+
 let configured = false;
 function isCloudinaryConfigured() {
   const { cloudName, apiKey, apiSecret } = config.cloudinary;
@@ -18,23 +59,16 @@ function ensureCloudinaryConfigured() {
   configured = true;
 }
 
-/**
- * TEMPORARY FALLBACK: when Cloudinary credentials aren't set in the
- * environment yet, store the image inline as a data: URI in the
- * `photo_url` TEXT column instead of failing the request. This keeps
- * the feature usable during development. Swap this out (delete the
- * `if` block below) once CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET
- * are set — inline data URIs bloat the DB and don't belong long-term,
- * especially for student passport photos.
- */
 function uploadBase64Image(base64Data, publicId) {
+  const { raw, mimeType } = validateImageBase64(base64Data);
+
   if (!isCloudinaryConfigured()) {
-    return Promise.resolve(`data:image/jpeg;base64,${base64Data}`);
+    return Promise.resolve(`data:${mimeType};base64,${raw}`);
   }
   ensureCloudinaryConfigured();
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(
-      `data:image/jpeg;base64,${base64Data}`,
+      `data:${mimeType};base64,${raw}`,
       { public_id: publicId, folder: 'ysis/passport-photos', overwrite: false },
       (err, result) => {
         if (err) return reject(err);
@@ -44,14 +78,6 @@ function uploadBase64Image(base64Data, publicId) {
   });
 }
 
-/**
- * Uploads a student's passport photo, enforcing the locked rule from
- * Build Spec Section 7: exactly ONE current photo per student,
- * permanent once uploaded. A Head Teacher uploading when a photo
- * already exists is rejected outright. Only a Principal/Director may
- * replace an existing photo, and only with a `correctionReason` — this
- * mirrors the mandatory-reason pattern used for permission delegation.
- */
 async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceId, imageBase64, correctionReason }) {
   const existing = await db.query(
     'SELECT id FROM student_photos WHERE student_id = $1 AND is_current = TRUE',
@@ -96,12 +122,6 @@ async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceI
   });
 }
 
-/**
- * Uploads a photo for a staff directory card (board / management / class
- * teacher). Directory cards are display-only — there's no "current photo"
- * lock like students have, so this is a plain upload-and-return-URL, no
- * transaction, no isCurrent bookkeeping.
- */
 async function uploadDirectoryPhoto(imageBase64, entryId) {
   const publicId = `directory-${entryId}-${Date.now()}`;
   return uploadBase64Image(imageBase64, publicId);

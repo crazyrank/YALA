@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
@@ -58,26 +58,33 @@ router.post(
 );
 
 /** DELETE /permissions/delegate/:id — early revocation, granting Principal or Director */
-router.delete('/delegate/:id', requireAuth, requireRole('principal', 'director'), async (req, res, next) => {
-  try {
-    const { rows } = await db.query('SELECT * FROM user_permissions WHERE id = $1', [req.params.id]);
-    const grant = rows[0];
-    if (!grant) throw Errors.notFound();
-    if (req.auth.role === 'principal' && grant.granted_by !== req.auth.userId) {
-      throw Errors.forbidden('You can only revoke grants you issued yourself.');
+router.delete(
+  '/delegate/:id',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { rows } = await db.query('SELECT * FROM user_permissions WHERE id = $1', [req.params.id]);
+      const grant = rows[0];
+      if (!grant) throw Errors.notFound();
+      if (req.auth.role === 'principal' && grant.granted_by !== req.auth.userId) {
+        throw Errors.forbidden('You can only revoke grants you issued yourself.');
+      }
+
+      await db.query('UPDATE user_permissions SET revoked_at = now() WHERE id = $1', [req.params.id]);
+
+      await writeAudit({
+        userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'PERMISSION_REVOKED',
+        entityType: 'user', entityId: grant.user_id, result: 'success',
+      });
+
+      return res.json({ ok: true });
+    } catch (err) {
+      return next(err);
     }
-
-    await db.query('UPDATE user_permissions SET revoked_at = now() WHERE id = $1', [req.params.id]);
-
-    await writeAudit({
-      userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'PERMISSION_REVOKED',
-      entityType: 'user', entityId: grant.user_id, result: 'success',
-    });
-
-    return res.json({ ok: true });
-  } catch (err) {
-    return next(err);
   }
-});
+);
 
 module.exports = router;

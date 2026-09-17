@@ -1,10 +1,16 @@
 const express = require('express');
+const { param, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 
 const router = express.Router();
+
+function checkValidation(req) {
+  const result = validationResult(req);
+  if (!result.isEmpty()) throw Errors.badRequest('VALIDATION_ERROR', result.array()[0].msg);
+}
 
 /** GET /devices — Principal/Director see all, others see only their own */
 router.get('/', requireAuth, async (req, res, next) => {
@@ -23,24 +29,31 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 /** DELETE /devices/:id — remote revocation. Lost/damaged phone scenario (Section 11). */
-router.delete('/:id', requireAuth, requireRole('principal', 'director'), async (req, res, next) => {
-  try {
-    const { rows } = await db.query(
-      `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2
-       WHERE id = $1 RETURNING *`,
-      [req.params.id, req.auth.userId]
-    );
-    if (rows.length === 0) throw Errors.notFound();
+router.delete(
+  '/:id',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { rows } = await db.query(
+        `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2
+         WHERE id = $1 RETURNING *`,
+        [req.params.id, req.auth.userId]
+      );
+      if (rows.length === 0) throw Errors.notFound();
 
-    await writeAudit({
-      userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'DEVICE_REVOKED',
-      entityType: 'device', entityId: req.params.id, result: 'success',
-    });
+      await writeAudit({
+        userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'DEVICE_REVOKED',
+        entityType: 'device', entityId: req.params.id, result: 'success',
+      });
 
-    return res.json({ ok: true });
-  } catch (err) {
-    return next(err);
+      return res.json({ ok: true });
+    } catch (err) {
+      return next(err);
+    }
   }
-});
+);
 
 module.exports = router;
