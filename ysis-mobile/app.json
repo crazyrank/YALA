@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "YALAMATRIX SIS",
+    "slug": "ysis-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is used to capture student passport photos.",
+        "NSFaceIDUsageDescription": "Face ID is used to unlock the app securely."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow YALAMATRIX SIS to access your camera to capture student passport photos."
+        }
+      ]
+    ]
+  }
+}
