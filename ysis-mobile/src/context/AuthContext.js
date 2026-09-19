@@ -81,6 +81,12 @@ export function AuthProvider({ children }) {
 
     if (result.unlocked) {
       const cachedUser = await getCachedUser();
+
+      if (!cachedUser) {
+        setStatus('needsFirstLogin');
+        return { unlocked: false, reason: 'NO_SESSION' };
+      }
+
       const enriched = await withLocalPhoto(cachedUser);
       setUser(enriched);
       setStatus('authenticated');
@@ -94,10 +100,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await logoutService();
+    await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');
-  }, []);
+  }, [user]);
 
   const updateProfilePhoto = useCallback(
     async (sourceUri) => {

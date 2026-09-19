@@ -2,15 +2,12 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { api, setAccessToken } from '../api/client';
 import { getDeviceFingerprint, getDeviceDisplayName } from './deviceId';
+import { clearStoredProfilePhoto } from './profilePhoto';
+import { wipeLocalData } from '../db';
 
 const USER_CACHE_KEY = 'ysis_user_cache';
 const HAS_LOGGED_IN_KEY = 'ysis_has_logged_in';
 
-/**
- * First login MUST be online (Build Spec Section 4). This also registers
- * the device server-side. Subsequent unlocks use biometrics instead
- * (see unlockWithBiometrics below) — no daily password typing.
- */
 export async function loginOnline(email, password) {
   const deviceFingerprint = await getDeviceFingerprint();
   const deviceName = getDeviceDisplayName();
@@ -34,20 +31,11 @@ export async function getCachedUser() {
   return raw ? JSON.parse(raw) : null;
 }
 
-/**
- * Daily unlock via fingerprint/PIN, no server round-trip needed for the
- * unlock itself — the existing access/refresh token pair (and the
- * device's already-trusted status) carries the session. If the refresh
- * token has genuinely expired, the next API call's silent-refresh
- * attempt will fail and the app falls back to loginOnline.
- */
 export async function unlockWithBiometrics() {
   const hasHardware = await LocalAuthentication.hasHardwareAsync();
   const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
   if (!hasHardware || !isEnrolled) {
-    // No fingerprint/PIN set up on this device — fall back to requiring
-    // password login every time rather than silently skipping the check.
     return { unlocked: false, reason: 'NO_BIOMETRIC_HARDWARE' };
   }
 
@@ -59,13 +47,14 @@ export async function unlockWithBiometrics() {
   return { unlocked: result.success, reason: result.success ? null : 'AUTH_FAILED' };
 }
 
-export async function logout() {
+export async function logout(userId) {
   try {
     await api.post('/auth/logout', {});
   } catch {
-    // Even if the network call fails, clear local session — the person
-    // asked to log out, that intent should win locally regardless.
   }
   await setAccessToken(null);
   await SecureStore.deleteItemAsync(USER_CACHE_KEY);
+  await SecureStore.deleteItemAsync(HAS_LOGGED_IN_KEY);
+  await clearStoredProfilePhoto(userId);
+  await wipeLocalData();
 }

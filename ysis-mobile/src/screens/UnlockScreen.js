@@ -16,6 +16,8 @@ export default function UnlockScreen() {
     if (!result.unlocked) {
       if (result.reason === 'NO_BIOMETRIC_HARDWARE') {
         setMessage('No fingerprint or PIN set up on this device. Please sign in with your password.');
+      } else if (result.reason === 'NO_SESSION') {
+        setMessage('Your session has ended. Please sign in with your password.');
       } else {
         setMessage('Could not verify. Try again, or sign in with your password.');
       }

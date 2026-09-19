@@ -14,12 +14,6 @@ export async function getDb() {
   return dbInstance;
 }
 
-/**
- * CREATE TABLE IF NOT EXISTS never adds columns to a table that already
- * exists on-device. Any column added after launch needs an explicit,
- * idempotent ALTER TABLE here. SQLite has no IF NOT EXISTS for columns,
- * so we just swallow the "duplicate column name" error on repeat runs.
- */
 async function runColumnMigrations(db) {
   const columnMigrations = [
     `ALTER TABLE sync_operations ADD COLUMN error_code TEXT`,
@@ -37,8 +31,6 @@ async function runColumnMigrations(db) {
   }
 }
 
-// --- device_meta helpers -------------------------------------------------
-
 export async function getMeta(key) {
   const db = await getDb();
   const row = await db.getFirstAsync('SELECT value FROM device_meta WHERE key = ?', [key]);
@@ -54,18 +46,20 @@ export async function setMeta(key, value) {
   );
 }
 
-/**
- * Returns the next sequence_no for this device and persists the
- * increment immediately, so it survives app restarts. Simple integer
- * counter, NOT timestamp-derived (Build Spec Section 17 — device clocks
- * aren't trustworthy for FIFO ordering). Only resets on full reinstall,
- * since device_meta lives in the same SQLite file as everything else.
- */
 export async function getNextSequenceNo() {
   const current = await getMeta(DEVICE_META_KEYS.NEXT_SEQUENCE_NO);
   const next = current ? parseInt(current, 10) + 1 : 1;
   await setMeta(DEVICE_META_KEYS.NEXT_SEQUENCE_NO, String(next));
   return next;
+}
+
+export async function wipeLocalData() {
+  const database = await getDb();
+  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache'];
+  for (const table of tables) {
+    // eslint-disable-next-line no-await-in-loop
+    await database.runAsync(`DELETE FROM ${table}`);
+  }
 }
 
 export { DEVICE_META_KEYS };
