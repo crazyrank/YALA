@@ -1,16 +1,3 @@
-/**
- * Shared error shape across every route:
- *   { "error": { "code": "...", "message": "human-readable, no raw IDs" } }
- *
- * Status code conventions (per YSIS_BUILD_SPEC.md Section 13):
- *   400 bad payload / missing required fields
- *   401 no or expired JWT
- *   403 valid JWT, wrong role/permission
- *   404 not found or not visible to caller's scope
- *   409 sync_version mismatch / duplicate operation conflict
- *   423 device not trusted (distinct from 401 — client should re-register)
- *   500 unexpected — never leak internals to the client
- */
 class AppError extends Error {
   constructor(statusCode, code, message) {
     super(message);
@@ -32,7 +19,6 @@ const Errors = {
     new AppError(423, 'DEVICE_NOT_TRUSTED', message),
 };
 
-// Express error-handling middleware — mount this LAST, after all routes.
 function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-vars
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
@@ -40,7 +26,18 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
     });
   }
 
-  // Unexpected error: log full details server-side only, never leak to client.
+  if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+    return res.status(400).json({
+      error: { code: 'MALFORMED_JSON', message: 'The request body is not valid JSON.' },
+    });
+  }
+
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large.' },
+    });
+  }
+
   console.error('Unhandled error:', err);
   return res.status(500).json({
     error: { code: 'INTERNAL_ERROR', message: 'Something went wrong on our side. Please try again.' },

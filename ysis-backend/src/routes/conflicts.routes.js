@@ -125,19 +125,37 @@ router.post(
       checkValidation(req);
       const { canonicalId, discardedId } = req.body;
 
-      const { rows } = await db.query('SELECT * FROM admission_merge_queue WHERE id = $1', [req.params.id]);
-      const item = rows[0];
-      if (!item) throw Errors.notFound('That item could not be found.');
-      if (item.status !== 'open') throw Errors.badRequest('ALREADY_RESOLVED', 'This was already resolved.');
+      if (canonicalId === discardedId) {
+        throw Errors.badRequest('VALIDATION_ERROR', 'canonicalId and discardedId must be different.');
+      }
 
-      await db.query('DELETE FROM students WHERE id = $1', [discardedId]);
+      await db.withTransaction(async (client) => {
+        const { rows } = await client.query(
+          'SELECT * FROM admission_merge_queue WHERE id = $1 FOR UPDATE',
+          [req.params.id]
+        );
+        const item = rows[0];
+        if (!item) throw Errors.notFound('That item could not be found.');
+        if (item.status !== 'open') throw Errors.badRequest('ALREADY_RESOLVED', 'This was already resolved.');
 
-      await db.query(
-        `UPDATE admission_merge_queue
-         SET status = 'resolved', resolved_by = $2, canonical_id = $3, discarded_id = $4, resolved_at = now()
-         WHERE id = $1`,
-        [req.params.id, req.auth.userId, canonicalId, discardedId]
-      );
+        const queuedIds = [item.record_a_id, item.record_b_id].sort();
+        const requestedIds = [canonicalId, discardedId].sort();
+        if (queuedIds[0] !== requestedIds[0] || queuedIds[1] !== requestedIds[1]) {
+          throw Errors.badRequest(
+            'VALIDATION_ERROR',
+            'canonicalId and discardedId must match the two students queued for this merge.'
+          );
+        }
+
+        await client.query('DELETE FROM students WHERE id = $1', [discardedId]);
+
+        await client.query(
+          `UPDATE admission_merge_queue
+           SET status = 'resolved', resolved_by = $2, canonical_id = $3, discarded_id = $4, resolved_at = now()
+           WHERE id = $1`,
+          [req.params.id, req.auth.userId, canonicalId, discardedId]
+        );
+      });
 
       await writeAudit({
         userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'ADMISSION_MERGE_RESOLVED',

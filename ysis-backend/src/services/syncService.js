@@ -29,38 +29,50 @@ async function processOperation({
     createdAtClient,
   } = operation;
 
-  const existing = await db.query(
-    'SELECT id, status FROM sync_operations WHERE operation_id = $1',
-    [operationId]
-  );
+  let syncOpRowId;
 
-  if (existing.rows.length > 0) {
+  try {
+    const existing = await db.query(
+      'SELECT id, status FROM sync_operations WHERE operation_id = $1',
+      [operationId]
+    );
+
+    if (existing.rows.length > 0) {
+      return {
+        operationId,
+        status: existing.rows[0].status,
+        alreadyProcessed: true,
+      };
+    }
+
+    const insertResult = await db.query(
+      `INSERT INTO sync_operations
+         (operation_id, op_type, entity_id, payload, user_id, device_id,
+          sequence_no, created_at_client, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+       RETURNING id`,
+      [
+        operationId,
+        opType,
+        entityId,
+        JSON.stringify(payload),
+        userId,
+        deviceId,
+        sequenceNo,
+        createdAtClient,
+      ]
+    );
+
+    syncOpRowId = insertResult.rows[0].id;
+  } catch (insertErr) {
+    console.error('sync_operations insert failed for', operationId, insertErr.message);
     return {
       operationId,
-      status: existing.rows[0].status,
-      alreadyProcessed: true,
+      status: 'failed',
+      error: 'INVALID_OPERATION',
+      message: 'This operation could not be recorded and was not applied. Please retry it.',
     };
   }
-
-  const insertResult = await db.query(
-    `INSERT INTO sync_operations
-       (operation_id, op_type, entity_id, payload, user_id, device_id,
-        sequence_no, created_at_client, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
-     RETURNING id`,
-    [
-      operationId,
-      opType,
-      entityId,
-      JSON.stringify(payload),
-      userId,
-      deviceId,
-      sequenceNo,
-      createdAtClient,
-    ]
-  );
-
-  const syncOpRowId = insertResult.rows[0].id;
 
   try {
     if (opType === 'edit_student' || opType === 'promote_student') {
@@ -90,10 +102,6 @@ async function processOperation({
         }
       }
 
-      // Security fix: this sync path is a second, previously-unguarded
-      // way to reach the same edit/promote writes as students.routes.js.
-      // Both operations must be scope-checked against the student's
-      // CURRENT class, mirroring PATCH /:id and POST /:id/promote there.
       const currentStudent = await getCurrentServerState(entityId);
 
       if (!currentStudent) {
@@ -299,9 +307,6 @@ async function processOperation({
         };
       }
 
-      // Security fix: this sync path is a second, previously-unguarded
-      // way to register a student — mirrors the guard added to
-      // POST /students in students.routes.js.
       const scope = await getScopeForUser({
         role: userRole,
         userId,
@@ -421,9 +426,6 @@ async function processOperation({
     }
 
     if (opType === 'upload_photo') {
-      // Security fix: this sync path never checked the student existed
-      // or was in scope at all — mirrors the guard added to
-      // POST /students/:id/photo in students.routes.js.
       const currentStudent = await getCurrentServerState(entityId);
 
       if (!currentStudent) {
@@ -543,12 +545,18 @@ async function processBatch({
   const results = [];
 
   for (const op of sorted) {
-    const result = await processOperation({
-      operation: op,
-      userId,
-      userRole,
-      deviceId,
-    });
+    let result;
+    try {
+      result = await processOperation({
+        operation: op,
+        userId,
+        userRole,
+        deviceId,
+      });
+    } catch (err) {
+      console.error('Unexpected error processing sync op', op.operationId, err);
+      result = { operationId: op.operationId, status: 'failed', error: 'PROCESSING_ERROR' };
+    }
 
     results.push(result);
 
