@@ -19,6 +19,7 @@ export async function setAccessToken(token) {
 /**
  * Fetch wrapper that:
  *  - attaches the access token
+
  *  - on a 401, tries ONE silent refresh via the httpOnly cookie, then retries once
  *  - on a 423 (device not trusted), surfaces that distinctly so the UI can
  *    prompt "this device needs to be re-verified" rather than "sign in again"
@@ -37,10 +38,10 @@ async function apiFetch(path, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(`\( {API_BASE_URL} \){path}`, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
-      credentials: 'include', // sends the httpOnly refresh cookie
+      credentials: 'include',
       signal: controller.signal,
     });
   } catch (networkErr) {
