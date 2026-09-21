@@ -1,8 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, API_TIMEOUT_MS } from '../config';
 
 const ACCESS_TOKEN_KEY = 'ysis_access_token';
-const DEFAULT_TIMEOUT_MS = 15000; // 15 seconds
+const DEFAULT_TIMEOUT_MS = API_TIMEOUT_MS || 15000;
 
 export async function getAccessToken() {
   return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
@@ -37,7 +37,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`\( {API_BASE_URL} \){path}`, {
       ...options,
       headers,
       credentials: 'include', // sends the httpOnly refresh cookie
