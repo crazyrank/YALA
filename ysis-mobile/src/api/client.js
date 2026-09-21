@@ -35,7 +35,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(`\( {API_BASE_URL} \){path}`, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
       credentials: 'include',
@@ -48,24 +48,27 @@ async function apiFetch(path, options = {}, isRetry = false) {
     );
     err.isNetworkError = true;
     throw err;
-  } finally {
-    clearTimeout(timeoutId);
   }
 
-  if (response.status === 401 && !isRetry && path !== '/auth/refresh') {
+  clearTimeout(timeoutId);
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // no body / not JSON
+  }
+
+  if (response.status === 401 && !isRetry) {
     const refreshed = await tryRefresh();
-    if (refreshed) {
-      return apiFetch(path, options, true);
-    }
+    if (refreshed) return apiFetch(path, options, true);
   }
-
-  const body = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     const technicalMessage = body?.error?.message || REQUEST_FAILED;
     const err = new Error(technicalMessage);
-    err.code = body?.error?.code || 'UNKNOWN_ERROR';
     err.status = response.status;
+    err.code = body?.error?.code;
     // Attach a friendly version so screens can use it
     err.friendlyMessage = toFriendlyError(err, REQUEST_FAILED);
     throw err;
@@ -81,9 +84,12 @@ async function tryRefresh() {
       credentials: 'include',
     });
     if (!res.ok) return false;
-    const body = await res.json();
-    await setAccessToken(body.accessToken);
-    return true;
+    const data = await res.json();
+    if (data?.accessToken) {
+      await setAccessToken(data.accessToken);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -91,7 +97,7 @@ async function tryRefresh() {
 
 export const api = {
   get: (path) => apiFetch(path, { method: 'GET' }),
-  post: (path, data) => apiFetch(path, { method: 'POST', body: JSON.stringify(data) }),
-  patch: (path, data) => apiFetch(path, { method: 'PATCH', body: JSON.stringify(data) }),
-  delete: (path) => apiFetch(path, { method: 'DELETE' }),
+  post: (path, body) => apiFetch(path, { method: 'POST', body: JSON.stringify(body) }),
+  patch: (path, body) => apiFetch(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  patch2: (path, body) => apiFetch(path, { method: 'PATCH', body: JSON.stringify(body) }),
 };
