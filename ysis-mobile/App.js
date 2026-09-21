@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthContext';
@@ -13,9 +14,11 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppInner />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppInner />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -60,7 +63,7 @@ function AppInner() {
 
   if (dbError) {
     return (
-      <View
+      <SafeAreaView
         style={{
           flex: 1,
           backgroundColor: colors.background,
@@ -76,16 +79,16 @@ function AppInner() {
         <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
           {String(dbError.message || dbError)}
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
       <AuthProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <RootNavigator />
       </AuthProvider>
-    </View>
+    </SafeAreaView>
   );
 }
