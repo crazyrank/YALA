@@ -1,10 +1,10 @@
 /**
  * Canonical, ordered list of every class the school uses, low to high
  * (Build Spec Section 2: Primary = KG stages + Primary 1-6, Secondary =
- * JSS1-3 + SS1-3). This is the authoritative server-side copy — the
- * client's copy (src/utils/classProgression.js) is for instant local UI
- * only; the server is what actually enforces the SS3 cap, since a
- * modified/stale client can't be trusted to self-enforce it.
+ * JSS1-3 + SS1-3). This is the authoritative server-side copy —
+ * the client's copy (src/utils/classProgression.js) is for instant
+ * local UI only; the server is what actually enforces the SS3 cap,
+ * since a modified/stale client can't be trusted to self-enforce it.
  *
  * Labels must exactly match what's stored in `students.class_level`.
  */
@@ -39,6 +39,22 @@ function getNextClass(currentClassLevel) {
   return CLASS_ORDER[idx + 1];
 }
 
+/**
+ * Returns the authoritative division for a recognized class.
+ *
+ * KG1-KG2 + Primary 1-6 = primary
+ * JSS1-SS3 = secondary
+ */
+function getDivisionForClass(classLevel) {
+  const idx = CLASS_ORDER.indexOf(classLevel);
+
+  if (idx === -1) {
+    return null;
+  }
+
+  return idx <= 7 ? 'primary' : 'secondary';
+}
+
 /** True once a student has reached the top of the progression (SS3). */
 function isAtMaxClass(currentClassLevel) {
   return (
@@ -50,5 +66,6 @@ function isAtMaxClass(currentClassLevel) {
 module.exports = {
   CLASS_ORDER,
   getNextClass,
+  getDivisionForClass,
   isAtMaxClass,
 };

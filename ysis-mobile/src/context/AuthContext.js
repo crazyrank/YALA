@@ -40,6 +40,14 @@ export function AuthProvider({ children }) {
     }
 
     const cachedUser = await getCachedUser();
+
+    // Safety: if the flag says logged in but cache is gone, force password login
+    if (!cachedUser) {
+      setUser(null);
+      setStatus('needsFirstLogin');
+      return;
+    }
+
     const enriched = await withLocalPhoto(cachedUser);
     setUser(enriched);
     setStatus('needsUnlock');
@@ -82,9 +90,11 @@ export function AuthProvider({ children }) {
     if (result.unlocked) {
       const cachedUser = await getCachedUser();
 
+      // Critical safety check
       if (!cachedUser) {
+        setUser(null);
         setStatus('needsFirstLogin');
-        return { unlocked: false, reason: 'NO_SESSION' };
+        return { unlocked: false, reason: 'NO_CACHED_USER' };
       }
 
       const enriched = await withLocalPhoto(cachedUser);
@@ -96,14 +106,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   const requirePasswordLogin = useCallback(() => {
+    setUser(null);
     setStatus('needsFirstLogin');
   }, []);
 
   const logout = useCallback(async () => {
-    await logoutService(user?.id);
+    await logoutService();
     setUser(null);
     setStatus('needsFirstLogin');
-  }, [user]);
+  }, []);
 
   const updateProfilePhoto = useCallback(
     async (sourceUri) => {
