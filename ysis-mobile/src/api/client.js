@@ -1,5 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL, API_TIMEOUT_MS } from '../config';
+import {
+  REQUEST_TIMED_OUT,
+  NETWORK_UNAVAILABLE,
+  REQUEST_FAILED,
+  toFriendlyError,
+} from '../utils/errorMessages';
 
 const ACCESS_TOKEN_KEY = 'ysis_access_token';
 const DEFAULT_TIMEOUT_MS = API_TIMEOUT_MS || 15000;
@@ -16,15 +22,6 @@ export async function setAccessToken(token) {
   }
 }
 
-/**
- * Fetch wrapper that:
- *  - attaches the access token
-
- *  - on a 401, tries ONE silent refresh via the httpOnly cookie, then retries once
- *  - on a 423 (device not trusted), surfaces that distinctly so the UI can
- *    prompt "this device needs to be re-verified" rather than "sign in again"
- *  - never throws raw network errors up to the UI without an { code, message } shape
- */
 async function apiFetch(path, options = {}, isRetry = false) {
   const token = await getAccessToken();
   const headers = {
@@ -38,7 +35,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`\( {API_BASE_URL} \){path}`, {
       ...options,
       headers,
       credentials: 'include',
@@ -47,9 +44,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
   } catch (networkErr) {
     clearTimeout(timeoutId);
     const err = new Error(
-      networkErr.name === 'AbortError'
-        ? 'Request timed out'
-        : 'Network unavailable'
+      networkErr.name === 'AbortError' ? REQUEST_TIMED_OUT : NETWORK_UNAVAILABLE
     );
     err.isNetworkError = true;
     throw err;
@@ -67,9 +62,12 @@ async function apiFetch(path, options = {}, isRetry = false) {
   const body = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const err = new Error(body?.error?.message || 'Request failed');
+    const technicalMessage = body?.error?.message || REQUEST_FAILED;
+    const err = new Error(technicalMessage);
     err.code = body?.error?.code || 'UNKNOWN_ERROR';
     err.status = response.status;
+    // Attach a friendly version so screens can use it
+    err.friendlyMessage = toFriendlyError(err, REQUEST_FAILED);
     throw err;
   }
 

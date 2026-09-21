@@ -76,7 +76,7 @@ export default function LoginScreen() {
     clearError();
 
     if (!email.trim() || !password) {
-      showError('Enter your email and password to continue.');
+      showError('Please enter your email and password to continue.');
       return;
     }
 
@@ -88,8 +88,8 @@ export default function LoginScreen() {
     } catch (err) {
       showError(
         err.isNetworkError
-          ? 'An internet connection is required for your first sign-in.'
-          : err.message || 'We could not sign you in. Check your details.'
+          ? 'You need an internet connection for the first sign-in. After that, you can unlock with your fingerprint even when offline.'
+          : err.message || 'We couldn’t sign you in. Please check your email and password and try again.'
       );
     } finally {
       setLoading(false);
@@ -107,12 +107,12 @@ export default function LoginScreen() {
       if (!result.unlocked) {
         showError(
           result.reason === 'NO_BIOMETRIC_HARDWARE'
-            ? 'No fingerprint or device PIN is available.'
-            : 'Verification was unsuccessful. Please try again.'
+            ? 'This phone doesn’t have a fingerprint or PIN set up. Please sign in with your password.'
+            : 'Fingerprint not recognised. Please try again or use your password.'
         );
       }
     } catch {
-      showError('Fingerprint verification could not be completed.');
+      showError('We couldn’t verify your fingerprint. Please try again or sign in with your password.');
     } finally {
       setBioLoading(false);
     }
