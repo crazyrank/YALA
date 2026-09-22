@@ -26,7 +26,6 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.crazyrank.ysismobile",
-      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
