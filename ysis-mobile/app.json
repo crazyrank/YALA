@@ -26,7 +26,11 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.crazyrank.ysismobile",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon-adaptive.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "plugins": [
       "expo-secure-store",
@@ -42,6 +46,7 @@
       "eas": {
         "projectId": "f6d3169c-7b31-4412-a54b-8685dcc811e4"
       }
-    }
+    },
+    "icon": "./assets/app-icon.png"
   }
 }
