@@ -13,9 +13,12 @@
  * `expo prebuild` / `eas build`, this override has to be reapplied via a
  * config plugin rather than edited directly in MainApplication.kt.
  */
-const { withMainApplication } = require('@expo/config-plugins');
-// mergeContents isn't part of the top-level @expo/config-plugins export on
-// SDK 57; it lives in this internal util module instead.
+// Use the expo/config-plugins sub-export, not a direct @expo/config-plugins
+// dependency (expo-doctor flags the latter as a package that shouldn't be
+// installed directly). mergeContents isn't re-exported anywhere public, so
+// it's pulled from the internal util module; it still resolves fine because
+// @expo/config-plugins is hoisted as a transitive dependency of expo itself.
+const { withMainApplication } = require('expo/config-plugins');
 const { mergeContents } = require('@expo/config-plugins/build/utils/generateCode');
 
 const IMPORT_LINES = [
