@@ -8,11 +8,11 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db';
