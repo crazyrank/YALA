@@ -40,7 +40,8 @@
         {
           "cameraPermission": "Allow YALAMATRIX SIS to access your camera to capture student passport photos."
         }
-      ]
+      ],
+      "./plugins/withAndroidTextInputFocusFix"
     ],
     "extra": {
       "eas": {

@@ -13,6 +13,14 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+if (global.ErrorUtils) {
+  const defaultHandler = global.ErrorUtils.getGlobalHandler();
+  global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+    console.log('[GLOBAL ERROR]', isFatal ? 'FATAL' : 'non-fatal', error?.message, error?.stack);
+    defaultHandler(error, isFatal);
+  });
+}
+
 export default function App() {
   return (
     <KeyboardProvider>

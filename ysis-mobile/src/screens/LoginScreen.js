@@ -22,6 +22,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { createLoginStyles } from './LoginStyles';
 
 export default function LoginScreen() {
+  console.log('[LoginScreen] RENDER', Date.now());
   const { login, unlock } = useAuth();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => createLoginStyles(colors), [colors]);
@@ -209,8 +210,8 @@ export default function LoginScreen() {
                   setEmail(value);
                   clearError();
                 }}
-                onFocus={() => setFocused('email')}
-                onBlur={() => setFocused('')}
+                onFocus={() => { console.log('[LoginScreen] email FOCUS', Date.now()); setFocused('email'); }}
+                onBlur={() => { console.log('[LoginScreen] email BLUR', Date.now()); setFocused(''); }}
               />
             </View>
 
@@ -235,8 +236,8 @@ export default function LoginScreen() {
                   setPassword(value);
                   clearError();
                 }}
-                onFocus={() => setFocused('password')}
-                onBlur={() => setFocused('')}
+                onFocus={() => { console.log('[LoginScreen] password FOCUS', Date.now()); setFocused('password'); }}
+                onBlur={() => { console.log('[LoginScreen] password BLUR', Date.now()); setFocused(''); }}
               />
 
               <Pressable
