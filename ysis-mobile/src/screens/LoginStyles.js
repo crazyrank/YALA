@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { type, fontFamily } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
 
@@ -148,7 +148,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
   inputFocus: {
     borderColor: colors.gold,
     backgroundColor: colors.goldTint,
-    ...shadow.goldGlow,
+    ...(Platform.OS === 'ios' ? shadow.goldGlow : {}),
   },
 
   input: {

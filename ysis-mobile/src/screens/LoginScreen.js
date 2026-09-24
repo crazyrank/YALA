@@ -21,7 +21,6 @@ import { useTheme } from '../theme/ThemeContext';
 import { createLoginStyles } from './LoginStyles';
 
 export default function LoginScreen() {
-  console.log('[LoginScreen] RENDER', Date.now());
   const { login, unlock } = useAuth();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => createLoginStyles(colors), [colors]);
@@ -202,13 +201,16 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                autoComplete="email"
+                textContentType="emailAddress"
+                importantForAutofill="yes"
                 value={email}
                 onChangeText={(value) => {
                   setEmail(value);
                   clearError();
                 }}
-                onFocus={() => { console.log('[LoginScreen] email FOCUS', Date.now()); setFocused('email'); }}
-                onBlur={() => { console.log('[LoginScreen] email BLUR', Date.now()); setFocused(''); }}
+                onFocus={() => setFocused('email')}
+                onBlur={() => setFocused('')}
                 showSoftInputOnFocus={true}
               />
             </View>
@@ -229,13 +231,16 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="password"
+                textContentType="password"
+                importantForAutofill="yes"
                 value={password}
                 onChangeText={(value) => {
                   setPassword(value);
                   clearError();
                 }}
-                onFocus={() => { console.log('[LoginScreen] password FOCUS', Date.now()); setFocused('password'); }}
-                onBlur={() => { console.log('[LoginScreen] password BLUR', Date.now()); setFocused(''); }}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused('')}
                 showSoftInputOnFocus={true}
               />
 
