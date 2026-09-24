@@ -8,10 +8,9 @@ import {
   Platform,
   Image,
   StatusBar,
-  ScrollView,
   Animated,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -130,19 +129,17 @@ export default function LoginScreen() {
   ];
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.screen}>
       <StatusBar
         barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bottomOffset={24}
       >
         <Animated.View
           style={[
@@ -212,6 +209,7 @@ export default function LoginScreen() {
                 }}
                 onFocus={() => { console.log('[LoginScreen] email FOCUS', Date.now()); setFocused('email'); }}
                 onBlur={() => { console.log('[LoginScreen] email BLUR', Date.now()); setFocused(''); }}
+                showSoftInputOnFocus={true}
               />
             </View>
 
@@ -238,6 +236,7 @@ export default function LoginScreen() {
                 }}
                 onFocus={() => { console.log('[LoginScreen] password FOCUS', Date.now()); setFocused('password'); }}
                 onBlur={() => { console.log('[LoginScreen] password BLUR', Date.now()); setFocused(''); }}
+                showSoftInputOnFocus={true}
               />
 
               <Pressable
@@ -365,7 +364,7 @@ export default function LoginScreen() {
             </Text>
           </View>
         </Animated.View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
