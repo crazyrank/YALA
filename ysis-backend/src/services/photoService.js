@@ -3,106 +3,77 @@ const config = require('../config');
 const db = require('../db');
 const { Errors } = require('../utils/errors');
 
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
-
-function validateImageBase64(base64Data) {
-  if (typeof base64Data !== 'string' || base64Data.length === 0) {
-    throw Errors.badRequest('INVALID_IMAGE', 'No image data was provided.');
+function ensureCloudinary() {
+  if (!config.cloudinary.cloudName || !config.cloudinary.apiKey || !config.cloudinary.apiSecret) {
+    throw Errors.badRequest(
+      'PHOTO_STORAGE_UNAVAILABLE',
+      'Photo storage is not configured. Contact the administrator.'
+    );
   }
-
-  const raw = base64Data.startsWith('data:')
-    ? base64Data.slice(base64Data.indexOf(',') + 1)
-    : base64Data;
-
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) {
-    throw Errors.badRequest('INVALID_IMAGE', 'Image data is not valid base64.');
-  }
-
-  let buffer;
-  try {
-    buffer = Buffer.from(raw, 'base64');
-  } catch (e) {
-    throw Errors.badRequest('INVALID_IMAGE', 'Image data could not be decoded.');
-  }
-
-  if (buffer.length === 0) {
-    throw Errors.badRequest('INVALID_IMAGE', 'Decoded image data is empty.');
-  }
-  if (buffer.length > MAX_PHOTO_BYTES) {
-    throw Errors.badRequest('IMAGE_TOO_LARGE', 'Image exceeds the 2MB size limit.');
-  }
-
-  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-  const isPng =
-    buffer.length > 3 &&
-    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-
-  if (!isJpeg && !isPng) {
-    throw Errors.badRequest('INVALID_IMAGE', 'Only JPEG or PNG images are accepted.');
-  }
-
-  return { raw, mimeType: isPng ? 'image/png' : 'image/jpeg' };
-}
-
-let configured = false;
-function isCloudinaryConfigured() {
-  const { cloudName, apiKey, apiSecret } = config.cloudinary;
-  return !!(cloudName && apiKey && apiSecret);
-}
-function ensureCloudinaryConfigured() {
-  if (configured) return;
   cloudinary.config({
     cloud_name: config.cloudinary.cloudName,
     api_key: config.cloudinary.apiKey,
     api_secret: config.cloudinary.apiSecret,
-  });
-  configured = true;
-}
-
-function uploadBase64Image(base64Data, publicId) {
-  const { raw, mimeType } = validateImageBase64(base64Data);
-
-  if (!isCloudinaryConfigured()) {
-    return Promise.resolve(`data:${mimeType};base64,${raw}`);
-  }
-  ensureCloudinaryConfigured();
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload(
-      `data:${mimeType};base64,${raw}`,
-      { public_id: publicId, folder: 'ysis/passport-photos', overwrite: false },
-      (err, result) => {
-        if (err) return reject(err);
-        return resolve(result.secure_url);
-      }
-    );
+    secure: true,
   });
 }
 
-async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceId, imageBase64, correctionReason }) {
-  const existing = await db.query(
-    'SELECT id FROM student_photos WHERE student_id = $1 AND is_current = TRUE',
-    [studentId]
-  );
-  const hasExisting = existing.rows.length > 0;
-  const isAdmin = uploaderRole === 'principal' || uploaderRole === 'director';
-
-  if (hasExisting && !isAdmin) {
-    throw Errors.conflict(
-      'PHOTO_ALREADY_EXISTS',
-      'This student already has a passport photo on file. Ask your Principal if it needs to be corrected.'
-    );
+/** Reject non-JPEG / oversized payloads before they hit Cloudinary. */
+function assertValidImageBase64(imageBase64) {
+  if (typeof imageBase64 !== 'string' || imageBase64.length < 100) {
+    throw Errors.badRequest('INVALID_PHOTO', 'Photo data is missing or too small.');
   }
-  if (hasExisting && isAdmin && !correctionReason) {
-    throw Errors.badRequest(
-      'CORRECTION_REASON_REQUIRED',
-      'Please provide a reason for replacing this photo.'
-    );
+  // Cap \~1.5MB base64 (\~1MB binary) — passport photos are compressed to 30-60KB client-side
+  if (imageBase64.length > 1.5 * 1024 * 1024) {
+    throw Errors.badRequest('INVALID_PHOTO', 'Photo is too large. Re-capture and try again.');
   }
+  // Strip data-URL prefix if present
+  const raw = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  let buf;
+  try {
+    buf = Buffer.from(raw, 'base64');
+  } catch {
+    throw Errors.badRequest('INVALID_PHOTO', 'Photo data is not valid base64.');
+  }
+  // JPEG magic bytes FF D8 FF
+  if (buf.length < 3 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) {
+    throw Errors.badRequest('INVALID_PHOTO', 'Only JPEG passport photos are accepted.');
+  }
+  return raw;
+}
 
-  const publicId = `student-${studentId}-${Date.now()}`;
-  const secureUrl = await uploadBase64Image(imageBase64, publicId);
+async function uploadBase64Image(imageBase64, publicId) {
+  ensureCloudinary();
+  const raw = assertValidImageBase64(imageBase64);
+  const result = await cloudinary.uploader.upload(`data:image/jpeg;base64,${raw}`, {
+    public_id: publicId,
+    folder: 'ysis',
+    resource_type: 'image',
+    overwrite: true,
+    format: 'jpg',
+    transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
+  });
+  return result.secure_url;
+}
 
+async function uploadStudentPhoto({
+  studentId,
+  imageBase64,
+  uploaderId,
+  deviceId,
+  correctionReason = null,
+}) {
   return db.withTransaction(async (client) => {
+    const { rows: existing } = await client.query(
+      'SELECT id FROM student_photos WHERE student_id = $1 AND is_current = TRUE',
+      [studentId]
+    );
+    const hasExisting = existing.length > 0;
+
+    if (hasExisting && !correctionReason) {
+      throw Errors.forbidden('Only a Principal can replace an existing passport photo (reason required).');
+    }
+
     if (hasExisting) {
       await client.query(
         'UPDATE student_photos SET is_current = FALSE WHERE student_id = $1 AND is_current = TRUE',
@@ -110,12 +81,23 @@ async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceI
       );
     }
 
+    const publicId = `student-\( {studentId}- \){Date.now()}`;
+    const secureUrl = await uploadBase64Image(imageBase64, publicId);
+
     const { rows } = await client.query(
       `INSERT INTO student_photos
-         (student_id, storage_url, uploaded_by, uploaded_device_id, is_current, approved_by, correction_reason)
+         (student_id, storage_url, uploaded_by, uploaded_from_device_id, is_current,
+          corrected_by, correction_reason)
        VALUES ($1, $2, $3, $4, TRUE, $5, $6)
        RETURNING *`,
-      [studentId, secureUrl, uploaderId, deviceId, hasExisting ? uploaderId : null, hasExisting ? correctionReason : null]
+      [
+        studentId,
+        secureUrl,
+        uploaderId,
+        deviceId,
+        hasExisting ? uploaderId : null,
+        hasExisting ? correctionReason : null,
+      ]
     );
 
     return rows[0];
@@ -123,7 +105,7 @@ async function uploadStudentPhoto({ studentId, uploaderId, uploaderRole, deviceI
 }
 
 async function uploadDirectoryPhoto(imageBase64, entryId) {
-  const publicId = `directory-${entryId}-${Date.now()}`;
+  const publicId = `directory-\( {entryId}- \){Date.now()}`;
   return uploadBase64Image(imageBase64, publicId);
 }
 

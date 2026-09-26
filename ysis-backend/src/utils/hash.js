@@ -10,21 +10,22 @@ async function verifyPassword(plain, hash) {
   return bcrypt.compare(plain, hash);
 }
 
-// For password-reset temp credentials: generate a short, readable code,
-// store only its hash (same discipline as users.password_hash).
+/**
+ * Temp credentials shown once on an admin screen and relayed verbally.
+ * 12 characters from an unambiguous alphabet ≈ 60 bits of entropy —
+ * strong enough for a 20-minute lifetime, still readable aloud.
+ */
 function generateTempCredential() {
-  // 8-character, unambiguous alphabet (no 0/O/1/I confusion) - easy to
-  // read aloud from a Principal's screen to a Head Teacher.
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let code = '';
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     code += alphabet[crypto.randomInt(0, alphabet.length)];
   }
   return code;
 }
 
 function sha256(input) {
-  return crypto.createHash('sha256').update(input).digest('hex');
+  return crypto.createHash('sha256').update(String(input)).digest('hex');
 }
 
 module.exports = { hashPassword, verifyPassword, generateTempCredential, sha256 };

@@ -28,7 +28,47 @@ router.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
-/** DELETE /devices/:id — remote revocation. Lost/damaged phone scenario (Section 11). */
+/**
+ * POST /devices/:id/approve
+ * Principal/Director trust a pending device. Matches architecture:
+ * new devices register, but only become trusted after admin oversight
+ * (except the very first device for a user, which is auto-trusted at login).
+ */
+router.post(
+  '/:id/approve',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { rows } = await db.query(
+        `UPDATE devices SET status = 'trusted', last_seen_at = now()
+         WHERE id = $1 AND status = 'pending_verification'
+         RETURNING *`,
+        [req.params.id]
+      );
+      if (rows.length === 0) {
+        throw Errors.notFound('Device not found or already trusted/revoked.');
+      }
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'DEVICE_APPROVED',
+        entityType: 'device',
+        entityId: req.params.id,
+        result: 'success',
+      });
+
+      return res.json({ device: rows[0] });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** DELETE /devices/:id — remote revocation. Lost/damaged phone scenario. */
 router.delete(
   '/:id',
   requireAuth,
@@ -38,15 +78,20 @@ router.delete(
     try {
       checkValidation(req);
       const { rows } = await db.query(
-        `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2
+        `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2,
+               refresh_token_hash = NULL
          WHERE id = $1 RETURNING *`,
         [req.params.id, req.auth.userId]
       );
       if (rows.length === 0) throw Errors.notFound();
 
       await writeAudit({
-        userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'DEVICE_REVOKED',
-        entityType: 'device', entityId: req.params.id, result: 'success',
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'DEVICE_REVOKED',
+        entityType: 'device',
+        entityId: req.params.id,
+        result: 'success',
       });
 
       return res.json({ ok: true });

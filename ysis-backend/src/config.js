@@ -29,12 +29,17 @@ module.exports = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10),
-  // Cloudinary is intentionally NOT in `required()` — the app should still
-  // boot and handle every other route without it. Only photo upload calls
-  // check for these at the point of use, with a clear error if missing.
+  // Comma-separated list of allowed origins. Empty / unset = no browser
+  // origins (mobile app uses Bearer tokens and is unaffected).
+  corsOrigins: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
+    : [],
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || null,
     apiKey: process.env.CLOUDINARY_API_KEY || null,
     apiSecret: process.env.CLOUDINARY_API_SECRET || null,
   },
+  // Progressive lockout
+  maxFailedLogins: parseInt(process.env.MAX_FAILED_LOGINS || '8', 10),
+  lockoutMinutes: parseInt(process.env.LOCKOUT_MINUTES || '30', 10),
 };
