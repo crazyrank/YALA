@@ -44,3 +44,4 @@ yarn-error.*
 # Local backups / temporary files
 *.bak
 *.backup
+YALA-clean-test/
