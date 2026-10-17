@@ -1,3 +1,4 @@
+const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
@@ -397,11 +398,16 @@ router.patch(
         }
       }
 
+      const edit = validateEdit(currentStudent, changes);
+      if (!edit.ok) {
+        throw Errors.badRequest(edit.code, edit.message);
+      }
+
       const result =
         await applyConditionalUpdate({
           studentId: req.params.id,
           basedOnVersion,
-          changes,
+          changes: edit.changes,
         });
 
       if (!result.updated) {
@@ -498,44 +504,19 @@ router.post(
         );
       }
 
-      if (
-        isAtMaxClass(
-          currentStudent.class_level
-        )
-      ) {
-        throw Errors.badRequest(
-          'ALREADY_AT_MAX_CLASS',
-          'This student is already at SS3, the highest class. They should be graduated, not promoted.'
-        );
+      const plan = planPromotion(currentStudent, {
+        newClassLevel: req.body.newClassLevel,
+        arm: req.body.arm,
+      });
+      if (!plan.ok) {
+        throw Errors.badRequest(plan.code, plan.message);
       }
 
-      const expectedNextClass = getNextClass(
-        currentStudent.class_level
-      );
-
-      if (
-        req.body.newClassLevel !==
-        expectedNextClass
-      ) {
-        throw Errors.badRequest(
-          'INVALID_CLASS_PROGRESSION',
-          `This student can only be promoted to ${expectedNextClass}.`
-        );
-      }
-
-      const result =
-        await applyConditionalUpdate({
-          studentId: req.params.id,
-          basedOnVersion:
-            req.body.basedOnVersion,
-
-          changes: {
-            class_level:
-              req.body.newClassLevel,
-
-            status: 'promoted',
-          },
-        });
+      const result = await applyConditionalUpdate({
+        studentId: req.params.id,
+        basedOnVersion: req.body.basedOnVersion,
+        changes: plan.changes,
+      });
 
       if (!result.updated) {
         throw Errors.conflict(
@@ -592,7 +573,7 @@ router.post(
       }
 
       // Security fix: photo upload never checked the student existed or
-      // was in scope at all — any authenticated staff member could upload
+      // was in scope at all; any authenticated staff member could upload
       // a photo for any student ID, in or out of their division.
       const currentStudent =
         await getCurrentServerState(

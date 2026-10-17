@@ -1,7 +1,7 @@
 const db = require('../db');
 
 const EDITABLE_FIELDS = [
-  'full_name', 'date_of_birth', 'gender', 'division', 'class_level',
+  'full_name', 'gender', 'division', 'class_level',
   'arm', 'guardian_name', 'guardian_phone', 'status',
 ];
 
@@ -9,7 +9,7 @@ const EDITABLE_FIELDS = [
  * The single deterministic conflict-detection mechanism for the whole
  * system (Build Spec Section 12). Applies an edit only if the student's
  * sync_version still matches what the client last saw. Zero rows
- * affected means the record changed underneath the client — that IS the
+ * affected means the record changed underneath the client; that IS the
  * conflict signal, not something the app has to separately notice.
  *
  * Returns { updated: true, student } on success,

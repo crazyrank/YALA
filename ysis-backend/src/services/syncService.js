@@ -1,3 +1,5 @@
+const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
+const { normalizeStudent } = require('../utils/studentRules');
 const db = require('../db');
 const { validate: isUuid } = require('uuid');
 const {
@@ -202,6 +204,29 @@ async function processOperation({
         }
       }
 
+      let finalChanges = payload.changes || {};
+
+      if (opType === 'promote_student') {
+        const plan = planPromotion(currentStudent, {
+          newClassLevel: payload.newClassLevel,
+          arm: payload.arm,
+        });
+        if (!plan.ok) {
+          await markOpStatus(syncOpRowId, 'failed', plan.message);
+          return { operationId, status: 'failed', error: plan.code };
+        }
+        finalChanges = plan.changes;
+      }
+
+      if (opType === 'edit_student') {
+        const check = validateEdit(currentStudent, finalChanges);
+        if (!check.ok) {
+          await markOpStatus(syncOpRowId, 'failed', check.message);
+          return { operationId, status: 'failed', error: check.code };
+        }
+        finalChanges = check.changes;
+      }
+
       const {
         updated,
         student,
@@ -209,7 +234,7 @@ async function processOperation({
       } = await applyConditionalUpdate({
         studentId: entityId,
         basedOnVersion: payload.based_on_version,
-        changes: payload.changes || {},
+        changes: finalChanges,
       });
 
       if (noOp) {
@@ -255,7 +280,7 @@ async function processOperation({
     }
 
     if (opType === 'create_student') {
-      const {
+      let {
         id,
         admissionNo,
         fullName,
@@ -306,6 +331,37 @@ async function processOperation({
           error: 'VALIDATION_ERROR',
         };
       }
+
+      const norm = normalizeStudent({
+        admissionNo,
+        fullName,
+        division,
+        classLevel,
+        arm,
+        gender,
+        guardianName,
+        guardianPhone,
+        dateOfBirth,
+      });
+      if (!norm.ok) {
+        await markOpStatus(syncOpRowId, 'failed', norm.errors[0]);
+        return {
+          operationId,
+          status: 'failed',
+          error: 'VALIDATION_ERROR',
+        };
+      }
+      ({
+        admissionNo,
+        fullName,
+        division,
+        classLevel,
+        arm,
+        gender,
+        guardianName,
+        guardianPhone,
+      } = norm.value);
+      dateOfBirth = null;
 
       const scope = await getScopeForUser({
         role: userRole,
