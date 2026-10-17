@@ -12,6 +12,8 @@ import {
 } from './studentImportCore';
 
 const REPLACEMENT_CHAR = '\uFFFD';
+// Large imports need longer than the default 25 seconds. Retries are safe either way.
+const IMPORT_TIMEOUT_MS = 120000;
 
 function fail(message) {
   return { ok: false, message };
@@ -113,7 +115,7 @@ export async function listStagedImports() {
  * Sends one staged import. Safe to call again: the same import key always gives
  * the same result on the server.
  *   completed: the server confirmed. The student rows are deleted from the phone.
- *   retry:     connection or server busy. The rows are kept for the next attempt.
+ *   retry:     connection, timeout, or server busy. The rows are kept for the next attempt.
  *   failed:    the server refused. The rows are deleted from the phone.
  */
 export async function uploadStagedImport(importKey) {
@@ -141,7 +143,11 @@ export async function uploadStagedImport(importKey) {
 
   try {
     const rows = JSON.parse(row.rows_json);
-    const result = await api.post('/students/import', { importKey, rows });
+    const result = await api.post(
+      '/students/import',
+      { importKey, rows },
+      { timeoutMs: IMPORT_TIMEOUT_MS }
+    );
     await db.runAsync(
       `UPDATE staged_imports
           SET status = 'completed', server_result_json = ?, rows_json = '', error_code = NULL
@@ -150,7 +156,9 @@ export async function uploadStagedImport(importKey) {
     );
     return { state: 'completed', result };
   } catch (err) {
-    const code = err.code || 'UNKNOWN_ERROR';
+    // Label the cause, so the screen says what happened instead of UNKNOWN_ERROR.
+    let code = err.code || 'UNKNOWN_ERROR';
+    if (err.isNetworkError) code = err.message === 'Request timed out' ? 'TIMEOUT' : 'NO_CONNECTION';
     const temporary =
       err.isNetworkError ||
       err.status === 401 ||

@@ -35,8 +35,10 @@ export async function setRefreshToken(token) {
  *  - on 401, tries ONE silent refresh (body-based for RN reliability)
  *  - on 423, surfaces DEVICE_NOT_TRUSTED / ACCOUNT_LOCKED distinctly
  *  - never throws raw network errors without { code, message }
+ *  - timeoutMs (optional) lets a single request wait longer than the default
  */
 async function apiFetch(path, options = {}, isRetry = false) {
+  const { timeoutMs, ...fetchOptions } = options;
   const token = await getAccessToken();
   const headers = {
     'Content-Type': 'application/json',
@@ -45,12 +47,12 @@ async function apiFetch(path, options = {}, isRetry = false) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs || DEFAULT_TIMEOUT_MS);
 
   let response;
   try {
-    response = await fetch(`\( {API_BASE_URL} \){path}`, {
-      ...options,
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchOptions,
       headers,
       credentials: 'include',
       signal: controller.signal,
@@ -69,7 +71,7 @@ async function apiFetch(path, options = {}, isRetry = false) {
   if (response.status === 401 && !isRetry && path !== '/auth/refresh') {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      return apiFetch(path, options, true);
+      return apiFetch(path, { ...fetchOptions, timeoutMs }, true);
     }
   }
 
@@ -110,8 +112,8 @@ async function tryRefresh() {
 
 export const api = {
   get: (path) => apiFetch(path, { method: 'GET' }),
-  post: (path, data) =>
-    apiFetch(path, { method: 'POST', body: data !== undefined ? JSON.stringify(data) : undefined }),
+  post: (path, data, extra = {}) =>
+    apiFetch(path, { ...extra, method: 'POST', body: data !== undefined ? JSON.stringify(data) : undefined }),
   patch: (path, data) =>
     apiFetch(path, { method: 'PATCH', body: data !== undefined ? JSON.stringify(data) : undefined }),
   delete: (path) => apiFetch(path, { method: 'DELETE' }),
