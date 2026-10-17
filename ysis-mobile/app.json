@@ -40,7 +40,10 @@
         {
           "cameraPermission": "Allow YALAMATRIX SIS to access your camera to capture student passport photos."
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-splash-screen",
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {
