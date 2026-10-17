@@ -16,6 +16,18 @@ import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
 import { getNextClass, isAtMaxClass } from '../utils/classProgression';
 
+// Arms exist only for SS2 and SS3. Must match the server rules exactly.
+const ARMS = ['Science', 'Arts', 'Commercial'];
+const ARM_CLASSES = ['SS2', 'SS3'];
+
+function armRequiredFor(classLevel) {
+  return ARM_CLASSES.includes(classLevel);
+}
+
+function divisionOfClass(classLevel) {
+  return /^(KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+}
+
 export default function StudentDetailScreen({ route, navigation }) {
   const { studentId } = route.params;
   const { user } = useAuth();
@@ -24,12 +36,14 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [photoUri, setPhotoUri] = useState(null);
   const [showCorrectionInput, setShowCorrectionInput] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
+
   const [promoting, setPromoting] = useState(false);
+  const [showPromoteChoice, setShowPromoteChoice] = useState(false);
+  const [promoteArm, setPromoteArm] = useState('');
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editClass, setEditClass] = useState('');
   const [editArm, setEditArm] = useState('');
   const [editGuardian, setEditGuardian] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -46,7 +60,6 @@ export default function StudentDetailScreen({ route, navigation }) {
     setStudent(row);
     if (row) {
       setEditName(row.full_name || '');
-      setEditClass(row.class_level || '');
       setEditArm(row.arm || '');
       setEditGuardian(row.guardian_name || '');
       setEditPhone(row.guardian_phone || '');
@@ -111,6 +124,40 @@ export default function StudentDetailScreen({ route, navigation }) {
     setCorrectionReason('');
   };
 
+  // Promotion: the arm is chosen here when the next class needs one.
+  const performPromotion = async (arm) => {
+    const nextClass = getNextClass(student.class_level);
+    setPromoting(true);
+    try {
+      const db = await getDb();
+      const now = new Date().toISOString();
+      const basedOnVersion = student.sync_version;
+      await db.runAsync(
+        `UPDATE students
+         SET class_level = ?, division = ?, arm = ?, status = 'promoted',
+             sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
+         WHERE id = ?`,
+        [nextClass, divisionOfClass(nextClass), arm, now, studentId]
+      );
+      await queueOperation({
+        opType: 'promote_student',
+        entityId: studentId,
+        payload: {
+          based_on_version: basedOnVersion,
+          newClassLevel: nextClass,
+          arm,
+        },
+      });
+      setShowPromoteChoice(false);
+      setPromoteArm('');
+      await loadStudent();
+    } catch (error) {
+      Alert.alert('Could not promote', 'Something went wrong saving this promotion.');
+    } finally {
+      setPromoting(false);
+    }
+  };
+
   const handlePromote = () => {
     if (!isAdmin) {
       Alert.alert('Not allowed', 'Only a Principal or Director can promote students.');
@@ -118,44 +165,42 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     const nextClass = getNextClass(student.class_level);
     if (!nextClass) return;
+
+    if (armRequiredFor(nextClass)) {
+      setPromoteArm('');
+      setShowPromoteChoice(true);
+      return;
+    }
+
     Alert.alert(
       'Promote student',
       `Move ${student.full_name} from ${student.class_level} to ${nextClass}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Promote',
-          onPress: async () => {
-            setPromoting(true);
-            try {
-              const db = await getDb();
-              const now = new Date().toISOString();
-              const basedOnVersion = student.sync_version;
-              await db.runAsync(
-                `UPDATE students
-                 SET class_level = ?, status = 'promoted', sync_version = sync_version + 1,
-                     updated_at = ?, local_dirty = 1
-                 WHERE id = ?`,
-                [nextClass, now, studentId]
-              );
-              await queueOperation({
-                opType: 'promote_student',
-                entityId: studentId,
-                payload: {
-                  based_on_version: basedOnVersion,
-                  changes: { class_level: nextClass, status: 'promoted' },
-                },
-              });
-              await loadStudent();
-            } catch (error) {
-              Alert.alert('Could not promote', 'Something went wrong saving this promotion.');
-            } finally {
-              setPromoting(false);
-            }
-          },
-        },
+        { text: 'Promote', onPress: () => performPromotion(null) },
       ]
     );
+  };
+
+  const confirmPromoteWithArm = () => {
+    const nextClass = getNextClass(student.class_level);
+    if (!promoteArm) {
+      Alert.alert('Choose an arm', `Select Science, Arts, or Commercial for ${nextClass}.`);
+      return;
+    }
+    Alert.alert(
+      'Promote student',
+      `Move ${student.full_name} from ${student.class_level} to ${nextClass} (${promoteArm})?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Promote', onPress: () => performPromotion(promoteArm) },
+      ]
+    );
+  };
+
+  const cancelPromoteChoice = () => {
+    setShowPromoteChoice(false);
+    setPromoteArm('');
   };
 
   const startEditing = () => {
@@ -164,7 +209,6 @@ export default function StudentDetailScreen({ route, navigation }) {
       return;
     }
     setEditName(student.full_name || '');
-    setEditClass(student.class_level || '');
     setEditArm(student.arm || '');
     setEditGuardian(student.guardian_name || '');
     setEditPhone(student.guardian_phone || '');
@@ -174,7 +218,6 @@ export default function StudentDetailScreen({ route, navigation }) {
   const cancelEditing = () => {
     setEditing(false);
     setEditName(student.full_name || '');
-    setEditClass(student.class_level || '');
     setEditArm(student.arm || '');
     setEditGuardian(student.guardian_name || '');
     setEditPhone(student.guardian_phone || '');
@@ -185,31 +228,39 @@ export default function StudentDetailScreen({ route, navigation }) {
       Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
       return;
     }
-    if (!editName.trim() || !editClass.trim()) {
-      Alert.alert('Missing details', 'Student name and class are required.');
+    if (!editName.trim()) {
+      Alert.alert('Missing details', 'Student name is required.');
       return;
     }
+    const needsArm = armRequiredFor(student.class_level);
+    if (needsArm && !editArm) {
+      Alert.alert('Missing arm', `Choose an arm for ${student.class_level}.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const db = await getDb();
       const now = new Date().toISOString();
       const basedOnVersion = student.sync_version;
+
       const changes = {
         full_name: editName.trim(),
-        class_level: editClass.trim(),
-        arm: editArm.trim() || null,
         guardian_name: editGuardian.trim() || null,
         guardian_phone: editPhone.trim() || null,
       };
+      if (needsArm) changes.arm = editArm;
+
+      const nextArm = needsArm ? editArm : student.arm;
+
       await db.runAsync(
         `UPDATE students
-         SET full_name = ?, class_level = ?, arm = ?, guardian_name = ?, guardian_phone = ?,
+         SET full_name = ?, arm = ?, guardian_name = ?, guardian_phone = ?,
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
         [
           changes.full_name,
-          changes.class_level,
-          changes.arm,
+          nextArm,
           changes.guardian_name,
           changes.guardian_phone,
           now,
@@ -242,7 +293,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     Alert.alert(
       'Archive student',
-      `Archive ${student.full_name}? Soft delete — record is kept.`,
+      `Archive ${student.full_name}? This is a soft delete. The record is kept.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -329,6 +380,8 @@ export default function StudentDetailScreen({ route, navigation }) {
 
   const status = student.status || 'active';
   const isArchived = status === 'archived';
+  const nextClass = getNextClass(student.class_level);
+  const editNeedsArm = armRequiredFor(student.class_level);
 
   return (
     <ScrollView
@@ -417,10 +470,20 @@ export default function StudentDetailScreen({ route, navigation }) {
           <View style={styles.infoCard}>
             <Text style={styles.fieldLabel}>Full name *</Text>
             <TextInput style={styles.fieldInput} value={editName} onChangeText={setEditName} placeholder="Student full name" placeholderTextColor="#98A2B3" />
-            <Text style={styles.fieldLabel}>Class *</Text>
-            <TextInput style={styles.fieldInput} value={editClass} onChangeText={setEditClass} placeholder="e.g. SS1" placeholderTextColor="#98A2B3" autoCapitalize="characters" />
-            <Text style={styles.fieldLabel}>Arm</Text>
-            <TextInput style={styles.fieldInput} value={editArm} onChangeText={setEditArm} placeholder="e.g. A" placeholderTextColor="#98A2B3" />
+
+            <Text style={styles.fieldLabel}>Class</Text>
+            <Text style={styles.classReadOnly}>{student.class_level || '-'}</Text>
+            <Text style={styles.editNote}>Class changes only through promotion.</Text>
+
+            {editNeedsArm && (
+              <>
+                <Text style={styles.fieldLabel}>Arm *</Text>
+                {ARMS.map((a) => (
+                  <ArmOption key={a} label={a} selected={editArm === a} onPress={() => setEditArm(a)} />
+                ))}
+              </>
+            )}
+
             <Text style={styles.fieldLabel}>Guardian name</Text>
             <TextInput style={styles.fieldInput} value={editGuardian} onChangeText={setEditGuardian} placeholder="Guardian full name" placeholderTextColor="#98A2B3" />
             <Text style={styles.fieldLabel}>Guardian phone</Text>
@@ -441,8 +504,8 @@ export default function StudentDetailScreen({ route, navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>ACADEMIC INFORMATION</Text>
           <View style={styles.infoCard}>
-            <InfoRow label="Class" value={student.class_level || '—'} />
-            <InfoRow label="Arm" value={student.arm || '—'} />
+            <InfoRow label="Class" value={student.class_level || '-'} />
+            <InfoRow label="Arm" value={student.arm || 'None'} />
             <InfoRow label="Division" value={student.division || 'Secondary'} last />
           </View>
         </View>
@@ -456,10 +519,29 @@ export default function StudentDetailScreen({ route, navigation }) {
               <View style={styles.promoteRow}>
                 <Text style={styles.maxClassText}>Highest class reached (SS3)</Text>
               </View>
+            ) : showPromoteChoice ? (
+              <View style={styles.promoteChoice}>
+                <Text style={styles.fieldLabel}>Choose the arm for {nextClass}</Text>
+                {ARMS.map((a) => (
+                  <ArmOption key={a} label={a} selected={promoteArm === a} onPress={() => setPromoteArm(a)} />
+                ))}
+                <View style={styles.editActions}>
+                  <Pressable style={styles.cancelButton} onPress={cancelPromoteChoice} disabled={promoting}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.continueButton, !promoteArm && styles.disabledButton]}
+                    onPress={confirmPromoteWithArm}
+                    disabled={promoting || !promoteArm}
+                  >
+                    {promoting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Continue</Text>}
+                  </Pressable>
+                </View>
+              </View>
             ) : (
               <Pressable style={styles.promoteButton} onPress={handlePromote} disabled={promoting}>
                 <Text style={styles.promoteButtonText}>
-                  {promoting ? 'Promoting…' : `Promote to ${getNextClass(student.class_level) || 'next class'}`}
+                  {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
                 </Text>
               </Pressable>
             )}
@@ -471,8 +553,8 @@ export default function StudentDetailScreen({ route, navigation }) {
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>GUARDIAN INFORMATION</Text>
           <View style={styles.infoCard}>
-            <InfoRow label="Guardian" value={student.guardian_name || '—'} />
-            <InfoRow label="Phone" value={student.guardian_phone || '—'} last />
+            <InfoRow label="Guardian" value={student.guardian_name || '-'} />
+            <InfoRow label="Phone" value={student.guardian_phone || '-'} last />
           </View>
         </View>
       )}
@@ -500,6 +582,22 @@ function InfoRow({ label, value, last }) {
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
+  );
+}
+
+function ArmOption({ label, selected, onPress }) {
+  return (
+    <Pressable
+      style={[styles.armOption, selected && styles.armOptionSelected]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+    >
+      <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+        {selected ? <View style={styles.radioInner} /> : null}
+      </View>
+      <Text style={styles.armOptionText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -561,6 +659,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10, fontSize: 15, color: '#0A1930', backgroundColor: '#FAFBFC',
   },
   fieldInputLast: { marginBottom: 12 },
+  classReadOnly: { fontSize: 15, fontWeight: '600', color: '#0A1930', paddingVertical: 8 },
+  editNote: { fontSize: 11, color: '#98A2B3', marginBottom: 12 },
+  armOption: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D0D5DD',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8,
+    backgroundColor: '#FAFBFC',
+  },
+  armOptionSelected: { borderColor: '#16324F', backgroundColor: '#EEF3F9' },
+  radioOuter: {
+    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#98A2B3',
+    alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  },
+  radioOuterSelected: { borderColor: '#16324F' },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#16324F' },
+  armOptionText: { fontSize: 15, color: '#0A1930', fontWeight: '600' },
+  promoteChoice: { paddingVertical: 8 },
   editActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   correctionBox: {
     marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 16,
@@ -578,6 +692,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
     backgroundColor: '#16324F', minWidth: 100, alignItems: 'center',
   },
+  disabledButton: { backgroundColor: '#98A2B3' },
   continueText: { fontWeight: '700', color: '#FFFFFF', fontSize: 13 },
   promoteRow: { paddingVertical: 14 },
   maxClassText: { fontSize: 13, color: '#667085' },
