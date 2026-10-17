@@ -1,4 +1,5 @@
 const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
+const { normalizeStudent } = require('../utils/studentRules');
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
@@ -184,7 +185,7 @@ router.post(
     try {
       checkValidation(req);
 
-      const {
+      let {
         id,
         admissionNo,
         fullName,
@@ -196,6 +197,33 @@ router.post(
         guardianName,
         guardianPhone,
       } = req.body;
+
+      // Shared rules: class, arm by class, gender M/F, no date of birth.
+      const norm = normalizeStudent({
+        admissionNo,
+        fullName,
+        division,
+        classLevel,
+        arm,
+        gender,
+        guardianName,
+        guardianPhone,
+        dateOfBirth,
+      });
+      if (!norm.ok) {
+        throw Errors.badRequest('VALIDATION_ERROR', norm.errors[0]);
+      }
+      ({
+        admissionNo,
+        fullName,
+        division,
+        classLevel,
+        arm,
+        gender,
+        guardianName,
+        guardianPhone,
+      } = norm.value);
+      dateOfBirth = null;
 
       // Security fix: a head_teacher could previously register a student
       // into ANY division/class by simply putting it in the request body.
