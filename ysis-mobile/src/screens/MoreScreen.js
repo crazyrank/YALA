@@ -334,6 +334,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {isAdmin && (
+          <MenuRow
+            icon="cloud-upload"
+            label="Import Students"
+            subtitle="Upload a CSV from this phone"
+            color={colors.inkSoft}
+            onPress={() => navigation.navigate('ImportStudents')}
+          />
+        )}
+
         <MenuRow
           icon="person-add"
           label="Register Student"

@@ -1,6 +1,20 @@
 import * as SQLite from 'expo-sqlite';
 import { SCHEMA_STATEMENTS, DEVICE_META_KEYS } from './schema';
 
+// Staged student imports. Holds student rows until the server confirms them, then deletes them.
+const STAGED_IMPORTS_STATEMENT = `CREATE TABLE IF NOT EXISTS staged_imports (
+  import_key        TEXT PRIMARY KEY,
+  file_name         TEXT NOT NULL,
+  created_at        TEXT NOT NULL,
+  status            TEXT NOT NULL CHECK (status IN ('staged','uploading','completed','failed')),
+  ready_count       INTEGER NOT NULL DEFAULT 0,
+  local_skipped_json TEXT NOT NULL DEFAULT '[]',
+  rows_json         TEXT NOT NULL DEFAULT '',
+  server_result_json TEXT,
+  error_code        TEXT,
+  last_attempt_at   TEXT
+);`;
+
 let dbInstance = null;
 
 export async function getDb() {
@@ -10,6 +24,7 @@ export async function getDb() {
     // eslint-disable-next-line no-await-in-loop
     await dbInstance.execAsync(statement);
   }
+  await dbInstance.execAsync(STAGED_IMPORTS_STATEMENT);
   await runColumnMigrations(dbInstance);
   return dbInstance;
 }
@@ -53,9 +68,10 @@ export async function getNextSequenceNo() {
   return next;
 }
 
+// Called on logout. Clears staged student rows along with everything else.
 export async function wipeLocalData() {
   const database = await getDb();
-  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache'];
+  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache', 'staged_imports'];
   for (const table of tables) {
     // eslint-disable-next-line no-await-in-loop
     await database.runAsync(`DELETE FROM ${table}`);

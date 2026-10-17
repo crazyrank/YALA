@@ -9,6 +9,7 @@ const config = require('./config');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
+const studentImportRoutes = require('./routes/studentImport.routes');
 const syncRoutes = require('./routes/sync.routes');
 const conflictsRoutes = require('./routes/conflicts.routes');
 const permissionsRoutes = require('./routes/permissions.routes');
@@ -52,6 +53,8 @@ app.get('/health', (req, res) => res.json({ ok: true, service: 'ysis-backend' })
 
 app.use('/auth', authRoutes);
 app.use('/users', usersRoutes);
+// Import routes must be mounted before /students so '/students/import' is not treated as a student id.
+app.use('/students/import', studentImportRoutes);
 app.use('/students', studentsRoutes);
 app.use('/sync', syncRoutes);
 app.use('/conflicts', conflictsRoutes);
