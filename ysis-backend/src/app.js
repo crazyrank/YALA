@@ -39,6 +39,9 @@ app.use(cors({
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
+// Behind Render's proxy: use the real client IP so users don't share one rate-limit bucket.
+app.set('trust proxy', 1);
+
 // Global rate limit (auth has a tighter limiter of its own)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
