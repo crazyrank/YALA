@@ -45,3 +45,9 @@ yarn-error.*
 *.bak
 *.backup
 YALA-clean-test/
+
+# Recovery tools: keep local only
+ysis-backend/scripts/reset-admin-password.js
+ysis-backend/scripts/trust-device.js
+ysis-backend/scripts/clear-must-change.js
+ysis-backend/scripts/lib/
