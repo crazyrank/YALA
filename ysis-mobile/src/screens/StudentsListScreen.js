@@ -164,14 +164,14 @@ export default function StudentsListScreen({ navigation, route }) {
          FROM students
          WHERE class_level = ?
            AND (full_name LIKE ? OR admission_no LIKE ?)
-         ORDER BY full_name ASC LIMIT 50`,
+         ORDER BY full_name ASC`,
         [classLevel, term, term]
       );
     } else if (classLevel) {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students WHERE class_level = ?
-         ORDER BY full_name ASC LIMIT 50`,
+         ORDER BY full_name ASC`,
         [classLevel]
       );
     } else if (text.trim()) {
@@ -179,13 +179,13 @@ export default function StudentsListScreen({ navigation, route }) {
         `SELECT id, admission_no, full_name, class_level, arm, status
          FROM students
          WHERE full_name LIKE ? OR admission_no LIKE ?
-         ORDER BY full_name ASC LIMIT 50`,
+         ORDER BY full_name ASC`,
         [term, term]
       );
     } else {
       rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students ORDER BY full_name ASC LIMIT 50`
+         FROM students ORDER BY full_name ASC`
       );
     }
     setResults(rows);
