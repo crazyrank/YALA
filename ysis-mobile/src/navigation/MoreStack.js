@@ -6,6 +6,7 @@ import MergeQueueScreen from '../screens/MergeQueueScreen';
 import StaffDirectoryScreen from '../screens/StaffDirectoryScreen';
 import AddDirectoryEntryScreen from '../screens/AddDirectoryEntryScreen';
 import ImportStudentsScreen from '../screens/ImportStudentsScreen';
+import DeviceReviewScreen from '../screens/DeviceReviewScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
@@ -51,6 +52,11 @@ export default function MoreStack() {
         name="ImportStudents"
         component={ImportStudentsScreen}
         options={{ title: 'Import Students' }}
+      />
+      <Stack.Screen
+        name="DeviceReview"
+        component={DeviceReviewScreen}
+        options={{ title: 'Trusted Devices' }}
       />
     </Stack.Navigator>
   );

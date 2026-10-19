@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
     const loggedInUser = await loginOnline(email, password);
     const enriched = await withLocalPhoto(loggedInUser);
     setUser(enriched);
-    setStatus('authenticated');
+    setStatus(loggedInUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
     return enriched;
   }, []);
 
@@ -89,7 +89,7 @@ export function AuthProvider({ children }) {
 
       const enriched = await withLocalPhoto(cachedUser);
       setUser(enriched);
-      setStatus('authenticated');
+      setStatus(cachedUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
     }
 
     return result;
@@ -100,6 +100,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await logoutService(user?.id);
+    setUser(null);
+    setStatus('needsFirstLogin');
+  }, [user]);
+
+  // After a forced password change the old session is invalid on the server,
+  // so clear it and make the user sign in again.
+  const completePasswordChange = useCallback(async () => {
     await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');
@@ -138,6 +146,7 @@ export function AuthProvider({ children }) {
         login,
         unlock,
         logout,
+        completePasswordChange,
         requirePasswordLogin,
         finishOnboarding,
         updateProfilePhoto,

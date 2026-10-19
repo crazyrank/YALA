@@ -42,4 +42,6 @@ module.exports = {
   // Progressive lockout
   maxFailedLogins: parseInt(process.env.MAX_FAILED_LOGINS || '8', 10),
   lockoutMinutes: parseInt(process.env.LOCKOUT_MINUTES || '30', 10),
+  // Trusted devices unused for this many days must be approved again.
+  deviceInactivityDays: parseInt(process.env.DEVICE_INACTIVITY_DAYS || '30', 10),
 };

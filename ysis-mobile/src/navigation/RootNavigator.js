@@ -15,6 +15,7 @@ import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ManageStaffScreen from '../screens/ManageStaffScreen';
+import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import MainTabs from './MainTabs';
 
 const Stack = createNativeStackNavigator();
@@ -94,6 +95,14 @@ export default function RootNavigator() {
           <Stack.Screen
             name="Login"
             component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+
+        {status === 'needsPasswordChange' && (
+          <Stack.Screen
+            name="ForcedPasswordChange"
+            component={ForcedPasswordChangeScreen}
             options={{ headerShown: false }}
           />
         )}

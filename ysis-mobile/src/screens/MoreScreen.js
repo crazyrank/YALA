@@ -306,6 +306,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {isAdmin && (
+          <MenuRow
+            icon="phone-portrait"
+            label="Trusted Devices"
+            subtitle="Approve, review and revoke devices"
+            color={colors.inkSoft}
+            onPress={() => navigation.navigate('DeviceReview')}
+          />
+        )}
+
         <MenuRow
           icon="albums"
           label="Staff Directory"

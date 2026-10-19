@@ -1,3 +1,4 @@
+const { deviceIsStale, STALE_DEVICE_MESSAGE } = require('../services/deviceTrust');
 const { verifyAccessToken } = require('../utils/jwt');
 const { Errors } = require('../utils/errors');
 const db = require('../db');
@@ -26,7 +27,7 @@ async function requireAuth(req, res, next) {
 
     const { rows } = await db.query(
       `SELECT u.id, u.role, u.status, u.session_version, u.must_change_password,
-              d.status AS device_status
+              d.status AS device_status, d.last_seen_at AS device_last_seen
        FROM users u
        JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
@@ -38,6 +39,9 @@ async function requireAuth(req, res, next) {
     if (record.status !== 'active') throw Errors.forbidden('This account is not active.');
     if (record.session_version !== payload.sessionVersion) {
       throw Errors.unauthorized('Your session has expired. Please sign in again.');
+    }
+    if (deviceIsStale(record.device_last_seen)) {
+      throw Errors.deviceNotTrusted(STALE_DEVICE_MESSAGE);
     }
     if (record.device_status !== 'trusted') {
       throw Errors.deviceNotTrusted();

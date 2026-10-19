@@ -1,3 +1,4 @@
+const { deviceIsStale, STALE_DEVICE_MESSAGE } = require('../services/deviceTrust');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../db');
@@ -130,12 +131,23 @@ router.post(
       if (existingDevice.rows.length > 0) {
         device = existingDevice.rows[0];
         if (device.status === 'revoked') {
-          throw Errors.deviceNotTrusted('This device has been disabled. Contact your Principal.');
+          throw Errors.deviceNotTrusted('This device has been disabled. Contact a Principal or Director.');
+        }
+        if (device.status === 'trusted' && deviceIsStale(device.last_seen_at)) {
+          await db.query("UPDATE devices SET status = 'pending_verification' WHERE id = $1", [device.id]);
+          await writeAudit({
+            userId: user.id,
+            deviceId: device.id,
+            action: 'DEVICE_EXPIRED',
+            result: 'success',
+            metadata: { inactivityDays: config.deviceInactivityDays },
+          });
+          throw Errors.deviceNotTrusted(STALE_DEVICE_MESSAGE);
         }
         if (device.status === 'pending_verification') {
           // Still pending — do not auto-promote. User must wait for admin approval.
           throw Errors.deviceNotTrusted(
-            'This device is waiting for approval by your Principal. Try again after it is approved.'
+            'This device is waiting for approval by a Principal or Director. Try again after it is approved.'
           );
         }
         await db.query('UPDATE devices SET last_seen_at = now() WHERE id = $1', [device.id]);
@@ -165,7 +177,7 @@ router.post(
             metadata: { deviceName: deviceName || null },
           });
           throw Errors.deviceNotTrusted(
-            'This is a new device. It has been registered and is waiting for your Principal to approve it.'
+            'This is a new device. It has been registered and is waiting for a Principal or Director to approve it.'
           );
         }
       }
@@ -220,7 +232,7 @@ router.post('/refresh', async (req, res, next) => {
     }
 
     const { rows } = await db.query(
-      `SELECT u.role, u.session_version, u.status, d.status AS device_status, d.refresh_token_hash
+      `SELECT u.role, u.session_version, u.status, d.status AS device_status, d.last_seen_at AS device_last_seen, d.refresh_token_hash
        FROM users u
        JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
@@ -233,6 +245,7 @@ router.post('/refresh', async (req, res, next) => {
     if (record.session_version !== payload.sessionVersion) {
       throw Errors.unauthorized('Session expired. Please sign in again.');
     }
+    if (deviceIsStale(record.device_last_seen)) throw Errors.deviceNotTrusted(STALE_DEVICE_MESSAGE);
     if (record.device_status !== 'trusted') throw Errors.deviceNotTrusted();
 
     // Bound refresh token to the one we stored at login/refresh (logout clears it)
