@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -14,6 +14,7 @@ import {
   uploadStagedImport,
   uploadAllPending,
   discardStagedImport,
+  purgeOldCompletedImports,
 } from '../services/stagedImports';
 
 const STATUS_LABEL = {
@@ -49,8 +50,14 @@ export default function ImportStudentsScreen() {
   const [staged, setStaged] = useState([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [selected, setSelected] = useState(null);
 
   const refresh = useCallback(async () => {
+    try {
+      await purgeOldCompletedImports();
+    } catch {
+      /* clearing old entries is optional, so the list still loads */
+    }
     setStaged(await listStagedImports());
   }, []);
 
@@ -158,17 +165,24 @@ export default function ImportStudentsScreen() {
   };
 
   const discard = (row) => {
+    const done = row.status === 'completed';
     Alert.alert(
-      'Discard import?',
-      `Remove "${row.file_name}" from this phone? Its students will not be saved.`,
+      done ? 'Clear from list?' : 'Discard import?',
+      done
+        ? `This only removes "${row.file_name}" from this list. Students already imported stay saved.`
+        : `Remove "${row.file_name}" from this phone? Its students will not be saved.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Discard',
-          style: 'destructive',
+          text: done ? 'Clear' : 'Discard',
+          style: done ? 'default' : 'destructive',
           onPress: async () => {
             const r = await discardStagedImport(row.import_key);
-            if (!r.ok) Alert.alert('Cannot discard', r.message);
+            if (!r.ok) {
+              Alert.alert('Cannot remove', r.message);
+              return;
+            }
+            setSelected(null);
             await refresh();
           },
         },
@@ -244,39 +258,112 @@ export default function ImportStudentsScreen() {
       {staged.length === 0 && (
         <Text style={[styles.body, { color: colors.textMuted }]}>Nothing waiting.</Text>
       )}
-      {staged.map((row) => (
-        <View key={row.import_key} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{row.file_name}</Text>
-          <Text style={[styles.small, { color: colors.textMuted }]}>
-            {new Date(row.created_at).toLocaleString()} · {STATUS_LABEL[row.status] || row.status}
-          </Text>
-          <Text style={[styles.body, { color: colors.textPrimary }]}>Ready: {row.ready_count}</Text>
-          {row.status === 'completed' && row.server_result_json && (
-            <Text style={[styles.small, { color: colors.textPrimary }]}>
-              Server: {JSON.parse(row.server_result_json).imported} imported, {JSON.parse(row.server_result_json).skipped} skipped.
+      {staged.map((row) => {
+        if (row.status === 'completed') {
+          const result = row.server_result_json ? JSON.parse(row.server_result_json) : {};
+          return (
+            <Pressable
+              key={row.import_key}
+              onPress={() => setSelected(row)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open details for ${row.file_name}`}
+              style={({ pressed }) => [
+                styles.card,
+                styles.tapCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.flexButton}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{row.file_name}</Text>
+                <View style={[styles.badge, { backgroundColor: colors.successBg }]}>
+                  <Text style={[styles.badgeText, { color: colors.success }]}>Saved</Text>
+                </View>
+                <Text style={[styles.small, { color: colors.textMuted }]}>
+                  {new Date(row.created_at).toLocaleString()}
+                </Text>
+                <Text style={[styles.small, { color: colors.textPrimary }]}>
+                  {result.imported ?? 0} imported, {result.skipped ?? 0} skipped
+                </Text>
+              </View>
+              <Text style={[styles.chevron, { color: colors.textMuted }]}>{'\u203A'}</Text>
+            </Pressable>
+          );
+        }
+        return (
+          <View key={row.import_key} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{row.file_name}</Text>
+            <Text style={[styles.small, { color: colors.textMuted }]}>
+              {new Date(row.created_at).toLocaleString()} · {STATUS_LABEL[row.status] || row.status}
             </Text>
-          )}
-          {row.error_code && row.status !== 'completed' && (
-            <Text style={[styles.small, { color: colors.error }]}>Last result: {row.error_code}</Text>
-          )}
-          <View style={styles.row}>
-            {row.status === 'staged' && (
-              <Pressable
-                style={[styles.primaryButton, styles.flexButton, { backgroundColor: colors.inkSoft }, busy && styles.disabled]}
-                onPress={() => uploadNow(row.import_key)}
-                disabled={busy}
-              >
-                <Text style={styles.primaryText}>Upload now</Text>
-              </Pressable>
+            <Text style={[styles.body, { color: colors.textPrimary }]}>Ready: {row.ready_count}</Text>
+            {row.error_code && (
+              <Text style={[styles.small, { color: colors.error }]}>Last result: {row.error_code}</Text>
             )}
-            {row.status !== 'uploading' && (
-              <Pressable style={[styles.secondaryButton, { borderColor: colors.border }]} onPress={() => discard(row)}>
-                <Text style={[styles.secondaryText, { color: colors.error }]}>Discard</Text>
-              </Pressable>
-            )}
+            <View style={styles.row}>
+              {row.status === 'staged' && (
+                <Pressable
+                  style={[styles.primaryButton, styles.flexButton, { backgroundColor: colors.inkSoft }, busy && styles.disabled]}
+                  onPress={() => uploadNow(row.import_key)}
+                  disabled={busy}
+                >
+                  <Text style={styles.primaryText}>Upload now</Text>
+                </Pressable>
+              )}
+              {row.status !== 'uploading' && (
+                <Pressable style={[styles.secondaryButton, { borderColor: colors.border }]} onPress={() => discard(row)}>
+                  <Text style={[styles.secondaryText, { color: colors.error }]}>Discard</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
+
+      <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setSelected(null)}>
+          {/* Inner Pressable stops taps on the sheet from closing it. */}
+          <Pressable style={[styles.sheet, { backgroundColor: colors.surface }]} onPress={() => {}}>
+            {selected && (() => {
+              const result = selected.server_result_json ? JSON.parse(selected.server_result_json) : {};
+              let localSkipped = [];
+              try { localSkipped = JSON.parse(selected.local_skipped_json || '[]'); } catch { localSkipped = []; }
+              return (
+                <ScrollView>
+                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{selected.file_name}</Text>
+                  <Text style={[styles.small, { color: colors.textMuted }]}>
+                    {new Date(selected.created_at).toLocaleString()}
+                  </Text>
+                  <Text style={[styles.body, { color: colors.textPrimary }]}>Status: {STATUS_LABEL[selected.status]}</Text>
+                  <Text style={[styles.body, { color: colors.textPrimary }]}>Imported: {result.imported ?? 0}</Text>
+                  <Text style={[styles.body, { color: colors.textPrimary }]}>Skipped by server: {result.skipped ?? 0}</Text>
+                  {localSkipped.length > 0 && (
+                    <>
+                      <Text style={[styles.label, { color: colors.textMuted, marginTop: 14 }]}>ROWS SKIPPED BEFORE UPLOAD</Text>
+                      {localSkipped.slice(0, SHOW_SKIPPED).map((r, i) => (
+                        <Text key={`${r.row}-${r.column}-${i}`} style={[styles.small, { color: colors.textMuted }]}>
+                          Row {r.row}, {r.column}: {r.reason}
+                        </Text>
+                      ))}
+                    </>
+                  )}
+                  <Text style={[styles.small, { color: colors.textMuted, marginTop: 14 }]}>
+                    These students are saved on the server. Clearing only removes this entry from the list.
+                  </Text>
+                  <View style={styles.row}>
+                    <Pressable style={[styles.secondaryButton, styles.flexButton, { borderColor: colors.border }]} onPress={() => discard(selected)}>
+                      <Text style={[styles.secondaryText, { color: colors.textMuted }]}>Clear from list</Text>
+                    </Pressable>
+                    <Pressable style={[styles.primaryButton, styles.flexButton, { backgroundColor: colors.inkSoft }]} onPress={() => setSelected(null)}>
+                      <Text style={styles.primaryText}>Close</Text>
+                    </Pressable>
+                  </View>
+                </ScrollView>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -300,4 +387,11 @@ const styles = StyleSheet.create({
   flexButton: { flex: 1, marginTop: 0 },
   disabled: { opacity: 0.5 },
   spinner: { marginTop: 14 },
+  tapCard: { flexDirection: 'row', alignItems: 'center' },
+  pressed: { opacity: 0.7 },
+  chevron: { fontSize: 28, marginLeft: 8 },
+  badge: { alignSelf: 'flex-start', paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, marginTop: 2 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '75%' },
 });

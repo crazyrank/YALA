@@ -101,6 +101,19 @@ export async function stageImport({ fileName, preview }) {
   return importKey;
 }
 
+const COMPLETED_KEEP_DAYS = 30;
+
+/** Removes finished import entries older than 30 days. Students on the server are not touched. */
+export async function purgeOldCompletedImports() {
+  const db = await getDb();
+  const cutoff = new Date(Date.now() - COMPLETED_KEEP_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  await db.runAsync(
+    `DELETE FROM staged_imports
+      WHERE status = 'completed' AND COALESCE(last_attempt_at, created_at) < ?`,
+    [cutoff]
+  );
+}
+
 export async function listStagedImports() {
   const db = await getDb();
   return db.getAllAsync(
