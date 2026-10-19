@@ -1,3 +1,4 @@
+const { notifyDirectors } = require('../services/alerts');
 const express = require('express');
 const { param, validationResult } = require('express-validator');
 const db = require('../db');
@@ -61,6 +62,7 @@ router.post(
         result: 'success',
       });
 
+      notifyDirectors({ title: 'Device approved', body: 'A device was approved for an account.', entityId: rows[0].id });
       return res.json({ device: rows[0] });
     } catch (err) {
       return next(err);
@@ -94,6 +96,7 @@ router.delete(
         result: 'success',
       });
 
+      notifyDirectors({ title: 'Device revoked', body: 'A device was revoked.', entityId: rows[0].id });
       return res.json({ ok: true });
     } catch (err) {
       return next(err);

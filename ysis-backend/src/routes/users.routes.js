@@ -1,3 +1,4 @@
+const { notifyDirectors } = require('../services/alerts');
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
@@ -201,6 +202,11 @@ router.patch(
         [id, status]
       );
       const user = updated.rows[0];
+      notifyDirectors({
+        title: status === 'suspended' ? 'Account suspended' : 'Account reactivated',
+        body: user.full_name + ' (' + user.role + ') was ' + (status === 'suspended' ? 'suspended.' : 'reactivated.'),
+        entityId: user.id,
+      });
 
       await writeAudit({
         userId: req.auth.userId,

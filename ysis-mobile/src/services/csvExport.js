@@ -16,6 +16,12 @@ const EXPORT_COLUMNS = [
   { key: 'created_at', label: 'Registered At' },
 ];
 
+// Spreadsheet apps run cells starting with these characters as formulas.
+function neutralizeFormula(value) {
+  if (typeof value !== 'string') return value;
+  return /^[=+\-@\t\r]/.test(value) ? "'" + value : value;
+}
+
 function escapeCsvValue(value) {
   if (value === null || value === undefined) return '';
   const str = String(value);
@@ -31,7 +37,7 @@ function buildCsv(rows) {
   const header = EXPORT_COLUMNS.map((c) => escapeCsvValue(c.label)).join(',');
 
   const lines = rows.map((row) =>
-    EXPORT_COLUMNS.map((c) => escapeCsvValue(row[c.key])).join(',')
+    EXPORT_COLUMNS.map((c) => escapeCsvValue(neutralizeFormula(row[c.key]))).join(',')
   );
 
   return [header, ...lines].join('\n');

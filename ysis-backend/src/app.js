@@ -1,3 +1,4 @@
+const offboardRoutes = require('./routes/offboard.routes');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -66,6 +67,7 @@ app.use('/conflicts', conflictsRoutes);
 app.use('/permissions', permissionsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/devices', devicesRoutes);
+app.use('/users', offboardRoutes);
 app.use('/directory', directoryRoutes);
 
 app.use((req, res) => {

@@ -1,3 +1,5 @@
+const { notifyDirectors } = require('../services/alerts');
+const { isBreachedPassword } = require('../services/breachCheck');
 const { deviceIsStale, STALE_DEVICE_MESSAGE } = require('../services/deviceTrust');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
@@ -83,6 +85,11 @@ router.post(
           const updates = { failed_login_count: nextCount };
           if (nextCount >= config.maxFailedLogins) {
             updates.locked_until = new Date(Date.now() + config.lockoutMinutes * 60 * 1000);
+            notifyDirectors({
+              title: 'Account locked after failed sign-ins',
+              body: user.full_name + ' was locked after repeated failed sign-in attempts.',
+              entityId: user.id,
+            });
           }
           await db.query(
             `UPDATE users SET failed_login_count = $2,
@@ -169,6 +176,11 @@ router.post(
         device = created.rows[0];
 
         if (initialStatus === 'pending_verification') {
+          notifyDirectors({
+            title: 'New device waiting for approval',
+            body: user.full_name + ' signed in from a new device.',
+            entityId: device.id,
+          });
           await writeAudit({
             userId: user.id,
             deviceId: device.id,
@@ -310,6 +322,9 @@ router.post(
       if (!strength.ok) {
         throw Errors.badRequest('WEAK_PASSWORD', strength.message);
       }
+      if (await isBreachedPassword(newPassword)) {
+        throw Errors.badRequest('WEAK_PASSWORD', 'This password appears in a known data breach. Choose a different one.');
+      }
 
       const { rows } = await db.query(
         'SELECT id, password_hash FROM users WHERE id = $1',
@@ -427,6 +442,9 @@ router.post(
       const strength = validatePasswordStrength(newPassword);
       if (!strength.ok) {
         throw Errors.badRequest('WEAK_PASSWORD', strength.message);
+      }
+      if (await isBreachedPassword(newPassword)) {
+        throw Errors.badRequest('WEAK_PASSWORD', 'This password appears in a known data breach. Choose a different one.');
       }
 
       const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
