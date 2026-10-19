@@ -15,6 +15,7 @@ import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
 import { getNextClass, isAtMaxClass } from '../utils/classProgression';
+import { exportStudentToPdf } from '../services/studentPdfExport';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -47,9 +48,15 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [editArm, setEditArm] = useState('');
   const [editGuardian, setEditGuardian] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
+
+  const canExportPdf =
+    user?.role === 'principal' ||
+    user?.role === 'director' ||
+    user?.role === 'head_teacher';
 
   const loadStudent = useCallback(async () => {
     const db = await getDb();
@@ -190,7 +197,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     Alert.alert(
       'Promote student',
-      `Move ${student.full_name} from ${student.class_level} to ${nextClass} (${promoteArm})?`,
+      `Move ${student.full_name} from ${student.class_level} to \( {nextClass} ( \){promoteArm})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Promote', onPress: () => performPromotion(promoteArm) },
@@ -370,6 +377,33 @@ export default function StudentDetailScreen({ route, navigation }) {
     );
   };
 
+  const handleExportPdf = async () => {
+    if (!canExportPdf) {
+      Alert.alert(
+        'Not allowed',
+        'Only a Principal, Director or Head Teacher can export a student PDF.'
+      );
+      return;
+    }
+    setExportingPdf(true);
+    try {
+      const ok = await exportStudentToPdf(studentId);
+      if (!ok) {
+        Alert.alert(
+          'Export failed',
+          'Student record could not be found on this device.'
+        );
+      }
+    } catch (err) {
+      Alert.alert(
+        'Export failed',
+        err.message || 'Could not create the PDF.'
+      );
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   if (!student) {
     return (
       <View style={styles.loading}>
@@ -417,15 +451,11 @@ export default function StudentDetailScreen({ route, navigation }) {
           </Pressable>
         )}
       </View>
-
-      {showCorrectionInput && (
+{showCorrectionInput && (
         <View style={styles.correctionBox}>
-          <Text style={styles.sectionEyebrow}>PHOTO CORRECTION</Text>
-          <Text style={styles.correctionTitle}>Why should this photo be replaced?</Text>
+          <Text style={styles.correctionTitle}>Why does this photo need to be replaced?</Text>
           <TextInput
             style={styles.correctionInput}
-            placeholder="e.g. Wrong student's photo was uploaded"
-            placeholderTextColor="#98A2B3"
             value={correctionReason}
             onChangeText={setCorrectionReason}
             multiline
@@ -549,6 +579,22 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
+      {canExportPdf && !editing && (
+        <View style={styles.section}>
+          <Pressable
+            style={styles.exportPdfButton}
+            onPress={handleExportPdf}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? (
+              <ActivityIndicator color="#0A1930" size="small" />
+            ) : (
+              <Text style={styles.exportPdfButtonText}>Export to PDF for printing</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
+
       {!editing && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>GUARDIAN INFORMATION</Text>
@@ -600,7 +646,6 @@ function ArmOption({ label, selected, onPress }) {
     </Pressable>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F6F7F9' },
   content: { padding: 18, paddingBottom: 35 },
@@ -616,57 +661,61 @@ const styles = StyleSheet.create({
     width: 132, height: 132, borderRadius: 66, backgroundColor: '#F2F4F7',
     borderWidth: 1, borderColor: '#D0D5DD', alignItems: 'center', justifyContent: 'center',
   },
-  photoIcon: { fontSize: 28, fontWeight: '300', color: '#667085' },
-  photoPlaceholderText: { marginTop: 2, fontSize: 10, color: '#667085', fontWeight: '600' },
+  photoIcon: { fontSize: 28, color: '#98A2B3', fontWeight: '300' },
+  photoPlaceholderText: { fontSize: 11, color: '#98A2B3', marginTop: 4 },
   name: { fontSize: 20, fontWeight: '700', color: '#0A1930', textAlign: 'center' },
-  admissionNo: { marginTop: 4, fontSize: 13, color: '#667085' },
+  admissionNo: { fontSize: 13, color: '#667085', marginTop: 4 },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#E7F6EF',
-    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', marginTop: 10,
+    backgroundColor: '#E7F6EF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
   },
-  statusBadgeArchived: { backgroundColor: '#F2F4F7' },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#12805C', marginRight: 6 },
-  statusDotArchived: { backgroundColor: '#667085' },
-  statusText: { fontSize: 10, fontWeight: '700', color: '#12805C', letterSpacing: 0.4 },
-  statusTextArchived: { color: '#667085' },
+  statusBadgeArchived: { backgroundColor: '#FDECEA' },
+  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#12805C', marginRight: 6 },
+  statusDotArchived: { backgroundColor: '#C0392B' },
+  statusText: { fontSize: 11, fontWeight: '700', color: '#12805C', letterSpacing: 0.5 },
+  statusTextArchived: { color: '#C0392B' },
   photoAction: { marginTop: 12 },
-  photoActionText: { fontSize: 12, fontWeight: '600', color: '#16324F' },
-  adminBar: { flexDirection: 'row', marginTop: 14, gap: 10 },
+  photoActionText: { fontSize: 13, color: '#16324F', fontWeight: '600' },
+  adminBar: {
+    flexDirection: 'row', marginTop: 16, gap: 10,
+  },
   adminBtn: {
-    flex: 1, height: 46, borderRadius: 12, backgroundColor: '#16324F',
-    alignItems: 'center', justifyContent: 'center',
+    flex: 1, backgroundColor: '#16324F', borderRadius: 12,
+    paddingVertical: 12, alignItems: 'center',
   },
   adminBtnDanger: { backgroundColor: '#C0392B' },
-  adminBtnRestore: { backgroundColor: '#E7F6EF', borderWidth: 1, borderColor: '#12805C' },
-  adminBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  adminBtnRestore: { backgroundColor: '#E7F6EF' },
+  adminBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   adminBtnTextDark: { color: '#12805C' },
   section: { marginTop: 18 },
-  sectionEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: '#98A2B3', marginBottom: 8 },
+  sectionEyebrow: {
+    fontSize: 11, fontWeight: '700', color: '#98A2B3',
+    letterSpacing: 1, marginBottom: 8,
+  },
   infoCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1,
     borderColor: '#EAECF0', paddingHorizontal: 16, paddingVertical: 4,
   },
   infoRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F2F4F7',
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F2F4F7',
   },
   infoRowLast: { borderBottomWidth: 0 },
   infoLabel: { fontSize: 13, color: '#667085' },
-  infoValue: { fontSize: 14, fontWeight: '600', color: '#0A1930', maxWidth: '60%', textAlign: 'right' },
+  infoValue: { fontSize: 13, fontWeight: '600', color: '#0A1930', maxWidth: '60%', textAlign: 'right' },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: '#667085', marginTop: 12, marginBottom: 6 },
   fieldInput: {
-    borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, paddingHorizontal: 12,
-    paddingVertical: 10, fontSize: 15, color: '#0A1930', backgroundColor: '#FAFBFC',
+    borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0A1930',
   },
-  fieldInputLast: { marginBottom: 12 },
-  classReadOnly: { fontSize: 15, fontWeight: '600', color: '#0A1930', paddingVertical: 8 },
-  editNote: { fontSize: 11, color: '#98A2B3', marginBottom: 12 },
+  fieldInputLast: { marginBottom: 8 },
+  classReadOnly: { fontSize: 14, fontWeight: '600', color: '#0A1930', marginBottom: 4 },
+  editNote: { fontSize: 11, color: '#98A2B3', marginBottom: 4 },
   armOption: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D0D5DD',
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8,
-    backgroundColor: '#FAFBFC',
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+    paddingHorizontal: 8, borderRadius: 10, marginBottom: 4,
   },
-  armOptionSelected: { borderColor: '#16324F', backgroundColor: '#EEF3F9' },
+  armOptionSelected: { borderWidth: 1, borderColor: '#16324F', backgroundColor: '#EEF3F9' },
   radioOuter: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#98A2B3',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
@@ -715,4 +764,17 @@ const styles = StyleSheet.create({
   syncText: { marginTop: 4, fontSize: 12, color: '#667085', lineHeight: 17 },
   footer: { marginTop: 28, alignItems: 'center' },
   footerText: { fontSize: 11, color: '#98A2B3' },
+  exportPdfButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+  },
+  exportPdfButtonText: {
+    fontWeight: '700',
+    color: '#0A1930',
+    fontSize: 14,
+  },
 });
