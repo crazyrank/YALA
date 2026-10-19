@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
 const studentImportRoutes = require('./routes/studentImport.routes');
+const studentsChangesRoutes = require('./routes/studentsChanges.routes');
 const syncRoutes = require('./routes/sync.routes');
 const conflictsRoutes = require('./routes/conflicts.routes');
 const permissionsRoutes = require('./routes/permissions.routes');
@@ -58,6 +59,7 @@ app.use('/auth', authRoutes);
 app.use('/users', usersRoutes);
 // Import routes must be mounted before /students so '/students/import' is not treated as a student id.
 app.use('/students/import', studentImportRoutes);
+app.use('/students/changes', studentsChangesRoutes);
 app.use('/students', studentsRoutes);
 app.use('/sync', syncRoutes);
 app.use('/conflicts', conflictsRoutes);
