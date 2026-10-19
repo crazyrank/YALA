@@ -6,6 +6,7 @@ const { errorHandler } = require('./utils/errors');
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
 const studentsRoutes = require('./routes/students.routes');
+const studentsChangesRoutes = require('./routes/studentsChanges.routes');
 const syncRoutes = require('./routes/sync.routes');
 const conflictsRoutes = require('./routes/conflicts.routes');
 const permissionsRoutes = require('./routes/permissions.routes');
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => res.json({ ok: true, service: 'ysis-backend' })
 
 app.use('/auth', authRoutes);
 app.use('/users', usersRoutes);
+app.use('/students/changes', studentsChangesRoutes);
 app.use('/students', studentsRoutes);
 app.use('/sync', syncRoutes);
 app.use('/conflicts', conflictsRoutes);

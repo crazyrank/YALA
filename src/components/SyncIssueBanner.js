@@ -1,41 +1,50 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { onSyncStatusChange } from '../services/syncEngine';
+import { onSyncStatusChange, getSyncFailures } from '../services/syncEngine';
 
 /**
- * Passive, non-blocking banner for sync problems — same tone as
- * OfflineMarquee (Build Spec Section 17: informative, never blocking
- * local-first work), but surfaces TWO failure modes that were
- * previously silent:
+ * Passive, non-blocking banner for sync problems. Shows three things:
  *
- *   1. pullError — the caller (e.g. StudentsListScreen) couldn't refresh
- *      from the server. Passed in as a prop along with a retry callback.
- *      Plain "offline" is NOT treated as an error here — that's expected
- *      and already covered by OfflineMarquee; only genuine failures
- *      (auth errors, 500s, bad responses) are surfaced.
+ *   1. pullError: the server could not be checked for updates. Retry button.
+ *   2. Parked failures: operations that were rejected or gave up after
+ *      several tries. These stay until someone resolves them, so the
+ *      count is read from the local queue, not from a single event.
+ *   3. pushError: the last sync run failed for a non-offline reason.
  *
- *   2. push sync errors — queued local operations (student edits, new
- *      registrations) failed to reach the server for a reason other than
- *      being offline. syncEngine already emits this via onSyncStatusChange,
- *      but nothing in the UI listened for it before now.
- *
- * Both auto-clear once the underlying condition resolves.
+ * Offline is not shown here. OfflineMarquee covers that.
  */
-export default function SyncIssueBanner({ pullError, onRetryPull }) {
+export default function SyncIssueBanner({ pullError, onRetryPull, onPressAttention }) {
   const [pushError, setPushError] = useState(null);
+  const [failureCount, setFailureCount] = useState(0);
+
+  const refreshFailures = useCallback(async () => {
+    try {
+      const failures = await getSyncFailures();
+      setFailureCount(failures.length);
+    } catch {
+      // Reading the queue must never break the screen.
+    }
+  }, []);
 
   useEffect(() => {
+    refreshFailures();
+
     const unsubscribe = onSyncStatusChange((s) => {
       if (s.state === 'error') {
         setPushError(s.error || 'Something went wrong while syncing.');
-      } else if (s.state === 'idle' || s.state === 'syncing') {
+      } else if (s.state === 'syncing') {
         setPushError(null);
+      } else if (s.state === 'attention_needed') {
+        refreshFailures();
+      } else if (s.state === 'idle') {
+        setPushError(null);
+        refreshFailures();
       }
     });
-    return unsubscribe;
-  }, []);
 
-  // Pull errors take priority — they're actionable right now via Retry.
+    return unsubscribe;
+  }, [refreshFailures]);
+
   if (pullError) {
     return (
       <View style={styles.container} accessibilityRole="alert">
@@ -44,6 +53,22 @@ export default function SyncIssueBanner({ pullError, onRetryPull }) {
           <Text style={styles.retry}>Retry</Text>
         </Pressable>
       </View>
+    );
+  }
+
+  if (failureCount > 0) {
+    const label = failureCount === 1
+      ? '1 change could not be saved to the server.'
+      : `${failureCount} changes could not be saved to the server.`;
+    return (
+      <Pressable
+        onPress={onPressAttention}
+        disabled={!onPressAttention}
+        style={styles.container}
+        accessibilityRole="alert"
+      >
+        <Text style={styles.text}>{label} Tap to review.</Text>
+      </Pressable>
     );
   }
 
