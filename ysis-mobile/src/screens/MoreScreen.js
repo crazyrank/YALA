@@ -317,6 +317,14 @@ export default function MoreScreen({ navigation }) {
         )}
 
         <MenuRow
+          icon="notifications"
+          label="Notifications"
+          subtitle="Alerts for your account"
+          color={colors.inkSoft}
+          onPress={() => navigation.navigate('Notifications')}
+        />
+
+        <MenuRow
           icon="albums"
           label="Staff Directory"
           subtitle="Board, management & class teachers"

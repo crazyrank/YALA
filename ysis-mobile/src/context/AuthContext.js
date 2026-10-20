@@ -1,3 +1,4 @@
+import { registerInBackground } from '../services/pushNotifications';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import {
@@ -73,6 +74,7 @@ export function AuthProvider({ children }) {
     const enriched = await withLocalPhoto(loggedInUser);
     setUser(enriched);
     setStatus(loggedInUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+    if (!loggedInUser.mustChangePassword) registerInBackground();
     return enriched;
   }, []);
 
@@ -90,6 +92,7 @@ export function AuthProvider({ children }) {
       const enriched = await withLocalPhoto(cachedUser);
       setUser(enriched);
       setStatus(cachedUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+      if (!cachedUser.mustChangePassword) registerInBackground();
     }
 
     return result;
