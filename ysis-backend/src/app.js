@@ -1,3 +1,4 @@
+const pushRoutes = require('./routes/push.routes');
 const offboardRoutes = require('./routes/offboard.routes');
 const express = require('express');
 const cors = require('cors');
@@ -67,6 +68,7 @@ app.use('/conflicts', conflictsRoutes);
 app.use('/permissions', permissionsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/devices', devicesRoutes);
+app.use('/push', pushRoutes);
 app.use('/users', offboardRoutes);
 app.use('/directory', directoryRoutes);
 
