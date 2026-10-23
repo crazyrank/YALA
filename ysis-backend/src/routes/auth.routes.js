@@ -1,4 +1,5 @@
 const { notifyDirectors } = require('../services/alerts');
+const { assertNotLocked, recordFailure } = require('../services/loginProtection');
 const { isBreachedPassword } = require('../services/breachCheck');
 const { deviceIsStale, STALE_DEVICE_MESSAGE } = require('../services/deviceTrust');
 const express = require('express');
@@ -72,6 +73,7 @@ router.post(
       checkValidation(req);
       const { email, password, deviceFingerprint, deviceName } = req.body;
 
+      await assertNotLocked(email, req.ip);
       const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       const user = rows[0];
 
@@ -98,6 +100,7 @@ router.post(
             [user.id, nextCount, updates.locked_until || null]
           );
         }
+        await recordFailure(email, req.ip);
         // Do not store raw email in audit on failure — store a short hash only
         await writeAudit({
           action: 'LOGIN',
