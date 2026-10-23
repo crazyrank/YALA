@@ -65,3 +65,4 @@ apply-login-protection.py
 apply-home-search.py
 apply-remove-account-lock.py
 apply-trusted-devices.py
+apply-notifications.py

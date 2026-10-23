@@ -40,6 +40,7 @@ async function sendPushToDirectors({ title, body, category, entityId }) {
     sound: 'default',
     title,
     body: body || '',
+    channelId: category === 'security' ? 'security' : 'general',
     data: { category, entityId },
   }));
 
