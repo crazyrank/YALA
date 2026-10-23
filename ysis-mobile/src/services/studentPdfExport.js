@@ -338,7 +338,7 @@ export async function exportStudentToPdf(studentId) {
       files
         .filter((name) => name.startsWith(prefix) && name.endsWith('.pdf'))
         .map((name) =>
-          FileSystem.deleteAsync(`\( {cacheDir} \){name}`, { idempotent: true })
+          FileSystem.deleteAsync(`${cacheDir}${name}`, { idempotent: true })
         )
     );
   } catch {
@@ -353,7 +353,7 @@ export async function exportStudentToPdf(studentId) {
 
   const safeName = (student.admission_no || studentId)
     .replace(/[^a-zA-Z0-9_-]/g, '_');
-  const finalUri = `\( {cacheDir}yala-student- \){studentId}-${safeName}.pdf`;
+  const finalUri = `${cacheDir}yala-student-${studentId}-${safeName}.pdf`;
 
   try {
     await FileSystem.moveAsync({ from: uri, to: finalUri });

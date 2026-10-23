@@ -202,7 +202,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     Alert.alert(
       'Promote student',
-      `Move ${student.full_name} from ${student.class_level} to \( {nextClass} ( \){promoteArm})?`,
+      `Move ${student.full_name} from ${student.class_level} to ${nextClass} (${promoteArm})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Promote', onPress: () => performPromotion(promoteArm) },
