@@ -76,7 +76,7 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
       style={{ width: flatStyle.width }}
       {...rest}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>
+      <Animated.View style={[style, flatStyle.width ? { width: '100%' } : null, { transform: [{ scale }] }]}>
         {children}
       </Animated.View>
     </Pressable>
@@ -787,12 +787,15 @@ const styles = StyleSheet.create({
   },
   secondaryRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 18,
+    marginBottom: 8,
   },
   secondaryAction: {
     width: '48%',
     height: 48,
+    marginBottom: 10,
+    paddingHorizontal: 12,
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',

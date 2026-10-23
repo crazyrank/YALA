@@ -197,15 +197,18 @@ export default function RegisterStudentScreen({ route, navigation }) {
         backgroundColor={colors.background}
       />
 
+      <View style={[styles.fixedHeader, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
+        <Text style={styles.title}>Register student</Text>
+      </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 16, paddingBottom: insets.bottom + 32 },
+          { paddingTop: 4, paddingBottom: insets.bottom + 32 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Register student</Text>
 
         {/* FIND EXISTING STUDENT */}
         <View style={styles.lookupBox}>
@@ -429,12 +432,15 @@ function createStyles(colors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     content: { paddingHorizontal: 20 },
+    fixedHeader: {
+      paddingHorizontal: 20,
+      paddingBottom: 14,
+    },
     title: {
-      fontFamily: fontFamily.heading,
-      fontSize: 26,
-      fontWeight: '800',
+      fontFamily: fontFamily.display,
+      fontSize: 28,
+      letterSpacing: -0.6,
       color: colors.textPrimary,
-      marginBottom: 20,
     },
 
     lookupBox: {
