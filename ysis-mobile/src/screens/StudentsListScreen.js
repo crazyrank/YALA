@@ -314,21 +314,25 @@ export default function StudentsListScreen({ navigation, route }) {
         colors={gradients.navy}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+        style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 4 }]}
       >
         <View style={styles.heroTopRow}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={styles.heroEyebrow}>
               {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
             </Text>
-            <Text style={styles.heroTitle}>
+            <Text style={styles.heroTitle} numberOfLines={1}>
               {classLevel ? `${classLevel} Students` : 'Students'}
             </Text>
-            <Text style={styles.heroSub}>
-              {classLevel
-                ? `Records for ${classLevel}`
-                : 'Manage and access student records'}
-            </Text>
+          </View>
+
+          <View style={styles.heroMetaPill}>
+            {initialLoading ? (
+              <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
+            ) : (
+              <Text style={styles.heroMetaNum}>{matchCount}</Text>
+            )}
+            <Text style={styles.heroMetaLabel}>SHOWING</Text>
           </View>
 
           <Pressable
@@ -353,17 +357,6 @@ export default function StudentsListScreen({ navigation, route }) {
             )}
             <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
           </Pressable>
-        </View>
-
-        <View style={styles.heroMeta}>
-          <View style={styles.heroMetaPill}>
-            {initialLoading ? (
-              <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
-            ) : (
-              <Text style={styles.heroMetaNum}>{matchCount}</Text>
-            )}
-            <Text style={styles.heroMetaLabel}>SHOWING</Text>
-          </View>
         </View>
       </LinearGradient>
 
@@ -629,13 +622,13 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 36 },
   emptyListContent: { flexGrow: 1 },
   hero: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center' },
   profileChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -722,16 +715,16 @@ const styles = StyleSheet.create({
   },
   heroEyebrow: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.4,
+    fontSize: 10,
+    letterSpacing: 1.6,
     color: '#C9A24B',
-    marginBottom: 8,
+    marginBottom: 1,
   },
   heroTitle: {
     fontFamily: fontFamily.display,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: -1,
+    fontSize: 24,
+    lineHeight: 28,
+    letterSpacing: -0.5,
     color: '#FFFFFF',
   },
   heroSub: {
@@ -745,16 +738,17 @@ const styles = StyleSheet.create({
   heroMetaPill: {
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
   },
   heroMetaNum: {
     fontFamily: fontFamily.display,
-    fontSize: 16,
+    fontSize: 15,
     color: '#FFFFFF',
-    marginRight: 8,
+    marginRight: 6,
   },
   heroMetaLabel: {
     fontFamily: fontFamily.bodyBold,
