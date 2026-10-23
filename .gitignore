@@ -63,3 +63,4 @@ apply-sync-fixes.py
 apply-pdf-session.py
 apply-login-protection.py
 apply-home-search.py
+apply-remove-account-lock.py

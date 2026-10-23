@@ -82,24 +82,6 @@ router.post(
       const passwordOk = await verifyPassword(password, hashToCheck);
 
       if (!user || !passwordOk) {
-        if (user) {
-          const nextCount = (user.failed_login_count || 0) + 1;
-          const updates = { failed_login_count: nextCount };
-          if (nextCount >= config.maxFailedLogins) {
-            updates.locked_until = new Date(Date.now() + config.lockoutMinutes * 60 * 1000);
-            notifyDirectors({
-              title: 'Account locked after failed sign-ins',
-              body: user.full_name + ' was locked after repeated failed sign-in attempts.',
-              entityId: user.id,
-            });
-          }
-          await db.query(
-            `UPDATE users SET failed_login_count = $2,
-               locked_until = COALESCE($3, locked_until), updated_at = now()
-             WHERE id = $1`,
-            [user.id, nextCount, updates.locked_until || null]
-          );
-        }
         await recordFailure(email, req.ip);
         // Do not store raw email in audit on failure — store a short hash only
         await writeAudit({
@@ -110,9 +92,8 @@ router.post(
         throw Errors.unauthorized('Incorrect email or password.');
       }
 
-      if (user.locked_until && new Date(user.locked_until) > new Date()) {
-        throw Errors.accountLocked();
-      }
+      // Account-wide lockout removed. Sign-in protection is handled by
+      // the account and network pair lock and the network block.
 
       if (user.status !== 'active') {
         await writeAudit({
@@ -122,14 +103,6 @@ router.post(
           metadata: { reason: 'inactive_account' },
         });
         throw Errors.forbidden('This account is not active. Contact your administrator.');
-      }
-
-      // Clear lockout counters on successful auth
-      if (user.failed_login_count > 0 || user.locked_until) {
-        await db.query(
-          `UPDATE users SET failed_login_count = 0, locked_until = NULL, updated_at = now() WHERE id = $1`,
-          [user.id]
-        );
       }
 
       let device;
