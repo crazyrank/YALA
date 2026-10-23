@@ -60,3 +60,4 @@ ysis-backend/scripts/cloudinary-upload-test.js
 ysis-backend/scripts/cloudinary-raw-test.js
 apply-sync-fixes.py
 .patch-backups/
+apply-pdf-session.py

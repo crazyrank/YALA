@@ -62,6 +62,8 @@ router.get(
                 division,
                 class_level,
                 arm,
+                academic_session,
+                created_at,
                 status,
                 sync_version,
                 to_char(updated_at AT TIME ZONE 'UTC',

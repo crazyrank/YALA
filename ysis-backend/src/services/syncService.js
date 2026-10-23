@@ -13,6 +13,7 @@ const {
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
+const { academicSessionFor } = require('../utils/academicSession');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -402,10 +403,12 @@ async function processOperation({
                guardian_name,
                guardian_phone,
                registered_by,
-               registered_device_id
+               registered_device_id,
+               academic_session,
+               created_at
              )
            VALUES
-             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
           [
             id,
             admissionNo,
@@ -419,6 +422,8 @@ async function processOperation({
             guardianPhone || null,
             userId,
             deviceId,
+            academicSessionFor(createdAtClient),
+            createdAtClient,
           ]
         );
 

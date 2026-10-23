@@ -75,8 +75,8 @@ async function savePage(db, students, nextCursor) {
     for (const s of students) {
       await db.runAsync(
         `INSERT INTO students
-           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at, academic_session)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            admission_no = excluded.admission_no,
            full_name    = excluded.full_name,
@@ -85,11 +85,12 @@ async function savePage(db, students, nextCursor) {
            arm          = excluded.arm,
            status       = excluded.status,
            sync_version = excluded.sync_version,
-           updated_at   = excluded.updated_at
+           updated_at   = excluded.updated_at,
+           academic_session = excluded.academic_session
          WHERE students.local_dirty = 0`,
         [
           s.id, s.admission_no, s.full_name, s.division || 'secondary',
-          s.class_level, s.arm, s.status, s.sync_version, stamp, stamp,
+          s.class_level, s.arm, s.status, s.sync_version, s.created_at || stamp, stamp, s.academic_session || null,
         ]
       );
     }
