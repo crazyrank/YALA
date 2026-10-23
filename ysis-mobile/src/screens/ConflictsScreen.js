@@ -4,9 +4,46 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../api/client';
+import { getDb } from '../db';
+import { fetchAndCacheAllStudents } from '../services/studentSync';
+import { setConflictCount } from '../services/conflictBadge';
 import { useTheme } from '../theme/ThemeContext';
 import { type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
+
+const FIELD_LABELS = {
+  full_name: 'Student name',
+  gender: 'Gender',
+  division: 'Section',
+  class_level: 'Class',
+  arm: 'Arm',
+  guardian_name: 'Guardian name',
+  guardian_phone: 'Guardian phone',
+  status: 'Student status',
+};
+
+function readObject(value) {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) || {}; } catch (e) { return {}; }
+  }
+  return value;
+}
+
+function showValue(v) {
+  if (v === null || v === undefined || v === '') return 'Empty';
+  const text = String(v);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// Plain list of what would change: one row per field that is different.
+function describeChanges(item) {
+  const saved = readObject(item.server_state);
+  const wanted = readObject(readObject(item.incoming_change).changes);
+  return Object.keys(wanted)
+    .filter((f) => FIELD_LABELS[f] && String(wanted[f] ?? '') !== String(saved[f] ?? ''))
+    .map((f) => ({ label: FIELD_LABELS[f], saved: showValue(saved[f]), wanted: showValue(wanted[f]) }));
+}
 
 export default function ConflictsScreen() {
   const { colors } = useTheme();
@@ -21,8 +58,9 @@ export default function ConflictsScreen() {
     try {
       const res = await api.get('/conflicts?status=open');
       setConflicts(res.conflicts);
+      setConflictCount(res.conflicts.length);
     } catch (err) {
-      Alert.alert('Could not load conflicts', err.message);
+      Alert.alert('Could not load the list', 'Check your internet, then pull down to try again.');
     } finally {
       setLoading(false);
     }
@@ -30,13 +68,56 @@ export default function ConflictsScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const resolve = async (conflictId, resolution) => {
+  const finishResolve = async (item, resolution) => {
     try {
-      await api.post(`/conflicts/${conflictId}/resolve`, { resolution });
-      load();
+      await api.post(`/conflicts/${item.id}/resolve`, { resolution });
     } catch (err) {
-      Alert.alert('Could not resolve', err.message);
+      if (err?.code !== 'ALREADY_RESOLVED') {
+        Alert.alert('Not saved', 'This did not work. Check your internet and try again.');
+        return;
+      }
     }
+
+    // Remove the card and update the red badge straight away.
+    const next = conflicts.filter((c) => c.id !== item.id);
+    setConflicts(next);
+    setConflictCount(next.length);
+
+    // Clear the "needs attention" mark kept on this phone for this student.
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        `UPDATE sync_operations
+         SET status = 'synced', error_code = NULL, error_message = NULL
+         WHERE entity_id = ? AND status = 'conflicted'`,
+        [item.student_id]
+      );
+      await db.runAsync(
+        `UPDATE students SET local_dirty = 0
+         WHERE id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM sync_operations WHERE entity_id = ? AND status = 'pending'
+           )`,
+        [item.student_id, item.student_id]
+      );
+      fetchAndCacheAllStudents({ force: true }).catch(() => {});
+    } catch (e) {
+      // The server is already correct; the phone fixes itself on the next sync.
+    }
+  };
+
+  const resolve = (item, resolution) => {
+    const useNew = resolution === 'restore';
+    Alert.alert(
+      useNew ? 'Use the new change?' : 'Keep what is saved?',
+      useNew
+        ? `${item.full_name} will be updated with the new change.`
+        : `${item.full_name} will stay exactly as it is now. The new change will be thrown away.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: useNew ? 'Use new change' : 'Keep saved', onPress: () => finishResolve(item, resolution) },
+      ]
+    );
   };
 
   return (
@@ -54,7 +135,7 @@ export default function ConflictsScreen() {
         <View style={styles.pageHeader}>
           <Text style={styles.pageTitle}>Conflicts</Text>
           <Text style={styles.pageSub}>
-            Review and resolve disputed student records
+            Student records that were changed twice
           </Text>
         </View>
       }
@@ -62,25 +143,24 @@ export default function ConflictsScreen() {
         <View style={styles.card}>
           <Text style={styles.studentName}>{item.full_name}</Text>
           <Text style={styles.admissionNo}>{item.admission_no}</Text>
-          <Text style={styles.summary}>{item.conflict_summary}</Text>
+          <Text style={styles.summary}>
+            Someone tried to change this student, but the record had already been changed. Choose which one to keep.
+          </Text>
 
-          <View style={styles.compareRow}>
-            <View style={styles.compareCol}>
-              <Text style={styles.compareLabel}>Current on server</Text>
-              <Text style={styles.compareValue}>{JSON.stringify(item.server_state, null, 2)}</Text>
+          {describeChanges(item).map((c) => (
+            <View key={c.label} style={styles.changeRow}>
+              <Text style={styles.compareLabel}>{c.label}</Text>
+              <Text style={styles.changeLine}>Saved now: {c.saved}</Text>
+              <Text style={styles.changeLine}>New change: {c.wanted}</Text>
             </View>
-            <View style={styles.compareCol}>
-              <Text style={styles.compareLabel}>Attempted change</Text>
-              <Text style={styles.compareValue}>{JSON.stringify(item.incoming_change, null, 2)}</Text>
-            </View>
-          </View>
+          ))}
 
           <View style={styles.buttonRow}>
             <Pressable
               style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-              onPress={() => resolve(item.id, 'restore')}
+              onPress={() => resolve(item, 'restore')}
             >
-              <Text style={styles.buttonText}>Apply the Change</Text>
+              <Text style={styles.buttonText}>Use new change</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
@@ -88,9 +168,9 @@ export default function ConflictsScreen() {
                 styles.buttonSecondary,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={() => resolve(item.id, 'keep_deleted')}
+              onPress={() => resolve(item, 'keep_deleted')}
             >
-              <Text style={styles.buttonText}>Keep Current</Text>
+              <Text style={styles.buttonText}>Keep saved</Text>
             </Pressable>
           </View>
         </View>
@@ -116,9 +196,9 @@ export default function ConflictsScreen() {
         !loading && (
           <View style={styles.empty}>
             <Ionicons name="checkmark-circle-outline" size={36} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No open conflicts</Text>
+            <Text style={styles.emptyTitle}>Nothing to check</Text>
             <Text style={styles.emptyText}>
-              Everything is in sync. New conflicts will show up here.
+              Nothing needs your attention. Problems with student records will show here.
             </Text>
           </View>
         )
@@ -269,10 +349,17 @@ function createStyles(colors) {
       marginBottom: spacing.xs,
     },
 
-    compareValue: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      fontFamily: 'monospace',
+    changeRow: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.sm,
+      padding: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+
+    changeLine: {
+      ...type.body,
+      fontSize: 14,
+      color: colors.textPrimary,
     },
 
     buttonRow: {

@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { api } from '../api/client';
+import { setConflictCount, useConflictCount } from '../services/conflictBadge';
 
 const Tab = createBottomTabNavigator();
 
@@ -41,8 +42,6 @@ function RegisterTabButton({ onPress }) {
 }
 
 function useOpenConflictCount(enabled) {
-  const [count, setCount] = useState(0);
-
   useFocusEffect(
     useCallback(() => {
       if (!enabled) return;
@@ -52,10 +51,10 @@ function useOpenConflictCount(enabled) {
       api
         .get('/conflicts?status=open')
         .then((res) => {
-          if (!cancelled) setCount(res.conflicts?.length || 0);
+          if (!cancelled) setConflictCount(res.conflicts?.length || 0);
         })
         .catch(() => {
-          if (!cancelled) setCount(0);
+          if (!cancelled) setConflictCount(0);
         });
 
       return () => {
@@ -64,7 +63,7 @@ function useOpenConflictCount(enabled) {
     }, [enabled])
   );
 
-  return count;
+  return useConflictCount();
 }
 
 export default function MainTabs() {
