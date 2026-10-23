@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -21,13 +21,15 @@ import { queueOperation } from '../services/syncEngine';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
 import ClassLevelPicker from '../components/ClassLevelPicker';
 import { CLASS_ORDER } from '../utils/classProgression';
-import { divisionOfClass } from '../utils/studentRules';
+import { divisionOfClass, ARMS } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
 export default function RegisterStudentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const isDark = colors.mode === 'dark';
   const prefillName = route.params?.prefillName || '';
 
   const [admissionNo, setAdmissionNo] = useState('');
@@ -63,6 +65,14 @@ export default function RegisterStudentScreen({ route, navigation }) {
     } catch (err) {
       setLookupResults([]);
     }
+  };
+
+  // Switching division clears a class that belongs to the other division,
+  // and clears the arm when the student is primary.
+  const chooseDivision = (next) => {
+    setDivision(next);
+    if (classLevel && divisionOfClass(classLevel) !== next) setClassLevel('');
+    if (next === 'primary') setArm('');
   };
 
   const handleSave = async () => {
@@ -149,7 +159,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
 
       Alert.alert(
         'Student saved',
-        'The record is safely stored on this device and will sync automatically when an internet connection is available.',
+        'The record is saved on this device.',
         [
           {
             text: 'Done',
@@ -169,110 +179,77 @@ export default function RegisterStudentScreen({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.safe, { backgroundColor: colors.background }]}
+      style={styles.safe}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar
-        barStyle="dark-content"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
 
       <ScrollView
-        style={styles.container}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
+          { paddingTop: Math.max(insets.top, 12) + 16, paddingBottom: insets.bottom + 32 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* FIND EXISTING STUDENT */}
-        <View style={styles.lookupCard}>
-          <Text style={styles.lookupLabel}>Find existing student</Text>
-          <View style={styles.lookupBox}>
-            <Ionicons name="search" size={17} color="#667085" style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.lookupInput}
-              placeholder="Search by name or admission number"
-              placeholderTextColor="#98A2B3"
-              value={lookupQuery}
-              onChangeText={handleLookupChange}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {lookupQuery.length > 0 && (
-              <Pressable onPress={() => handleLookupChange('')} hitSlop={10}>
-                <Ionicons name="close-circle" size={17} color="#98A2B3" />
-              </Pressable>
-            )}
-          </View>
+        <Text style={styles.title}>Register student</Text>
 
-          {lookupResults.length > 0 && (
-            <View style={styles.lookupResults}>
-              {lookupResults.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.lookupResultRow}
-                  onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
-                >
-                  <View>
-                    <Text style={styles.lookupResultName}>{item.full_name}</Text>
-                    <Text style={styles.lookupResultSub}>
-                      {item.admission_no || 'No admission number'}
-                      {item.class_level ? ` • ${item.class_level}` : ''}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
-                </Pressable>
-              ))}
-            </View>
+        {/* FIND EXISTING STUDENT */}
+        <View style={styles.lookupBox}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} />
+          <TextInput
+            style={styles.lookupInput}
+            placeholder="Find an existing student"
+            placeholderTextColor={colors.textSecondary}
+            value={lookupQuery}
+            onChangeText={handleLookupChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {lookupQuery.length > 0 && (
+            <Pressable onPress={() => handleLookupChange('')} hitSlop={10}>
+              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+            </Pressable>
           )}
         </View>
 
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.eyebrow}>STUDENT RECORDS</Text>
-
-          <Text style={styles.title}>
-            Register student
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Create a student record directly on this device.
-            It will sync with the school system automatically.
-          </Text>
-        </View>
-
-        {/* OFFLINE NOTICE */}
-        <View style={styles.offlineNotice}>
-          <View style={styles.offlineDot} />
-
-          <View style={styles.offlineTextArea}>
-            <Text style={styles.offlineTitle}>
-              Offline-first registration
-            </Text>
-
-            <Text style={styles.offlineText}>
-              You can save this record without internet access.
-              Synchronisation happens automatically later.
-            </Text>
+        {lookupResults.length > 0 && (
+          <View style={styles.resultsCard}>
+            {lookupResults.map((item, index) => (
+              <Pressable
+                key={item.id}
+                style={[styles.resultRow, index > 0 && styles.resultDivider]}
+                onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
+              >
+                <View style={styles.resultText}>
+                  <Text style={styles.resultName}>{item.full_name}</Text>
+                  <Text style={styles.resultSub}>
+                    {item.admission_no || 'No admission number'}
+                    {item.class_level ? `  ${item.class_level}` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Pressable>
+            ))}
           </View>
-        </View>
+        )}
 
-        {/* FORM CARD */}
+        {/* STUDENT DETAILS */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
-            Student information
-          </Text>
+          <Text style={styles.sectionTitle}>Student</Text>
 
           <Field
             label="ADMISSION NUMBER"
             required
             value={admissionNo}
             onChangeText={setAdmissionNo}
-            placeholder="e.g. YAL/2026/0142"
+            placeholder="Admission number"
             autoCapitalize="characters"
-            autoCorrect={false}
+            styles={styles}
+            colors={colors}
           />
 
           <Field
@@ -281,57 +258,37 @@ export default function RegisterStudentScreen({ route, navigation }) {
             value={fullName}
             onChangeText={setFullName}
             placeholder="Student's full name"
-            autoCapitalize="words"
-            autoCorrect={false}
+            styles={styles}
+            colors={colors}
           />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               DIVISION <Text style={styles.required}>*</Text>
             </Text>
-
-            <View style={styles.segmentRow}>
-              <Pressable
-                style={[
-                  styles.segment,
-                  division === 'primary' && styles.segmentActive,
-                ]}
-                onPress={() => setDivision('primary')}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    division === 'primary' &&
-                      styles.segmentTextActive,
-                  ]}
-                >
-                  Primary
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.segment,
-                  division === 'secondary' && styles.segmentActive,
-                ]}
-                onPress={() => setDivision('secondary')}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    division === 'secondary' &&
-                      styles.segmentTextActive,
-                  ]}
-                >
-                  Secondary
-                </Text>
-              </Pressable>
+            <View style={styles.segment}>
+              {['primary', 'secondary'].map((d) => {
+                const active = division === d;
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => chooseDivision(d)}
+                    style={[styles.segmentItem, active && styles.segmentItemActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {d === 'primary' ? 'Primary' : 'Secondary'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', marginBottom: 8, color: colors.textPrimary }}>
-              CLASS LEVEL *
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              CLASS LEVEL <Text style={styles.required}>*</Text>
             </Text>
             <ClassLevelPicker
               value={classLevel}
@@ -340,31 +297,40 @@ export default function RegisterStudentScreen({ route, navigation }) {
             />
           </View>
 
-          <Field
-            label="ARM"
-            hint="Secondary students only"
-            value={arm}
-            onChangeText={setArm}
-            placeholder="e.g. Science"
-            autoCapitalize="words"
-          />
+          {division === 'secondary' && (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>ARM</Text>
+              <View style={styles.chipRow}>
+                {ARMS.map((a) => {
+                  const active = arm === a;
+                  return (
+                    <Pressable
+                      key={a}
+                      onPress={() => setArm(active ? '' : a)}
+                      style={[styles.chip, active && styles.chipActive]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{a}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+        </View>
 
-          <View style={styles.sectionDivider} />
-
-          <Text style={styles.sectionTitle}>
-            Guardian information
-          </Text>
-
-          <Text style={styles.sectionHint}>
-            These details are optional and can be completed later.
-          </Text>
+        {/* GUARDIAN */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Guardian</Text>
 
           <Field
             label="GUARDIAN NAME"
             value={guardianName}
             onChangeText={setGuardianName}
             placeholder="Parent or guardian name"
-            autoCapitalize="words"
+            styles={styles}
+            colors={colors}
           />
 
           <Field
@@ -373,386 +339,173 @@ export default function RegisterStudentScreen({ route, navigation }) {
             onChangeText={setGuardianPhone}
             placeholder="Phone number"
             keyboardType="phone-pad"
+            styles={styles}
+            colors={colors}
           />
-
-          {/* SAVE */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.saveButton,
-              pressed && styles.saveButtonPressed,
-              saving && styles.disabledButton,
-            ]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" />
-                <Text style={styles.saveText}>
-                  Saving record...
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.saveText}>
-                  Save student
-                </Text>
-
-                <Text style={styles.saveArrow}>
-                  →
-                </Text>
-              </>
-            )}
-          </Pressable>
         </View>
 
-        {/* FOOTER */}
-        <View style={styles.footer}>
-          <Text style={styles.footerTitle}>
-            YALA
-          </Text>
-
-          <Text style={styles.footerText}>
-            Yalamatrix School Information System
-          </Text>
-
-          <Text style={styles.footerSchool}>
-            Yalamatrix Schools • Okitipupa
-          </Text>
-        </View>
+        <Pressable
+          style={({ pressed }) => [
+            styles.saveButton,
+            (pressed || saving) && styles.saveButtonPressed,
+          ]}
+          onPress={handleSave}
+          disabled={saving}
+          accessibilityRole="button"
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <>
+              <Text style={styles.saveText}>Save student</Text>
+              <Ionicons name="arrow-forward" size={18} color={colors.textInverse} />
+            </>
+          )}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({
-  label,
-  required,
-  hint,
-  ...props
-}) {
+function Field({ label, required, styles, colors, ...props }) {
   return (
     <View style={styles.fieldGroup}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>
-          {label}{' '}
-          {required && (
-            <Text style={styles.required}>*</Text>
-          )}
-        </Text>
-
-        {hint && (
-          <Text style={styles.fieldHint}>
-            {hint}
-          </Text>
-        )}
-      </View>
-
+      <Text style={styles.label}>
+        {label}
+        {required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
       <TextInput
         style={styles.input}
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textSecondary}
         {...props}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-
-  container: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
-  },
-
-  header: {
-    marginBottom: 20,
-  },
-
-  eyebrow: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.7,
-    color: '#5B6472',
-    marginBottom: 8,
-  },
-
-  lookupCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E8EF',
-    borderRadius: 13,
-    padding: 14,
-    marginBottom: 20,
-  },
-  lookupLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#5B6472',
-    marginBottom: 8,
-  },
-  lookupBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  lookupInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0A1930',
-    paddingVertical: 0,
-  },
-  lookupResults: {
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E4E8EF',
-  },
-  lookupResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F4F7',
-  },
-  lookupResultName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0A1930',
-  },
-  lookupResultSub: {
-    fontSize: 11,
-    color: '#5B6472',
-    marginTop: 2,
-  },
-
-  title: {
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-    color: '#0A1930',
-  },
-
-  subtitle: {
-    marginTop: 8,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: '#5B6472',
-  },
-
-  offlineNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FDF9',
-    borderWidth: 1,
-    borderColor: '#B7E4D9',
-    borderRadius: 13,
-    padding: 13,
-    marginBottom: 16,
-  },
-
-  offlineDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#1F8A7A',
-    marginTop: 4,
-    marginRight: 10,
-  },
-
-  offlineTextArea: {
-    flex: 1,
-  },
-
-  offlineTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#176B60',
-  },
-
-  offlineText: {
-    marginTop: 3,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: '#4B766F',
-  },
-
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E4E8EF',
-    shadowColor: '#0A1930',
-    shadowOffset: {
-      width: 0,
-      height: 6,
+function createStyles(colors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    content: { paddingHorizontal: 20 },
+    title: {
+      fontFamily: fontFamily.heading,
+      fontSize: 26,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 20,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 2,
-  },
 
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0A1930',
-    marginBottom: 16,
-  },
+    lookupBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      height: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    lookupInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    resultsCard: {
+      marginTop: 8,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    resultRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+    },
+    resultDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+    resultText: { flex: 1 },
+    resultName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    resultSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
 
-  sectionHint: {
-    fontSize: 10.5,
-    color: '#8A94A3',
-    marginTop: -9,
-    marginBottom: 17,
-  },
+    card: {
+      marginTop: 20,
+      padding: 20,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      marginBottom: 16,
+    },
+    fieldGroup: { marginBottom: 18 },
+    label: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.8,
+      marginBottom: 8,
+    },
+    required: { color: colors.error },
+    input: {
+      height: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
 
-  fieldGroup: {
-    marginBottom: 16,
-  },
+    segment: {
+      flexDirection: 'row',
+      padding: 4,
+      gap: 4,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceAlt,
+    },
+    segmentItem: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    segmentItemActive: { backgroundColor: colors.ink },
+    segmentText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    segmentTextActive: { color: colors.textInverse },
 
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 7,
-  },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+    },
+    chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+    chipText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    chipTextActive: { color: colors.textInverse },
 
-  label: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    color: '#5B6472',
-  },
-
-  required: {
-    color: '#B42318',
-  },
-
-  fieldHint: {
-    marginLeft: 'auto',
-    fontSize: 9,
-    color: '#8A94A3',
-  },
-
-  input: {
-    height: 51,
-    borderWidth: 1,
-    borderColor: '#D5DAE3',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#0A1930',
-    backgroundColor: '#FFFFFF',
-  },
-
-  segmentRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  segment: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D5DAE3',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  segmentActive: {
-    backgroundColor: '#0A1930',
-    borderColor: '#0A1930',
-  },
-
-  segmentText: {
-    color: '#5B6472',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  segmentTextActive: {
-    color: '#FFFFFF',
-  },
-
-  sectionDivider: {
-    height: 1,
-    backgroundColor: '#E4E8EF',
-    marginVertical: 7,
-    marginBottom: 20,
-  },
-
-  saveButton: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#0A1930',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-  },
-
-  saveButtonPressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-  disabledButton: {
-    opacity: 0.65,
-  },
-
-  saveText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    marginLeft: 8,
-  },
-
-  saveArrow: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '300',
-    marginLeft: 12,
-  },
-
-  footer: {
-    alignItems: 'center',
-    paddingTop: 24,
-  },
-
-  footerTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: '#0A1930',
-  },
-
-  footerText: {
-    marginTop: 4,
-    fontSize: 9,
-    color: '#8A94A3',
-  },
-
-  footerSchool: {
-    marginTop: 3,
-    fontSize: 8,
-    color: '#B0B7C3',
-  },
-});
+    saveButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      height: 56,
+      marginTop: 24,
+      borderRadius: 16,
+      backgroundColor: colors.ink,
+    },
+    saveButtonPressed: { opacity: 0.85 },
+    saveText: { fontSize: 16, fontWeight: '700', color: colors.textInverse },
+  });
+}
