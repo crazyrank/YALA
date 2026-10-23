@@ -62,3 +62,4 @@ apply-sync-fixes.py
 .patch-backups/
 apply-pdf-session.py
 apply-login-protection.py
+apply-home-search.py

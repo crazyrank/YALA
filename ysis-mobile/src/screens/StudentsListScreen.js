@@ -52,6 +52,7 @@ function tap(style = Haptics.ImpactFeedbackStyle.Light) {
 // needed. The rest aren't lost or hidden anywhere else -- tapping "See
 // more" expands this same list in place; "See less" collapses it back.
 const DASHBOARD_PREVIEW_COUNT = 3;
+const PAGE_SIZE = 5;
 
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -153,44 +154,79 @@ export default function StudentsListScreen({ navigation, route }) {
   const [exporting, setExporting] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const [stats, setStats] = useState({ total: 0, enrolled: 0, classes: 0 });
+  const searchSeq = useRef(0);
 
-  const runLocalSearch = useCallback(async (text) => {
+  const loadStats = useCallback(async () => {
     const db = await getDb();
-    const term = `%${text}%`;
-    let rows;
-    if (classLevel && text.trim()) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE class_level = ?
-           AND (full_name LIKE ? OR admission_no LIKE ?)
-         ORDER BY full_name ASC`,
-        [classLevel, term, term]
-      );
-    } else if (classLevel) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students WHERE class_level = ?
-         ORDER BY full_name ASC`,
-        [classLevel]
-      );
-    } else if (text.trim()) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE full_name LIKE ? OR admission_no LIKE ?
-         ORDER BY full_name ASC`,
-        [term, term]
-      );
-    } else {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students ORDER BY full_name ASC`
-      );
+    const row = await db.getFirstAsync(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status IN ('registered','active','promoted') THEN 1 ELSE 0 END) AS enrolled,
+              COUNT(DISTINCT class_level) AS classes
+       FROM students`
+    );
+    setStats({
+      total: Number(row?.total || 0),
+      enrolled: Number(row?.enrolled || 0),
+      classes: Number(row?.classes || 0),
+    });
+  }, []);
+
+  // Searches the phone's copy. Shows PAGE_SIZE rows per page. Stale results
+  // from an earlier keystroke are dropped, so the list always matches the text.
+  const runLocalSearch = useCallback(async (text, pageIndex = 0) => {
+    const seq = ++searchSeq.current;
+    const db = await getDb();
+    const trimmed = String(text || '').trim();
+    const hasText = trimmed.length > 0;
+
+    loadStats();
+
+    // Nothing to show until the user searches or a class is open.
+    if (!classLevel && !hasText) {
+      if (seq !== searchSeq.current) return;
+      setResults([]);
+      setMatchCount(0);
+      setPage(0);
+      setInitialLoading(false);
+      return;
     }
+
+    const conditions = [];
+    const params = [];
+    if (classLevel) {
+      conditions.push('class_level = ?');
+      params.push(classLevel);
+    }
+    if (hasText) {
+      const term = `%${trimmed}%`;
+      conditions.push('(full_name LIKE ? OR admission_no LIKE ?)');
+      params.push(term, term);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRow = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM students ${where}`, params);
+    if (seq !== searchSeq.current) return;
+    const total = Number(countRow?.n || 0);
+    const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+    const safePage = Math.min(Math.max(0, pageIndex), lastPage);
+
+    const rows = await db.getAllAsync(
+      `SELECT id, admission_no, full_name, class_level, arm, status
+       FROM students ${where}
+       ORDER BY full_name ASC
+       LIMIT ? OFFSET ?`,
+      [...params, PAGE_SIZE, safePage * PAGE_SIZE]
+    );
+    if (seq !== searchSeq.current) return;
+
+    setMatchCount(total);
+    setPage(safePage);
     setResults(rows);
     setInitialLoading(false);
-  }, [classLevel]);
+  }, [classLevel, loadStats]);
 
   const refreshFromServer = useCallback(async (force = false) => {
     try {
@@ -261,11 +297,9 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
-  const displayedResults = (query || showAll) ? results : results.slice(0, DASHBOARD_PREVIEW_COUNT);
-  const enrolledCount = results.filter(
-  (s) => ['registered', 'active', 'promoted'].includes(s.status)
-).length;
-  const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
+  const displayedResults = results;
+  const enrolledCount = stats.enrolled;
+  const classCount = stats.classes;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -326,7 +360,7 @@ export default function StudentsListScreen({ navigation, route }) {
             {initialLoading ? (
               <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
             ) : (
-              <Text style={styles.heroMetaNum}>{results.length}</Text>
+              <Text style={styles.heroMetaNum}>{matchCount}</Text>
             )}
             <Text style={styles.heroMetaLabel}>SHOWING</Text>
           </View>
@@ -444,10 +478,10 @@ export default function StudentsListScreen({ navigation, route }) {
                     </View>
                   ) : (
                     <View style={styles.statsGrid}>
-                      <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
                       <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
                       <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
-                      <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
+                      <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
                       <DashboardStudentSyncCards />
                     </View>
                   )}
@@ -500,7 +534,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   {query ? 'Search results' : 'Student records'}
                 </Text>
                 <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-                  {results.length} record{results.length === 1 ? '' : 's'}
+                  {matchCount} record{matchCount === 1 ? '' : 's'}
                 </Text>
               </View>
             </View>
@@ -511,17 +545,39 @@ export default function StudentsListScreen({ navigation, route }) {
           </View>
         )}
         ListFooterComponent={
-          !initialLoading && !query && results.length > DASHBOARD_PREVIEW_COUNT ? (
+          !initialLoading && matchCount > PAGE_SIZE ? (
             <View style={styles.listPad}>
-              <Squish
-                style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setShowAll((prev) => !prev)}
-              >
-                <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
-                  {showAll ? 'See less' : `See more (${results.length - DASHBOARD_PREVIEW_COUNT})`}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Squish
+                  disabled={page === 0}
+                  onPress={() => runLocalSearch(query, page - 1)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
+                    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+                    opacity: page === 0 ? 0.4 : 1,
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.textPrimary} />
+                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Previous</Text>
+                </Squish>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+                  {page * PAGE_SIZE + 1} to {Math.min((page + 1) * PAGE_SIZE, matchCount)} of {matchCount}
                 </Text>
-                <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimary} />
-              </Squish>
+                <Squish
+                  disabled={(page + 1) * PAGE_SIZE >= matchCount}
+                  onPress={() => runLocalSearch(query, page + 1)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
+                    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+                    opacity: (page + 1) * PAGE_SIZE >= matchCount ? 0.4 : 1,
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Next</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textPrimary} />
+                </Squish>
+              </View>
             </View>
           ) : null
         }
@@ -538,7 +594,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
               </View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-                {query ? 'No student found' : 'No students yet'}
+                {query ? 'No student found' : 'Search for a student'}
               </Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                 {query
