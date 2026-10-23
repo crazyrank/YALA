@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Camera is used to capture student passport photos.",
         "NSFaceIDUsageDescription": "Face ID is used to unlock the app securely."
-      }
+      },
+      "bundleIdentifier": "com.crazyrank.ysismobile"
     },
     "android": {
       "permissions": [
