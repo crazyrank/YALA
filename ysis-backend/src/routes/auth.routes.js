@@ -170,6 +170,11 @@ router.post(
         }
       }
 
+      await db.query(
+        'UPDATE devices SET last_login_ip = $2, last_login_at = now() WHERE id = $1',
+        [device.id, req.ip]
+      );
+
       const { accessToken, refreshToken } = issueTokens(res, {
         userId: user.id,
         role: user.role,
