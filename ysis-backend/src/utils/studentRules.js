@@ -18,7 +18,7 @@ const GENDERS = ['M', 'F'];
 
 const MAX_LENGTH = { admissionNo: 30, fullName: 100, guardianName: 100, guardianPhone: 20 };
 
-const ADMISSION_NO_PATTERN = /^[A-Za-z0-9/-]+$/; // format still pending school confirmation
+const ADMISSION_NO_PATTERN = /^YMS\/(\d{4})\/(\d{2})\/(\d{3})$/;
 const NAME_PATTERN = /^\p{L}[\p{L} .'\u2019-]*$/u;
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
 const FORMULA_START = /^[=+\-@\t\r]/;
@@ -27,6 +27,39 @@ const CLASS_LOOKUP = new Map(
   CLASS_ORDER.map((c) => [c.toLowerCase().replace(/\s+/g, ''), c])
 );
 const ARM_LOOKUP = new Map(ARMS.map((a) => [a.toLowerCase(), a]));
+
+// Admission numbers are YMS/YEAR/GROUP/SERIAL, e.g. YMS/2024/03/033.
+const ADMISSION_PREFIX = 'YMS';
+const ADMISSION_FIRST_YEAR = 2016;
+
+/** Year from the school's first year to next year; group 01-99; serial 001-999. */
+function admissionNoInRange(value) {
+  const m = ADMISSION_NO_PATTERN.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]);
+  return (
+    year >= ADMISSION_FIRST_YEAR &&
+    year <= new Date().getFullYear() + 1 &&
+    Number(m[2]) >= 1 &&
+    Number(m[3]) >= 1
+  );
+}
+
+/**
+ * Typing guard for the admission number field. Uppercases, drops anything that
+ * is not a letter or digit, and lays the rest out as YMS/YYYY/NN/NNN.
+ */
+function formatAdmissionInput(raw) {
+  const s = String(raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let i = 0;
+  while (i < s.length && i < ADMISSION_PREFIX.length && s[i] === ADMISSION_PREFIX[i]) i += 1;
+  const d = s.slice(i).replace(/\D/g, '').slice(0, 9);
+  if (!d) return s.slice(0, i);
+  let out = `${ADMISSION_PREFIX}/${d.slice(0, 4)}`;
+  if (d.length > 4) out += `/${d.slice(4, 6)}`;
+  if (d.length > 6) out += `/${d.slice(6)}`;
+  return out;
+}
 
 /** Removes control and invisible characters, normalizes Unicode, collapses spaces. */
 function cleanText(value) {
@@ -74,10 +107,11 @@ function normalizeStudent(input = {}) {
     errors.push('dateOfBirth: no longer accepted');
   }
 
-  v.admissionNo = cleanText(input.admissionNo);
+  v.admissionNo = cleanText(input.admissionNo).toUpperCase();
   if (!v.admissionNo) errors.push('admissionNo: required');
   else if (v.admissionNo.length > MAX_LENGTH.admissionNo) errors.push('admissionNo: too long');
-  else if (!ADMISSION_NO_PATTERN.test(v.admissionNo)) errors.push('admissionNo: contains characters that are not allowed');
+  else if (!ADMISSION_NO_PATTERN.test(v.admissionNo)) errors.push('admissionNo: must look like YMS/2024/03/033');
+  else if (!admissionNoInRange(v.admissionNo)) errors.push('admissionNo: year or number is out of range');
 
   v.fullName = cleanText(input.fullName);
   if (!v.fullName) errors.push('fullName: required');
@@ -133,4 +167,5 @@ function normalizeStudent(input = {}) {
 
 module.exports = {
   DIVISIONS, ARMS, GENDERS, normalizeStudent, cleanText, canonicalClass, divisionOfClass, armRuleFor,
+  formatAdmissionInput, admissionNoInRange,
 };

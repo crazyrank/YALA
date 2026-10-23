@@ -536,7 +536,8 @@ export default function StudentDetailScreen({ route, navigation }) {
           <View style={styles.infoCard}>
             <InfoRow label="Class" value={student.class_level || '-'} />
             <InfoRow label="Arm" value={student.arm || 'None'} />
-            <InfoRow label="Division" value={student.division || 'Secondary'} last />
+            <InfoRow label="Division" value={student.division || 'Secondary'} />
+            <InfoRow label="Session" value={student.academic_session || 'Not recorded'} last />
           </View>
         </View>
       )}

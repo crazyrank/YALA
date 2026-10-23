@@ -21,7 +21,7 @@ import { queueOperation } from '../services/syncEngine';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
 import ClassLevelPicker from '../components/ClassLevelPicker';
 import { CLASS_ORDER } from '../utils/classProgression';
-import { divisionOfClass, ARMS } from '../utils/studentRules';
+import { divisionOfClass, ARMS, formatAdmissionInput } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { academicSessionFor, availableSessions } from '../utils/academicSession';
@@ -252,9 +252,11 @@ export default function RegisterStudentScreen({ route, navigation }) {
             label="ADMISSION NUMBER"
             required
             value={admissionNo}
-            onChangeText={setAdmissionNo}
-            placeholder="Admission number"
+            onChangeText={(t) => setAdmissionNo(formatAdmissionInput(t))}
+            placeholder="YMS/2024/03/033"
             autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={15}
             styles={styles}
             colors={colors}
           />
