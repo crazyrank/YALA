@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import Skeleton, { SkeletonStudentRow, SkeletonStatCard } from '../components/Skeleton';
 
 import LoginScreen from '../screens/LoginScreen';
-import OnboardingScreen from '../screens/OnboardingScreen';
+import IntroScreen from '../screens/IntroScreen';
 import UnlockScreen from '../screens/UnlockScreen';
 import ClassStudentsScreen from '../screens/ClassStudentsScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
@@ -88,7 +88,7 @@ export default function RootNavigator() {
         {status === 'onboarding' && (
           <Stack.Screen
             name="Onboarding"
-            component={OnboardingScreen}
+            component={IntroScreen}
             options={{ headerShown: false }}
           />
         )}
@@ -123,6 +123,12 @@ export default function RootNavigator() {
               name="MainTabs"
               component={MainTabs}
               options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
+              name="Intro"
+              component={IntroScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
 
             <Stack.Screen

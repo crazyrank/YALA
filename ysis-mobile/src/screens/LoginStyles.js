@@ -58,6 +58,15 @@ export const createLoginStyles = (colors) => StyleSheet.create({
     color: colors.textMuted,
   },
 
+  sloganText: {
+    color: colors.gold,
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 19,
+    marginTop: 14,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
   intro: {
     marginTop: spacing.xxxl + 4,
     marginBottom: spacing.xl,

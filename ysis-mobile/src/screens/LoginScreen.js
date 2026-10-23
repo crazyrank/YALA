@@ -166,6 +166,10 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          <Text style={styles.sloganText}>
+            My parents walk so that I can run, and I am running so that my children can fly.
+          </Text>
+
           <View style={styles.intro}>
             <View style={styles.badge}>
               <View style={styles.dot} />

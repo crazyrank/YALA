@@ -317,6 +317,14 @@ export default function MoreScreen({ navigation }) {
         )}
 
         <MenuRow
+          icon="play-circle-outline"
+          label="Replay introduction"
+          subtitle="Watch the school declaration again"
+          color={colors.goldDark}
+          onPress={() => navigation.navigate('Intro', { replay: true })}
+        />
+
+        <MenuRow
           icon="notifications"
           label="Notifications"
           subtitle="Alerts for your account"
