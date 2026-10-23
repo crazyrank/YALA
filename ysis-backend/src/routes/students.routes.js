@@ -1,5 +1,6 @@
 const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
 const { normalizeStudent } = require('../utils/studentRules');
+const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
@@ -196,6 +197,7 @@ router.post(
         gender,
         guardianName,
         guardianPhone,
+        academicSession,
       } = req.body;
 
       // Shared rules: class, arm by class, gender M/F, no date of birth.
@@ -224,6 +226,17 @@ router.post(
         guardianPhone,
       } = norm.value);
       dateOfBirth = null;
+
+      // Session the student was admitted. Defaults to the current session.
+      let sessionValue = null;
+      if (academicSession === undefined || academicSession === null || academicSession === '') {
+        sessionValue = academicSessionFor(new Date());
+      } else {
+        sessionValue = normalizeSession(academicSession);
+        if (!sessionValue) {
+          throw Errors.badRequest('VALIDATION_ERROR', 'academicSession: not a session the school can choose');
+        }
+      }
 
       // Security fix: a head_teacher could previously register a student
       // into ANY division/class by simply putting it in the request body.
@@ -257,11 +270,12 @@ router.post(
                guardian_name,
                guardian_phone,
                registered_by,
-               registered_device_id
+               registered_device_id,
+               academic_session
              )
            VALUES
              (
-               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
              )
            RETURNING *`,
           [
@@ -277,6 +291,7 @@ router.post(
             guardianPhone || null,
             req.auth.userId,
             req.auth.deviceId,
+            sessionValue,
           ]
         );
 

@@ -3,7 +3,6 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import { getDb } from '../db';
-import { academicSessionFor } from '../utils/academicSession';
 
 /**
  * Export a single student record as an A4 PDF for printing.
@@ -94,7 +93,7 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
   const guardian = escapeHtml(student.guardian_name || '-');
   const phone = escapeHtml(student.guardian_phone || '-');
   const registered = escapeHtml(formatDate(student.created_at));
-  const session = escapeHtml(student.academic_session || academicSessionFor(student.created_at) || '-');
+  const session = escapeHtml(student.academic_session || 'Not recorded');
   const printed = escapeHtml(formatDate(printedAt));
 
   const logoBlock = logoDataUri

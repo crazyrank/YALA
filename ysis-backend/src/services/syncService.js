@@ -13,7 +13,7 @@ const {
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
-const { academicSessionFor } = require('../utils/academicSession');
+const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -292,6 +292,7 @@ async function processOperation({
         gender,
         guardianName,
         guardianPhone,
+        academicSession,
       } = payload || {};
 
       if (!id || !admissionNo || !fullName || !division || !classLevel) {
@@ -364,6 +365,27 @@ async function processOperation({
       } = norm.value);
       dateOfBirth = null;
 
+      // The session the student was admitted. Older app builds send none, so
+      // those fall back to the registration date.
+      let sessionValue = null;
+      if (academicSession === undefined || academicSession === null || academicSession === '') {
+        sessionValue = academicSessionFor(createdAtClient);
+      } else {
+        sessionValue = normalizeSession(academicSession);
+        if (!sessionValue) {
+          await markOpStatus(
+            syncOpRowId,
+            'failed',
+            'academicSession: not a session the school can choose.'
+          );
+          return {
+            operationId,
+            status: 'failed',
+            error: 'VALIDATION_ERROR',
+          };
+        }
+      }
+
       const scope = await getScopeForUser({
         role: userRole,
         userId,
@@ -422,7 +444,7 @@ async function processOperation({
             guardianPhone || null,
             userId,
             deviceId,
-            academicSessionFor(createdAtClient),
+            sessionValue,
             createdAtClient,
           ]
         );

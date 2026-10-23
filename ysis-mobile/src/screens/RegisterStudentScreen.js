@@ -24,6 +24,7 @@ import { CLASS_ORDER } from '../utils/classProgression';
 import { divisionOfClass, ARMS } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
+import { academicSessionFor, availableSessions } from '../utils/academicSession';
 
 export default function RegisterStudentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -39,6 +40,9 @@ export default function RegisterStudentScreen({ route, navigation }) {
   const [arm, setArm] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
+  // Newest session first. Defaults to the current session.
+  const sessionOptions = useMemo(() => availableSessions(new Date()).reverse(), []);
+  const [academicSession, setAcademicSession] = useState(() => academicSessionFor(new Date()));
   const [saving, setSaving] = useState(false);
 
   const [lookupQuery, setLookupQuery] = useState('');
@@ -121,13 +125,14 @@ export default function RegisterStudentScreen({ route, navigation }) {
             arm,
             guardian_name,
             guardian_phone,
+            academic_session,
             status,
             sync_version,
             created_at,
             updated_at,
             local_dirty
           )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
         [
           id,
           admissionNo.trim(),
@@ -137,6 +142,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm.trim() || null,
           guardianName.trim() || null,
           guardianPhone.trim() || null,
+          academicSession,
           now,
           now,
         ]
@@ -154,6 +160,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm: arm.trim() || null,
           guardianName: guardianName.trim() || null,
           guardianPhone: guardianPhone.trim() || null,
+          academicSession,
         },
       });
 
@@ -318,6 +325,36 @@ export default function RegisterStudentScreen({ route, navigation }) {
               </View>
             </View>
           )}
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              ACADEMIC SESSION <Text style={styles.required}>*</Text>
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.sessionRow}
+            >
+              {sessionOptions.map((s) => {
+                const active = academicSession === s;
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => setAcademicSession(s)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={styles.hint}>
+              The session this student was admitted. For a student who joined earlier, choose that earlier session.
+            </Text>
+          </View>
         </View>
 
         {/* GUARDIAN */}
@@ -483,6 +520,8 @@ function createStyles(colors) {
     segmentTextActive: { color: colors.textInverse },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sessionRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
+    hint: { fontSize: 12, lineHeight: 17, color: colors.textSecondary, marginTop: 8 },
     chip: {
       paddingVertical: 10,
       paddingHorizontal: 14,
