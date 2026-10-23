@@ -15,6 +15,7 @@ import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ManageStaffScreen from '../screens/ManageStaffScreen';
+import PromoteClassScreen from '../screens/PromoteClassScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import MainTabs from './MainTabs';
 import ParkedOperationsScreen from '../screens/ParkedOperationsScreen';
@@ -171,6 +172,12 @@ export default function RootNavigator() {
               name="ManageStaff"
               component={ManageStaffScreen}
               options={{ title: 'Manage Staff' }}
+            />
+
+            <Stack.Screen
+              name="PromoteClass"
+              component={PromoteClassScreen}
+              options={{ title: 'Promote a class' }}
             />
           </>
         )}

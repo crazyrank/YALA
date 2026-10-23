@@ -143,6 +143,24 @@ function StudentCard({ item, navigation, colors }) {
 export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const [pendingDevices, setPendingDevices] = useState(0);
+
+  // Only Principals and Directors ask. The server refuses everyone else anyway.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAdmin) {
+        setPendingDevices(0);
+        return undefined;
+      }
+      let cancelled = false;
+      api
+        .get('/devices/pending-count')
+        .then((res) => { if (!cancelled) setPendingDevices(Number(res?.count) || 0); })
+        .catch(() => { if (!cancelled) setPendingDevices(0); });
+      return () => { cancelled = true; };
+    }, [isAdmin])
+  );
   const insets = useSafeAreaInsets();
   const classLevel = route?.params?.classLevel || '';
 
@@ -498,6 +516,27 @@ export default function StudentsListScreen({ navigation, route }) {
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>
+                    {isAdmin && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
+                        <Ionicons name="cloud-upload-outline" size={16} color={colors.inkSoft} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
+                      </Squish>
+                    )}
+                    {isAdmin && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('PromoteClass')}>
+                        <Ionicons name="arrow-up-circle-outline" size={16} color={colors.goldDark} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Promote class</Text>
+                      </Squish>
+                    )}
+                    {isAdmin && pendingDevices > 0 && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.warning }]} onPress={() => navigation.navigate('MoreTab', { screen: 'DeviceReview' })}>
+                        <Ionicons name="phone-portrait-outline" size={16} color={colors.warning} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Approve devices</Text>
+                        <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
+                          <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
+                        </View>
+                      </Squish>
+                    )}
                   </View>
                 </>
               )}
@@ -807,6 +846,20 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemibold,
     fontSize: 13,
     marginLeft: 8,
+  },
+  actionBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBadgeText: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 11,
+    color: '#FFFFFF',
   },
   searchBox: {
     height: 50,
