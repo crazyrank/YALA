@@ -34,6 +34,7 @@ async function runColumnMigrations(db) {
     `ALTER TABLE sync_operations ADD COLUMN error_code TEXT`,
     `ALTER TABLE sync_operations ADD COLUMN error_message TEXT`,
     `ALTER TABLE students ADD COLUMN academic_session TEXT`,
+    `ALTER TABLE students ADD COLUMN current_session TEXT`,
   ];
   for (const statement of columnMigrations) {
     try {

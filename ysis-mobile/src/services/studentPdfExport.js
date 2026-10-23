@@ -93,7 +93,8 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
   const guardian = escapeHtml(student.guardian_name || '-');
   const phone = escapeHtml(student.guardian_phone || '-');
   const registered = escapeHtml(formatDate(student.created_at));
-  const session = escapeHtml(student.academic_session || 'Not recorded');
+  const registeredSession = escapeHtml(student.academic_session || 'Not recorded');
+  const currentSession = escapeHtml(student.current_session || student.academic_session || 'Not recorded');
   const printed = escapeHtml(formatDate(printedAt));
 
   const logoBlock = logoDataUri
@@ -269,8 +270,12 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
         <div class="value">${registered}</div>
       </div>
       <div class="row">
-        <div class="label">Academic Session</div>
-        <div class="value">${session}</div>
+        <div class="label">Registered Session</div>
+        <div class="value">${registeredSession}</div>
+      </div>
+      <div class="row">
+        <div class="label">Current Session</div>
+        <div class="value">${currentSession}</div>
       </div>
       <div class="row">
         <div class="label">Date Printed</div>

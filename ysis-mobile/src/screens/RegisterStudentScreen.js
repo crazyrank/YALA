@@ -126,13 +126,14 @@ export default function RegisterStudentScreen({ route, navigation }) {
             guardian_name,
             guardian_phone,
             academic_session,
+            current_session,
             status,
             sync_version,
             created_at,
             updated_at,
             local_dirty
           )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
         [
           id,
           admissionNo.trim(),
@@ -142,6 +143,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm.trim() || null,
           guardianName.trim() || null,
           guardianPhone.trim() || null,
+          academicSession,
           academicSession,
           now,
           now,
@@ -161,6 +163,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           guardianName: guardianName.trim() || null,
           guardianPhone: guardianPhone.trim() || null,
           academicSession,
+          currentSession: academicSession,
         },
       });
 
@@ -253,7 +256,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
             required
             value={admissionNo}
             onChangeText={(t) => setAdmissionNo(formatAdmissionInput(t))}
-            placeholder="YMS/2024/03/033"
+            placeholder="YMS/00/00/000"
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={15}

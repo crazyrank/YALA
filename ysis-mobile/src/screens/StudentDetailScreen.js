@@ -14,7 +14,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
-import { getNextClass, isAtMaxClass } from '../utils/classProgression';
+import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
+import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
 import { exportStudentToPdf } from '../services/studentPdfExport';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
@@ -132,6 +133,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   };
 
   // Promotion: the arm is chosen here when the next class needs one.
+  // Also advances current_session by one year (registered session stays fixed).
   const performPromotion = async (arm) => {
     const nextClass = getNextClass(student.class_level);
     setPromoting(true);
@@ -139,12 +141,15 @@ export default function StudentDetailScreen({ route, navigation }) {
       const db = await getDb();
       const now = new Date().toISOString();
       const basedOnVersion = student.sync_version;
+      const baseSession = student.current_session || student.academic_session || null;
+      const advancedSession = baseSession ? nextSession(baseSession) : null;
       await db.runAsync(
         `UPDATE students
          SET class_level = ?, division = ?, arm = ?, status = 'promoted',
+             current_session = COALESCE(?, current_session),
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
-        [nextClass, divisionOfClass(nextClass), arm, now, studentId]
+        [nextClass, divisionOfClass(nextClass), arm, advancedSession, now, studentId]
       );
       await queueOperation({
         opType: 'promote_student',
@@ -208,6 +213,76 @@ export default function StudentDetailScreen({ route, navigation }) {
   const cancelPromoteChoice = () => {
     setShowPromoteChoice(false);
     setPromoteArm('');
+  };
+
+  // Undo last promote: reverse class and current_session one step.
+  // Only available when current_session is after the registered session.
+  const handleUndoPromote = () => {
+    if (!isAdmin) {
+      Alert.alert('Not allowed', 'Only a Principal or Director can undo a promotion.');
+      return;
+    }
+    const registered = student.academic_session || null;
+    const current = student.current_session || registered;
+    if (!sessionIsAfter(current, registered)) {
+      Alert.alert('Nothing to undo', 'This student has not been promoted beyond their registered session.');
+      return;
+    }
+    const prevClass = getPreviousClass(student.class_level);
+    if (!prevClass) {
+      Alert.alert('Nothing to undo', 'This student is already at the earliest class.');
+      return;
+    }
+    Alert.alert(
+      'Undo last promote',
+      `Move ${student.full_name} back from ${student.class_level} to ${prevClass} and roll the current session back one year?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Undo', style: 'destructive', onPress: () => performUndoPromotion() },
+      ]
+    );
+  };
+
+  const performUndoPromotion = async () => {
+    setPromoting(true);
+    try {
+      const db = await getDb();
+      const now = new Date().toISOString();
+      const basedOnVersion = student.sync_version;
+      const registered = student.academic_session || null;
+      const current = student.current_session || registered;
+      const prevClass = getPreviousClass(student.class_level);
+      let prevSession = current ? previousSession(current) : registered;
+      // Never go below registered session.
+      if (registered && prevSession && !sessionIsAfter(prevSession, registered) && prevSession !== registered) {
+        prevSession = registered;
+      }
+      const finalSession = prevSession || registered;
+      // Clear arm when previous class does not require one.
+      const needsArm = armRequiredFor(prevClass);
+      const prevArm = needsArm ? student.arm : null;
+
+      await db.runAsync(
+        `UPDATE students
+         SET class_level = ?, division = ?, arm = ?,
+             current_session = ?,
+             sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
+         WHERE id = ?`,
+        [prevClass, divisionOfClass(prevClass), prevArm, finalSession, now, studentId]
+      );
+      await queueOperation({
+        opType: 'undo_promote_student',
+        entityId: studentId,
+        payload: {
+          based_on_version: basedOnVersion,
+        },
+      });
+      await loadStudent();
+    } catch (error) {
+      Alert.alert('Could not undo', 'Something went wrong undoing this promotion.');
+    } finally {
+      setPromoting(false);
+    }
   };
 
   const startEditing = () => {
@@ -537,7 +612,8 @@ export default function StudentDetailScreen({ route, navigation }) {
             <InfoRow label="Class" value={student.class_level || '-'} />
             <InfoRow label="Arm" value={student.arm || 'None'} />
             <InfoRow label="Division" value={student.division || 'Secondary'} />
-            <InfoRow label="Session" value={student.academic_session || 'Not recorded'} last />
+            <InfoRow label="Registered session" value={student.academic_session || 'Not recorded'} />
+            <InfoRow label="Current session" value={student.current_session || student.academic_session || 'Not recorded'} last />
           </View>
         </View>
       )}
@@ -549,6 +625,20 @@ export default function StudentDetailScreen({ route, navigation }) {
             {isAtMaxClass(student.class_level) ? (
               <View style={styles.promoteRow}>
                 <Text style={styles.maxClassText}>Highest class reached (SS3)</Text>
+                {sessionIsAfter(
+                  student.current_session || student.academic_session,
+                  student.academic_session
+                ) && (
+                  <Pressable
+                    style={styles.undoPromoteButton}
+                    onPress={handleUndoPromote}
+                    disabled={promoting}
+                  >
+                    <Text style={styles.undoPromoteButtonText}>
+                      {promoting ? 'Working…' : 'Undo last promote'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             ) : showPromoteChoice ? (
               <View style={styles.promoteChoice}>
@@ -570,11 +660,27 @@ export default function StudentDetailScreen({ route, navigation }) {
                 </View>
               </View>
             ) : (
-              <Pressable style={styles.promoteButton} onPress={handlePromote} disabled={promoting}>
-                <Text style={styles.promoteButtonText}>
-                  {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
-                </Text>
-              </Pressable>
+              <>
+                <Pressable style={styles.promoteButton} onPress={handlePromote} disabled={promoting}>
+                  <Text style={styles.promoteButtonText}>
+                    {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
+                  </Text>
+                </Pressable>
+                {sessionIsAfter(
+                  student.current_session || student.academic_session,
+                  student.academic_session
+                ) && (
+                  <Pressable
+                    style={styles.undoPromoteButton}
+                    onPress={handleUndoPromote}
+                    disabled={promoting}
+                  >
+                    <Text style={styles.undoPromoteButtonText}>
+                      {promoting ? 'Working…' : 'Undo last promote'}
+                    </Text>
+                  </Pressable>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -751,6 +857,22 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginVertical: 8,
   },
   promoteButtonText: { fontWeight: '700', color: '#0A1930', fontSize: 14 },
+  undoPromoteButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#D0D5DD',
+  },
+  undoPromoteButtonText: {
+    fontWeight: '700',
+    color: '#667085',
+    fontSize: 14,
+  },
   syncNotice: {
     flexDirection: 'row', marginTop: 18, backgroundColor: '#FEF3E2',
     borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#F5D9A8',

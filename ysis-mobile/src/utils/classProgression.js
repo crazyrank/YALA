@@ -39,3 +39,13 @@ export function getNextClass(currentClassLevel) {
 export function isAtMaxClass(currentClassLevel) {
   return currentClassLevel === CLASS_ORDER[CLASS_ORDER.length - 1];
 }
+
+/**
+ * Returns the previous class in the progression, or null if already at
+ * the first class (KG1) or the label is not recognized.
+ */
+export function getPreviousClass(currentClassLevel) {
+  const idx = CLASS_ORDER.indexOf(currentClassLevel);
+  if (idx <= 0) return null;
+  return CLASS_ORDER[idx - 1];
+}

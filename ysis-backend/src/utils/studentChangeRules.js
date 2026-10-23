@@ -6,8 +6,9 @@
  * edit_student operations, and the PATCH route.
  */
 
-const { getNextClass, isAtMaxClass } = require('./classProgression');
+const { getNextClass, isAtMaxClass, getPreviousClass } = require('./classProgression');
 const { normalizeStudent, cleanText, canonicalClass, divisionOfClass, armRuleFor } = require('./studentRules');
+const { nextSession, previousSession, sessionIsAfter } = require('./academicSession');
 
 // Database column -> API field name.
 const DB_TO_API = {
@@ -34,6 +35,7 @@ const STATUS_EDIT_VALUES = ['active', 'archived'];
  * Plans a promotion. The next class is always the one the progression defines,
  * never a value the client chooses. Division follows the new class. Arm is
  * required when the new class needs one, and forbidden otherwise.
+ * Current session is incremented by one year.
  *
  * Returns { ok, changes, code, message } where changes uses database column names.
  */
@@ -75,15 +77,84 @@ function planPromotion(currentRow, { newClassLevel, arm }) {
     return { ok: false, code: 'RECORD_INVALID', message: `This record fails validation: ${candidate.errors[0]}` };
   }
 
+  // Session: registered stays put; current advances one year.
+  // Fall back to academic_session when current_session is still null (legacy rows).
+  const baseSession = currentRow.current_session || currentRow.academic_session || null;
+  const advancedSession = baseSession ? nextSession(baseSession) : null;
+
+  const changes = {
+    class_level: expected,
+    division: divisionOfClass(expected),
+    arm: nextArm,
+    status: 'promoted',
+  };
+  if (advancedSession) {
+    changes.current_session = advancedSession;
+  }
+
   return {
     ok: true,
-    changes: {
-      class_level: expected,
-      division: divisionOfClass(expected),
-      arm: nextArm,
-      status: 'promoted',
-    },
+    changes,
   };
+}
+
+/**
+ * Plans an undo of the last promotion. Reverses class and current_session.
+ * Only allowed when current_session is strictly after the registered session
+ * (or when current_session is set and we can compute a previous class).
+ *
+ * Returns { ok, changes, code, message }.
+ */
+function planUndoPromotion(currentRow) {
+  const registered = currentRow.academic_session || null;
+  const current = currentRow.current_session || registered;
+
+  if (!sessionIsAfter(current, registered) && current === registered) {
+    // No promotion has advanced the session yet.
+    // Still allow class undo if they somehow have a previous class and status promoted,
+    // but the primary guard is session.
+  }
+
+  const prevClass = getPreviousClass(currentRow.class_level);
+  if (!prevClass) {
+    return { ok: false, code: 'ALREADY_AT_MIN_CLASS', message: 'This student is already at the earliest class. Nothing to undo.' };
+  }
+
+  // Prefer session guard: only undo if current is after registered.
+  if (registered && current && !sessionIsAfter(current, registered)) {
+    return { ok: false, code: 'NOTHING_TO_UNDO', message: 'This student has not been promoted beyond their registered session.' };
+  }
+
+  let prevSession = current ? previousSession(current) : null;
+  // Never go below the registered session.
+  if (registered && prevSession) {
+    if (!sessionIsAfter(prevSession, registered) && prevSession !== registered) {
+      prevSession = registered;
+    }
+  } else if (!prevSession && registered) {
+    prevSession = registered;
+  }
+
+  const rule = armRuleFor(prevClass);
+  // When going back, clear arm if the previous class does not need one.
+  let prevArm = currentRow.arm;
+  if (!rule.required) {
+    prevArm = null;
+  }
+
+  const changes = {
+    class_level: prevClass,
+    division: divisionOfClass(prevClass),
+    arm: prevArm,
+  };
+
+  if (prevSession) {
+    changes.current_session = prevSession;
+  } else if (registered) {
+    changes.current_session = registered;
+  }
+
+  return { ok: true, changes };
 }
 
 /**
@@ -130,4 +201,4 @@ function validateEdit(currentRow, changes) {
   return { ok: true, changes: clean };
 }
 
-module.exports = { planPromotion, validateEdit, DB_TO_API, API_TO_DB, STATUS_EDIT_VALUES };
+module.exports = { planPromotion, planUndoPromotion, validateEdit, DB_TO_API, API_TO_DB, STATUS_EDIT_VALUES };

@@ -44,7 +44,7 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS sync_operations (
     id                TEXT PRIMARY KEY,      -- local rowid equivalent
     operation_id      TEXT UNIQUE NOT NULL,  -- the idempotency key sent to the server
-    op_type           TEXT NOT NULL CHECK (op_type IN ('create_student','edit_student','upload_photo','promote_student')),
+    op_type           TEXT NOT NULL CHECK (op_type IN ('create_student','edit_student','upload_photo','promote_student','undo_promote_student')),
     entity_id         TEXT NOT NULL,
     payload           TEXT NOT NULL,          -- JSON-encoded
     sequence_no       INTEGER NOT NULL,

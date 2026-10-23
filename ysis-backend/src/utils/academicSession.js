@@ -41,10 +41,49 @@ function normalizeSession(value, now = new Date()) {
   return availableSessions(now).includes(clean) ? clean : null;
 }
 
+/** Parse "YYYY/YYYY" → start year number, or null if malformed. */
+function sessionStartYear(session) {
+  if (typeof session !== 'string') return null;
+  const m = /^(\d{4})\/(\d{4})$/.exec(session.trim());
+  if (!m) return null;
+  const start = Number(m[1]);
+  const end = Number(m[2]);
+  if (end !== start + 1) return null;
+  return start;
+}
+
+/** Advance one academic year: "2020/2021" → "2021/2022". */
+function nextSession(session) {
+  const y = sessionStartYear(session);
+  if (y == null) return null;
+  return `${y + 1}/${y + 2}`;
+}
+
+/** Roll back one academic year: "2021/2022" → "2020/2021". */
+function previousSession(session) {
+  const y = sessionStartYear(session);
+  if (y == null) return null;
+  return `${y - 1}/${y}`;
+}
+
+/**
+ * True when `a` is strictly later than `b` (both "YYYY/YYYY").
+ * Used to decide whether Undo is available (current after registered).
+ */
+function sessionIsAfter(a, b) {
+  const ya = sessionStartYear(a);
+  const yb = sessionStartYear(b);
+  if (ya == null || yb == null) return false;
+  return ya > yb;
+}
+
 module.exports = {
   academicSessionFor,
   availableSessions,
   normalizeSession,
+  nextSession,
+  previousSession,
+  sessionIsAfter,
   SESSION_START_MONTH,
   FIRST_SESSION_START_YEAR,
 };

@@ -1,4 +1,4 @@
-const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
+const { planPromotion, planUndoPromotion, validateEdit } = require('../utils/studentChangeRules');
 const { normalizeStudent } = require('../utils/studentRules');
 const db = require('../db');
 const { validate: isUuid } = require('uuid');
@@ -78,9 +78,9 @@ async function processOperation({
   }
 
   try {
-    if (opType === 'edit_student' || opType === 'promote_student') {
+    if (opType === 'edit_student' || opType === 'promote_student' || opType === 'undo_promote_student') {
       if (
-        opType === 'promote_student' &&
+        (opType === 'promote_student' || opType === 'undo_promote_student') &&
         userRole !== 'principal' &&
         userRole !== 'director'
       ) {
@@ -212,6 +212,15 @@ async function processOperation({
           newClassLevel: payload.newClassLevel,
           arm: payload.arm,
         });
+        if (!plan.ok) {
+          await markOpStatus(syncOpRowId, 'failed', plan.message);
+          return { operationId, status: 'failed', error: plan.code };
+        }
+        finalChanges = plan.changes;
+      }
+
+      if (opType === 'undo_promote_student') {
+        const plan = planUndoPromotion(currentStudent);
         if (!plan.ok) {
           await markOpStatus(syncOpRowId, 'failed', plan.message);
           return { operationId, status: 'failed', error: plan.code };
@@ -427,10 +436,11 @@ async function processOperation({
                registered_by,
                registered_device_id,
                academic_session,
+               current_session,
                created_at
              )
            VALUES
-             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
           [
             id,
             admissionNo,
@@ -444,6 +454,7 @@ async function processOperation({
             guardianPhone || null,
             userId,
             deviceId,
+            sessionValue,
             sessionValue,
             createdAtClient,
           ]
