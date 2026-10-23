@@ -581,9 +581,14 @@ async function markOpStatus(
 ) {
   await db.query(
     `UPDATE sync_operations
-     SET status = $2, processed_at = now(), error_message = $3
+     SET status = $2, processed_at = now(), error_message = $3,
+         payload = CASE
+           WHEN op_type = 'upload_photo' AND $4::text IN ('synced', 'failed')
+           THEN payload - 'imageBase64'
+           ELSE payload
+         END
      WHERE id = $1`,
-    [id, status, errorMessage]
+    [id, status, errorMessage, status]
   );
 }
 

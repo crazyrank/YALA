@@ -17,6 +17,7 @@ import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ManageStaffScreen from '../screens/ManageStaffScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import MainTabs from './MainTabs';
+import ParkedOperationsScreen from '../screens/ParkedOperationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -173,6 +174,11 @@ export default function RootNavigator() {
             />
           </>
         )}
+        <Stack.Screen
+          name="ParkedOperations"
+          component={ParkedOperationsScreen}
+          options={{ title: 'Changes not saved' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

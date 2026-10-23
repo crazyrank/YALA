@@ -270,7 +270,11 @@ export default function StudentsListScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <OfflineMarquee />
-      <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
+      <SyncIssueBanner
+        pullError={pullError}
+        onRetryPull={refreshFromServer}
+        onPressAttention={() => navigation.navigate('ParkedOperations')}
+      />
 
       <LinearGradient
         colors={gradients.navy}

@@ -18,6 +18,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queueOperation } from '../services/syncEngine';
+import { checkRegistration, formatErrors } from '../services/registrationGuard';
+import ClassLevelPicker from '../components/ClassLevelPicker';
+import { CLASS_ORDER } from '../utils/classProgression';
+import { divisionOfClass } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
@@ -71,6 +75,21 @@ export default function RegisterStudentScreen({ route, navigation }) {
         'Missing details',
         'Admission number, student name, and class are required.'
       );
+      return;
+    }
+
+    const check = checkRegistration({
+      admissionNo,
+      fullName,
+      division,
+      classLevel,
+      arm,
+      guardianName,
+      guardianPhone,
+    });
+    if (!check.ok) {
+      const lines = formatErrors(check.errors).map((e) => e.message);
+      Alert.alert('Check the details', lines.join('\n'));
       return;
     }
 
@@ -310,18 +329,16 @@ export default function RegisterStudentScreen({ route, navigation }) {
             </View>
           </View>
 
-          <Field
-            label="CLASS LEVEL"
-            required
-            value={classLevel}
-            onChangeText={setClassLevel}
-            placeholder={
-              division === 'primary'
-                ? 'e.g. Primary 4'
-                : 'e.g. SS2'
-            }
-            autoCapitalize="characters"
-          />
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', marginBottom: 8, color: colors.textPrimary }}>
+              CLASS LEVEL *
+            </Text>
+            <ClassLevelPicker
+              value={classLevel}
+              onChange={setClassLevel}
+              allowed={CLASS_ORDER.filter((c) => divisionOfClass(c) === division)}
+            />
+          </View>
 
           <Field
             label="ARM"

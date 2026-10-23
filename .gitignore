@@ -51,3 +51,12 @@ ysis-backend/scripts/reset-admin-password.js
 ysis-backend/scripts/trust-device.js
 ysis-backend/scripts/clear-must-change.js
 ysis-backend/scripts/lib/
+
+# One-off recovery and diagnostic tools: keep local only
+ysis-backend/scripts/parked-report.js
+ysis-backend/scripts/clear-photo-payloads.js
+ysis-backend/scripts/cloudinary-check.js
+ysis-backend/scripts/cloudinary-upload-test.js
+ysis-backend/scripts/cloudinary-raw-test.js
+apply-sync-fixes.py
+.patch-backups/
