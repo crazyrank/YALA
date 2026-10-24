@@ -10,7 +10,7 @@ export default function DashboardStatCard({
   value,
   title,
   subtitle,
-  color = '#16324F',
+  color = '#17263B',
   bg = '#FFFFFF',
   delay = 0,
 }) {

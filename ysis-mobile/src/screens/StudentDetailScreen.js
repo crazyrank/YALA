@@ -694,7 +694,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             disabled={exportingPdf}
           >
             {exportingPdf ? (
-              <ActivityIndicator color="#0A1930" size="small" />
+              <ActivityIndicator color="#0E1A2B" size="small" />
             ) : (
               <Text style={styles.exportPdfButtonText}>Export to PDF for printing</Text>
             )}
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
   },
   photoIcon: { fontSize: 28, color: '#98A2B3', fontWeight: '300' },
   photoPlaceholderText: { fontSize: 11, color: '#98A2B3', marginTop: 4 },
-  name: { fontSize: 20, fontWeight: '700', color: '#0A1930', textAlign: 'center' },
+  name: { fontSize: 20, fontWeight: '700', color: '#0E1A2B', textAlign: 'center' },
   admissionNo: { fontSize: 13, color: '#667085', marginTop: 4 },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', marginTop: 10,
@@ -782,12 +782,12 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '700', color: '#12805C', letterSpacing: 0.5 },
   statusTextArchived: { color: '#C0392B' },
   photoAction: { marginTop: 12 },
-  photoActionText: { fontSize: 13, color: '#16324F', fontWeight: '600' },
+  photoActionText: { fontSize: 13, color: '#17263B', fontWeight: '600' },
   adminBar: {
     flexDirection: 'row', marginTop: 16, gap: 10,
   },
   adminBtn: {
-    flex: 1, backgroundColor: '#16324F', borderRadius: 12,
+    flex: 1, backgroundColor: '#17263B', borderRadius: 12,
     paddingVertical: 12, alignItems: 'center',
   },
   adminBtnDanger: { backgroundColor: '#C0392B' },
@@ -809,54 +809,54 @@ const styles = StyleSheet.create({
   },
   infoRowLast: { borderBottomWidth: 0 },
   infoLabel: { fontSize: 13, color: '#667085' },
-  infoValue: { fontSize: 13, fontWeight: '600', color: '#0A1930', maxWidth: '60%', textAlign: 'right' },
+  infoValue: { fontSize: 13, fontWeight: '600', color: '#0E1A2B', maxWidth: '60%', textAlign: 'right' },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: '#667085', marginTop: 12, marginBottom: 6 },
   fieldInput: {
     borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0A1930',
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0E1A2B',
   },
   fieldInputLast: { marginBottom: 8 },
-  classReadOnly: { fontSize: 14, fontWeight: '600', color: '#0A1930', marginBottom: 4 },
+  classReadOnly: { fontSize: 14, fontWeight: '600', color: '#0E1A2B', marginBottom: 4 },
   editNote: { fontSize: 11, color: '#98A2B3', marginBottom: 4 },
   armOption: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
     paddingHorizontal: 8, borderRadius: 10, marginBottom: 4,
   },
-  armOptionSelected: { borderWidth: 1, borderColor: '#16324F', backgroundColor: '#EEF3F9' },
+  armOptionSelected: { borderWidth: 1, borderColor: '#17263B', backgroundColor: '#EEF3F9' },
   radioOuter: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#98A2B3',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  radioOuterSelected: { borderColor: '#16324F' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#16324F' },
-  armOptionText: { fontSize: 15, color: '#0A1930', fontWeight: '600' },
+  radioOuterSelected: { borderColor: '#17263B' },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#17263B' },
+  armOptionText: { fontSize: 15, color: '#0E1A2B', fontWeight: '600' },
   promoteChoice: { paddingVertical: 8 },
   editActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   correctionBox: {
     marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#EAECF0', padding: 16,
   },
-  correctionTitle: { fontSize: 14, fontWeight: '600', color: '#0A1930', marginBottom: 10 },
+  correctionTitle: { fontSize: 14, fontWeight: '600', color: '#0E1A2B', marginBottom: 10 },
   correctionInput: {
     borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, padding: 12,
-    minHeight: 72, textAlignVertical: 'top', fontSize: 14, color: '#0A1930',
+    minHeight: 72, textAlignVertical: 'top', fontSize: 14, color: '#0E1A2B',
   },
   correctionActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   cancelButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#F2F4F7' },
   cancelText: { fontWeight: '600', color: '#667085', fontSize: 13 },
   continueButton: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: '#16324F', minWidth: 100, alignItems: 'center',
+    backgroundColor: '#17263B', minWidth: 100, alignItems: 'center',
   },
   disabledButton: { backgroundColor: '#98A2B3' },
   continueText: { fontWeight: '700', color: '#FFFFFF', fontSize: 13 },
   promoteRow: { paddingVertical: 14 },
   maxClassText: { fontSize: 13, color: '#667085' },
   promoteButton: {
-    backgroundColor: '#C9A24B', borderRadius: 12, paddingVertical: 14,
+    backgroundColor: '#2FA37A', borderRadius: 12, paddingVertical: 14,
     alignItems: 'center', marginVertical: 8,
   },
-  promoteButtonText: { fontWeight: '700', color: '#0A1930', fontSize: 14 },
+  promoteButtonText: { fontWeight: '700', color: '#0E1A2B', fontSize: 14 },
   undoPromoteButton: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
   },
   syncIconText: { color: '#fff', fontWeight: '700' },
   syncContent: { flex: 1 },
-  syncTitle: { fontWeight: '700', fontSize: 13, color: '#0A1930' },
+  syncTitle: { fontWeight: '700', fontSize: 13, color: '#0E1A2B' },
   syncText: { marginTop: 4, fontSize: 12, color: '#667085', lineHeight: 17 },
   footer: { marginTop: 28, alignItems: 'center' },
   footerText: { fontSize: 11, color: '#98A2B3' },
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   },
   exportPdfButtonText: {
     fontWeight: '700',
-    color: '#0A1930',
+    color: '#0E1A2B',
     fontSize: 14,
   },
 });

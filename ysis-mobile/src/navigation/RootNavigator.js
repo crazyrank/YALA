@@ -49,7 +49,7 @@ function AuthBootstrapSkeleton() {
 const bootStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F6F8FC' },
   hero: {
-    backgroundColor: '#0A1930',
+    backgroundColor: '#0E1A2B',
     paddingHorizontal: 20,
     paddingTop: 56,
     paddingBottom: 28,
@@ -75,7 +75,7 @@ export default function RootNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#16324f',
+            backgroundColor: '#17263B',
           },
           headerTintColor: '#fff',
           headerTitleStyle: {

@@ -373,7 +373,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 </Text>
               </View>
             )}
-            <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
+            <Ionicons name="chevron-down" size={14} color="#2FA37A" style={{ marginLeft: 4 }} />
           </Pressable>
         </View>
       </LinearGradient>
@@ -417,7 +417,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   navigation.navigate('MoreTab', { screen: 'ManageStaff' });
                 }}
               >
-                <Ionicons name="people-outline" size={18} color="#0A1930" />
+                <Ionicons name="people-outline" size={18} color="#0E1A2B" />
                 <Text style={styles.menuItemText}>Manage Staff</Text>
               </Pressable>
             )}
@@ -429,7 +429,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   navigation.navigate('ConflictsTab');
                 }}
               >
-                <Ionicons name="warning-outline" size={18} color="#0A1930" />
+                <Ionicons name="warning-outline" size={18} color="#0E1A2B" />
                 <Text style={styles.menuItemText}>Conflicts</Text>
               </Pressable>
             )}
@@ -440,7 +440,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 navigation.navigate('MoreTab');
               }}
             >
-              <Ionicons name="grid-outline" size={18} color="#0A1930" />
+              <Ionicons name="grid-outline" size={18} color="#0E1A2B" />
               <Text style={styles.menuItemText}>More</Text>
             </Pressable>
             <View style={styles.menuDivider} />
@@ -683,13 +683,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#C9A24B',
+    backgroundColor: '#2FA37A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileAvatarImg: { width: 36, height: 36, borderRadius: 18 },
   profileAvatarText: {
-    color: '#0A1930',
+    color: '#0E1A2B',
     fontFamily: fontFamily.bodyBold,
     fontSize: 13,
   },
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#16324F',
+    backgroundColor: '#17263B',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -731,12 +731,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyBold,
     fontSize: 14,
   },
-  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0A1930' },
+  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0E1A2B' },
   menuRole: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 10,
     letterSpacing: 0.6,
-    color: '#C9A24B',
+    color: '#2FA37A',
     marginTop: 2,
   },
   menuDivider: { height: 1, backgroundColor: '#E4E8EF', marginVertical: 4 },
@@ -750,13 +750,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontFamily: fontFamily.bodySemibold,
     fontSize: 14,
-    color: '#0A1930',
+    color: '#0E1A2B',
   },
   heroEyebrow: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 10,
     letterSpacing: 1.6,
-    color: '#C9A24B',
+    color: '#2FA37A',
     marginBottom: 1,
   },
   heroTitle: {

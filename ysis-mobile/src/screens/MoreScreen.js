@@ -259,9 +259,9 @@ export default function MoreScreen({ navigation }) {
             )}
             <View style={[styles.cameraBadge, { backgroundColor: colors.gold }]}>
               {uploading ? (
-                <ActivityIndicator size="small" color="#0A1930" />
+                <ActivityIndicator size="small" color="#0E1A2B" />
               ) : (
-                <Ionicons name="camera" size={14} color="#0A1930" />
+                <Ionicons name="camera" size={14} color="#0E1A2B" />
               )}
             </View>
           </Pressable>
@@ -577,14 +577,14 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width - 40,
     height: Dimensions.get('window').width - 40,
     borderRadius: 16,
-    backgroundColor: '#16324F',
+    backgroundColor: '#17263B',
   },
   viewerActions: {
     flexDirection: 'row',
     marginTop: 28,
   },
   viewerBtn: {
-    backgroundColor: '#C9A24B',
+    backgroundColor: '#2FA37A',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,

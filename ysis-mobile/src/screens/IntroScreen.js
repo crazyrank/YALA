@@ -28,12 +28,12 @@ const YALA_LOGO = require('../../assets/yala-matrix-schools-logo.jpg');
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-const ACCENT = '#E6E6E2';
-const BG = '#0C0C0E';
-const CARD = '#1A1A1D';
-const TEXT = '#F4F6FA';
+const ACCENT = '#2FA37A';
+const BG = '#0E1A2B';
+const CARD = '#17263B';
+const TEXT = '#F4F1EA';
 const TEXT_SOFT = '#D9E0EC';
-const MUTED = '#9AA6BD';
+const MUTED = '#9FB0C8';
 
 const PAGE_COUNT = 4;
 const PAD = 24;
@@ -282,7 +282,7 @@ function Fade({ style }) {
       {FADE_STEPS.map((a, i) => (
         <View
           key={i}
-          style={[styles.fadeBand, { backgroundColor: `rgba(12, 12, 14, ${a})` }]}
+          style={[styles.fadeBand, { backgroundColor: `rgba(14, 26, 43, ${a})` }]}
         />
       ))}
     </View>
@@ -321,7 +321,7 @@ function WelcomePage() {
           resizeMode="contain"
           style={{
             position: 'absolute',
-            top: 24,
+            top: 6,
             left: (SCREEN_W - photoW) / 2,
             width: photoW,
             height: photoH,
@@ -446,12 +446,10 @@ function SentenceStage({ index, total, onDone }) {
   );
 }
 
-/* Page 3: mantra typed once, then the five principles, one at a time. */
-const WAIT_TITLE_MS = 1200;
-const WAIT_DESC_MS = 3500;
-const ERASE_MS = 18;
+/* Page 3: mantra, heading, then the five principles, stacked down the page. */
+const BLOCK_PAUSE_MS = 900;
 
-// Types a line one character at a time, then calls onDone once.
+// Types text one character at a time, then calls onDone once.
 function TypeText({ text, style, speed, onDone }) {
   const [count, setCount] = useState(0);
   const doneRef = useRef(onDone);
@@ -469,89 +467,82 @@ function TypeText({ text, style, speed, onDone }) {
   return <Text style={style}>{text.slice(0, count)}</Text>;
 }
 
-// One principle: title types, pause, explanation types, pause, both erase.
-function PrincipleBlock({ principle, number, onDone }) {
-  const title = principle.title + ' :';
-  const desc = principle.text;
-  const [phase, setPhase] = useState('title');
-  const [tc, setTc] = useState(0);
-  const [dc, setDc] = useState(0);
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
-
-  useEffect(() => {
-    let t;
-    if (phase === 'title') {
-      if (tc < title.length) t = setTimeout(() => setTc((c) => c + 1), TYPE_MS);
-      else setPhase('waitTitle');
-    } else if (phase === 'waitTitle') {
-      t = setTimeout(() => setPhase('desc'), WAIT_TITLE_MS);
-    } else if (phase === 'desc') {
-      if (dc < desc.length) t = setTimeout(() => setDc((c) => c + 1), TYPE_MS);
-      else setPhase('waitDesc');
-    } else if (phase === 'waitDesc') {
-      t = setTimeout(() => setPhase('erase'), WAIT_DESC_MS);
-    } else if (phase === 'erase') {
-      if (dc > 0) t = setTimeout(() => setDc((c) => c - 1), ERASE_MS);
-      else if (tc > 0) t = setTimeout(() => setTc((c) => c - 1), ERASE_MS);
-      else setPhase('done');
-    } else if (phase === 'done') {
-      onDoneRef.current();
-    }
-    return () => clearTimeout(t);
-  }, [phase, tc, dc]);
-
+// One principle. The label and topic are static. Only the explanation types.
+function PrincipleItem({ principle, number, typing, onDone }) {
   return (
-    <View>
+    <View style={styles.principleItem}>
       <Text style={styles.principleLabel}>PRINCIPLE {number}</Text>
-      <Text style={styles.principleTitle}>{title.slice(0, tc)}</Text>
-      <Text style={styles.principleText}>{desc.slice(0, dc)}</Text>
+      <Text style={styles.principleTitle}>{principle.title} :</Text>
+      {typing ? (
+        <TypeText
+          text={principle.text}
+          style={styles.principleText}
+          speed={TYPE_MS}
+          onDone={onDone}
+        />
+      ) : (
+        <Text style={styles.principleText}>{principle.text}</Text>
+      )}
     </View>
   );
 }
 
 function MantraPage({ onFinished }) {
   const [mantraDone, setMantraDone] = useState(false);
-  const [index, setIndex] = useState(0);
+  const [headingDone, setHeadingDone] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const scrollRef = useRef(null);
 
   const advance = () => {
-    if (index >= CORE_VALUES.length - 1) {
-      onFinished();
-    } else {
-      setIndex((i) => i + 1);
-    }
+    const last = current >= CORE_VALUES.length - 1;
+    setTimeout(() => {
+      if (last) {
+        onFinished();
+      } else {
+        setCurrent((i) => i + 1);
+      }
+    }, BLOCK_PAUSE_MS);
   };
 
   return (
-    <View style={styles.mantraWrap}>
-      <View style={styles.mantraBlock}>
-        <TypeText
-          text={SLOGAN}
-          style={styles.english}
-          speed={TYPE_MS}
-          onDone={() => setMantraDone(true)}
-        />
-      </View>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.mantraScroll}
+      contentContainerStyle={styles.mantraWrap}
+      showsVerticalScrollIndicator={false}
+      onContentSizeChange={() => {
+        if (scrollRef.current) scrollRef.current.scrollToEnd({ animated: true });
+      }}
+    >
+      <TypeText
+        text={SLOGAN}
+        style={styles.english}
+        speed={TYPE_MS}
+        onDone={() => setMantraDone(true)}
+      />
 
       {mantraDone && (
-        <View style={styles.principlesHeading}>
-          <Text style={styles.english}>
-            Five Principles of Yalamatrix Schools
-          </Text>
+        <View style={styles.headingGap}>
+          <TypeText
+            text="Five Principles of Yalamatrix Schools"
+            style={styles.english}
+            speed={TYPE_MS}
+            onDone={() => setHeadingDone(true)}
+          />
         </View>
       )}
 
-      <View style={styles.principlesBlock}>
-        {mantraDone && (
-          <PrincipleBlock
-            key={index}
-            principle={CORE_VALUES[index]}
-            number={index + 1}
+      {headingDone &&
+        CORE_VALUES.slice(0, current + 1).map((principle, i) => (
+          <PrincipleItem
+            key={i}
+            principle={principle}
+            number={i + 1}
+            typing={i === current}
             onDone={advance}
           />
-        )}
-      </View>
-    </View>
+        ))}
+    </ScrollView>
   );
 }
 
@@ -593,8 +584,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: PAD,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 4,
+    paddingBottom: 0,
   },
   brand: { fontFamily: 'serif', color: TEXT, fontSize: 22, fontWeight: '800', letterSpacing: 4 },
   brandSub: { color: MUTED, fontSize: 10, letterSpacing: 2, marginTop: 2 },
@@ -608,14 +599,14 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
 
   /* Footer */
-  footer: { paddingHorizontal: PAD, paddingTop: 12, paddingBottom: 20 },
+  footer: { paddingHorizontal: PAD, paddingTop: 8, paddingBottom: 12 },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    marginBottom: 18,
+    marginBottom: 12,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34343A' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#3A3733' },
   dotActive: { width: 24, backgroundColor: ACCENT },
   nextButton: {
     width: '100%',
@@ -624,7 +615,7 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     alignItems: 'center',
   },
-  nextText: { color: BG, fontWeight: '800', fontSize: 16 },
+  nextText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
 
   /* Splash */
   splash: { flex: 1, backgroundColor: BG },
@@ -663,7 +654,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#2A2A2E',
+    backgroundColor: '#3A3733',
     overflow: 'hidden',
   },
   progressFill: { height: 2, backgroundColor: ACCENT },
@@ -692,15 +683,18 @@ const styles = StyleSheet.create({
     fontSize: 19,
     letterSpacing: 3,
     fontWeight: '800',
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 20,
   },
   ghost: { color: 'transparent' },
+  mantraScroll: { flex: 1 },
   mantraWrap: {
-    flex: 1,
     paddingHorizontal: PAD,
     paddingTop: 12,
+    paddingBottom: 40,
   },
+  headingGap: { marginTop: 36 },
+  principleItem: { marginTop: 26 },
   mantraBlock: { marginBottom: 16 },
   principlesHeading: { marginBottom: 12 },
   principleLabel: {
@@ -769,12 +763,12 @@ const styles = StyleSheet.create({
   translationWrap: {
     flex: 1,
     paddingHorizontal: PAD,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingTop: 0,
+    paddingBottom: 4,
     justifyContent: 'space-between',
   },
-  stageWrap: { flex: 1, justifyContent: 'center' },
-  stage: { paddingVertical: 0 },
+  stageWrap: { flex: 1, justifyContent: 'flex-start' },
+  stage: { paddingVertical: 12 },
   stepLabel: {
     color: MUTED,
     fontSize: 11,
@@ -784,29 +778,30 @@ const styles = StyleSheet.create({
   },
   english: {
     color: TEXT,
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '800',
-    lineHeight: 36,
+    lineHeight: 40,
+    marginBottom: 8,
   },
   langLabel: {
     color: MUTED,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 2,
     fontWeight: '700',
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 26,
+    marginBottom: 10,
   },
   yoruba: {
     color: TEXT_SOFT,
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: 32,
   },
   french: {
     color: TEXT_SOFT,
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: '700',
-    lineHeight: 28,
+    lineHeight: 32,
   },
   completeText: {
     color: TEXT,
@@ -850,8 +845,8 @@ const styles = StyleSheet.create({
   creatorWrap: {
     alignItems: 'center',
     paddingHorizontal: PAD,
-    paddingTop: 12,
-    paddingBottom: 28,
+    paddingTop: 0,
+    paddingBottom: 12,
   },
   photoFrame: {
     borderWidth: 2,

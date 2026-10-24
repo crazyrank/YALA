@@ -58,7 +58,7 @@ export default function ClassesScreen({ navigation }) {
         navigation.navigate('ClassStudents', { classLevel: item.class_level })
       }
     >
-      <View style={[styles.classIcon, { backgroundColor: colors.goldTint || '#FBF3E1' }]}>
+      <View style={[styles.classIcon, { backgroundColor: colors.goldTint || '#E6F4EE' }]}>
         <Text style={styles.classIconText}>🎓</Text>
       </View>
       <View style={styles.classInfo}>

@@ -35,7 +35,7 @@ function RegisterTabButton({ onPress }) {
       accessibilityLabel="Register student"
     >
       <View style={styles.registerBtn}>
-        <Ionicons name="add" size={30} color="#0A1930" />
+        <Ionicons name="add" size={30} color="#0E1A2B" />
       </View>
     </Pressable>
   );
@@ -206,12 +206,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#C9A24B',
+    backgroundColor: '#2FA37A',
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: '#C9A24B',
+        shadowColor: '#2FA37A',
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.4,
         shadowRadius: 10,

@@ -1,69 +1,61 @@
 export const lightColors = {
   mode: 'light',
 
-  // Core ink / surfaces
-  ink: '#0A1930',
-  inkSoft: '#16324F',
+  ink: '#0E1A2B',
+  inkSoft: '#17263B',
   surface: '#FFFFFF',
   surfaceAlt: '#FAFBFD',
   background: '#F5F7FA',
 
-  // Borders
   border: '#E4E8EF',
   borderStrong: '#D5DAE3',
 
-  // Text
-  textPrimary: '#0A1930',
+  textPrimary: '#0E1A2B',
   textSecondary: '#5B6472',
   textMuted: '#8A94A3',
   textInverse: '#FFFFFF',
 
-  // Gold accent (premium highlight)
-  gold: '#C9A24B',
-  goldLight: '#E7C878',
-  goldDark: '#9C7A32',
-  goldTint: '#FBF3E1',
+  // Emerald accent (keys keep their names so no screen needs editing)
+  gold: '#1F8A64',
+  goldLight: '#5CC29B',
+  goldDark: '#166B4C',
+  goldTint: '#E6F4EE',
 
-  // Feedback
   success: '#12805C',
-  successBg: '#E7F6EF',
+  successBg: '#E6F4EE',
   error: '#C0392B',
   errorBg: '#FDECEA',
   warning: '#B7791F',
   warningBg: '#FEF3E2',
 
-  overlay: 'rgba(10,25,48,0.55)',
+  overlay: 'rgba(14,26,43,0.55)',
 };
 
 export const darkColors = {
   mode: 'dark',
 
-  // Core ink / surfaces — lighter navy so brand elements still pop
-  ink: '#16324F',
-  inkSoft: '#22456B',
-  surface: '#141B2E',
-  surfaceAlt: '#1B2438',
-  background: '#0B1220',
+  ink: '#17263B',
+  inkSoft: '#243650',
+  surface: '#132033',
+  surfaceAlt: '#17263B',
+  background: '#0E1A2B',
 
-  // Borders
-  border: '#232D45',
-  borderStrong: '#2E3A56',
+  border: '#243650',
+  borderStrong: '#2C4263',
 
-  // Text
-  textPrimary: '#F2F4F8',
-  textSecondary: '#AEB6C4',
-  textMuted: '#7C879C',
+  textPrimary: '#F4F1EA',
+  textSecondary: '#9FB0C8',
+  textMuted: '#6F819B',
   textInverse: '#FFFFFF',
 
-  // Gold accent — brightened slightly for dark backgrounds
-  gold: '#D8B563',
-  goldLight: '#EDD9A0',
-  goldDark: '#B4913E',
-  goldTint: '#241F12',
+  // Emerald accent
+  gold: '#2FA37A',
+  goldLight: '#5CC29B',
+  goldDark: '#237D5C',
+  goldTint: '#12302A',
 
-  // Feedback
-  success: '#33B786',
-  successBg: '#123A2B',
+  success: '#3DB98A',
+  successBg: '#11302A',
   error: '#E5695A',
   errorBg: '#3A1614',
   warning: '#E0B04A',
@@ -72,11 +64,11 @@ export const darkColors = {
   overlay: 'rgba(0,0,0,0.6)',
 };
 
-// Brand gradients stay consistent across themes.
+// Brand gradients, shared by light and dark.
 export const gradients = {
-  navy: ['#0A1930', '#16324F'],
-  navyDeep: ['#071120', '#0A1930'],
-  gold: ['#C9A24B', '#E7C878'],
-  goldSubtle: ['#F4E8CC', '#FFFFFF'],
-  sheen: ['rgba(255,255,255,0.0)', 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.0)'],
+  navy: ['#0E1A2B', '#17263B'],
+  navyDeep: ['#09111E', '#0E1A2B'],
+  gold: ['#2FA37A', '#5CC29B'],
+  goldSubtle: ['#E6F4EE', '#FFFFFF'],
+  sheen: ['rgba(255,255,255,0.0)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0.0)'],
 };

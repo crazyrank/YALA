@@ -68,12 +68,12 @@ const styles = StyleSheet.create({
   controls: { padding: 20, backgroundColor: '#0d1f33', alignItems: 'center' },
   hint: { color: '#cfd9e4', fontSize: 12, marginBottom: 14 },
   captureButton: {
-    width: 64, height: 64, borderRadius: 32, backgroundColor: '#c9a24b',
+    width: 64, height: 64, borderRadius: 32, backgroundColor: '#2FA37A',
     justifyContent: 'center', alignItems: 'center', marginBottom: 12,
   },
   captureInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#fff' },
   cancelButton: { padding: 8 },
   cancelText: { color: '#a9b8c8', fontSize: 13 },
-  button: { backgroundColor: '#c9a24b', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
+  button: { backgroundColor: '#2FA37A', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
   buttonText: { color: '#0d1f33', fontWeight: '700', fontSize: 14 },
 });

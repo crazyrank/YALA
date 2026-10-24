@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   greeting: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
   subtitle: { color: '#a9b8c8', fontSize: 13, marginBottom: 24, textAlign: 'center' },
   message: { color: '#e0a05a', fontSize: 12.5, marginBottom: 20, textAlign: 'center', paddingHorizontal: 20 },
-  button: { backgroundColor: '#c9a24b', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8, marginBottom: 14 },
+  button: { backgroundColor: '#2FA37A', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 8, marginBottom: 14 },
   buttonText: { textAlign: 'center', color: '#0d1f33', fontWeight: '700', fontSize: 15 },
   linkButton: { padding: 8 },
   linkText: { color: '#6fd3c7', fontSize: 13 },

@@ -103,10 +103,10 @@ export default function ManageStaffScreen({ navigation }) {
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.surfaceAlt || '#1B2438', borderColor: colors.border },
+          { backgroundColor: colors.surfaceAlt || '#17263B', borderColor: colors.border },
         ]}
       >
-        <View style={[styles.avatar, { backgroundColor: colors.inkSoft || '#16324F' }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.inkSoft || '#17263B' }]}>
           <Text style={styles.avatarText}>{getInitials(name)}</Text>
         </View>
 
@@ -147,7 +147,7 @@ export default function ManageStaffScreen({ navigation }) {
           <Text
             style={[
               styles.actionText,
-              { color: suspended ? '#0A1930' : colors.textPrimary },
+              { color: suspended ? '#0E1A2B' : colors.textPrimary },
             ]}
           >
             {suspended ? 'Enable' : 'Disable'}
@@ -158,7 +158,7 @@ export default function ManageStaffScreen({ navigation }) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background || '#0B1220' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background || '#0E1A2B' }]}>
       <View style={styles.headerBlock}>
         <Text style={[styles.eyebrow, { color: colors.gold }]}>STAFF</Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>{staffLabel}</Text>
@@ -171,7 +171,7 @@ export default function ManageStaffScreen({ navigation }) {
         style={[styles.createBtn, { backgroundColor: colors.gold }]}
         onPress={() => navigation.navigate('CreateAccount')}
       >
-        <Ionicons name="person-add" size={18} color="#0A1930" />
+        <Ionicons name="person-add" size={18} color="#0E1A2B" />
         <Text style={styles.createBtnText}>{createLabel}</Text>
       </Pressable>
 
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   createBtnText: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 15,
-    color: '#0A1930',
+    color: '#0E1A2B',
   },
   list: {
     paddingHorizontal: 16,
