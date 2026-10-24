@@ -80,9 +80,15 @@ export const CORE_VALUES = [
   { title: 'Handwriting', text: 'Handwriting that is neat and effective.' },
 ];
 
+
 export const CREATOR = {
   name: 'Samuel Sunday Rankin',
-  eyebrow: 'THE STORY BEHIND YALA',
-  body: 'A Corps member who served at Yalamatrix Schools, holding a B.Sc. in Pure and Applied Chemistry from the University of Uyo, built YALA and presented it to the school as his NYSC Community Development Service project.',
   image: require('../../assets/samuel-sunday-rankin.png'),
+  lines: [
+    'B.Sc. Chemistry, University of Uyo  |  Software Developer',
+    'NYSC Serving Corps Member',
+    'Batch C 2025',
+    'Personal CDS Project for Yalamatrix Schools, Okitipupa, Ondo State.',
+    'Fully offline support. Keeps student records and school information, making manual work easier even when there is no internet connection.',
+  ],
 };
