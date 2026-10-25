@@ -3,6 +3,7 @@
     "name": "YALAMATRIX SIS",
     "slug": "ysis-mobile",
     "version": "1.0.0",
+    "runtimeVersion": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
@@ -10,6 +11,7 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera is used to capture student passport photos.",
         "NSFaceIDUsageDescription": "Face ID is used to unlock the app securely."
@@ -27,6 +29,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.crazyrank.ysismobile",
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon-adaptive.png",
