@@ -18,6 +18,45 @@ const GENDERS = ['M', 'F'];
 
 const MAX_LENGTH = { admissionNo: 30, fullName: 100, guardianName: 100, guardianPhone: 20 };
 
+const DOB_MIN_AGE = 3;
+const DOB_MAX_AGE = 25;
+const DOB_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Optional. Returns YYYY-MM-DD or null. Errors name the field only, never the value.
+function parseDateOfBirth(raw, errors) {
+  const text = cleanText(raw);
+  if (text === '') return null;
+  if (!DOB_PATTERN.test(text)) {
+    errors.push('dateOfBirth: must be in YYYY-MM-DD format');
+    return null;
+  }
+  const [y, m, d] = text.split('-').map(Number);
+  const dob = new Date(Date.UTC(y, m - 1, d));
+  if (dob.getUTCFullYear() !== y || dob.getUTCMonth() !== m - 1 || dob.getUTCDate() !== d) {
+    errors.push('dateOfBirth: not a real calendar date');
+    return null;
+  }
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  if (dob.getTime() > todayUtc) {
+    errors.push('dateOfBirth: cannot be in the future');
+    return null;
+  }
+  let age = now.getFullYear() - y;
+  const birthdayPassed =
+    now.getMonth() + 1 > m || (now.getMonth() + 1 === m && now.getDate() >= d);
+  if (!birthdayPassed) age -= 1;
+  if (age < DOB_MIN_AGE) {
+    errors.push('dateOfBirth: student is too young for this school');
+    return null;
+  }
+  if (age > DOB_MAX_AGE) {
+    errors.push('dateOfBirth: date is too far in the past for this school');
+    return null;
+  }
+  return text;
+}
+
 const ADMISSION_NO_PATTERN = /^YMS\/(\d{4})\/(\d{2})\/(\d{3})$/;
 const NAME_PATTERN = /^\p{L}[\p{L} .'\u2019-]*$/u;
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
@@ -103,9 +142,7 @@ function normalizeStudent(input = {}) {
   const errors = [];
   const v = {};
 
-  if (input.dateOfBirth !== undefined && input.dateOfBirth !== null && input.dateOfBirth !== '') {
-    errors.push('dateOfBirth: no longer accepted');
-  }
+  v.dateOfBirth = parseDateOfBirth(input.dateOfBirth, errors);
 
   v.admissionNo = cleanText(input.admissionNo).toUpperCase();
   if (!v.admissionNo) errors.push('admissionNo: required');

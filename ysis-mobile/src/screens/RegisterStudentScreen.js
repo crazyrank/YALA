@@ -40,6 +40,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
   const [arm, setArm] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState('');
   // Newest session first. Defaults to the current session.
   const sessionOptions = useMemo(() => availableSessions(new Date()).reverse(), []);
   const [academicSession, setAcademicSession] = useState(() => academicSessionFor(new Date()));
@@ -56,11 +58,11 @@ export default function RegisterStudentScreen({ route, navigation }) {
     }
     try {
       const db = await getDb();
-      const term = `%${text}%`;
+      const term = `%${text.replace(/[\\%_]/g, '\\$&')}%`;
       const rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm
          FROM students
-         WHERE full_name LIKE ? OR admission_no LIKE ?
+         WHERE full_name LIKE ? ESCAPE '\\' OR admission_no LIKE ? ESCAPE '\\'
          ORDER BY full_name ASC
          LIMIT 5`,
         [term, term]
@@ -100,6 +102,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
       arm,
       guardianName,
       guardianPhone,
+      dateOfBirth,
+      gender,
     });
     if (!check.ok) {
       const lines = formatErrors(check.errors).map((e) => e.message);
@@ -125,6 +129,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
             arm,
             guardian_name,
             guardian_phone,
+            date_of_birth,
+            gender,
             academic_session,
             current_session,
             status,
@@ -133,7 +139,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
             updated_at,
             local_dirty
           )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
         [
           id,
           admissionNo.trim(),
@@ -143,6 +149,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm.trim() || null,
           guardianName.trim() || null,
           guardianPhone.trim() || null,
+          dateOfBirth.trim() || null,
+          gender || null,
           academicSession,
           academicSession,
           now,
@@ -162,6 +170,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm: arm.trim() || null,
           guardianName: guardianName.trim() || null,
           guardianPhone: guardianPhone.trim() || null,
+          dateOfBirth: dateOfBirth.trim() || null,
+          gender: gender || null,
           academicSession,
           currentSession: academicSession,
         },
@@ -333,6 +343,38 @@ export default function RegisterStudentScreen({ route, navigation }) {
               </View>
             </View>
           )}
+
+          <Field
+            label="DATE OF BIRTH"
+            value={dateOfBirth}
+            onChangeText={setDateOfBirth}
+            placeholder="YYYY-MM-DD"
+            maxLength={10}
+            styles={styles}
+            colors={colors}
+          />
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>GENDER</Text>
+            <View style={styles.chipRow}>
+              {['M', 'F'].map((g) => {
+                const active = gender === g;
+                return (
+                  <Pressable
+                    key={g}
+                    onPress={() => setGender(active ? '' : g)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {g === 'M' ? 'Male' : 'Female'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
