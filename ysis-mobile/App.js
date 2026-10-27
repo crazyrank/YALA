@@ -11,7 +11,11 @@ import { startAutoSyncListener, triggerSync } from './src/services/syncEngine';
 import { useAppFonts } from './src/theme';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
+// Hide the native logo splash on the first frame. The app's own loader
+// (SplashLoader in IntroScreen) is the only splash the user sees.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const LOADING_BG = '#0E1A2B';
 
 if (global.ErrorUtils) {
   const defaultHandler = global.ErrorUtils.getGlobalHandler();
@@ -58,14 +62,13 @@ function AppInner() {
 
   const appReady = (fontsLoaded || fontError) && dbReady;
 
-  const onLayoutRootView = useCallback(async () => {
-    if (appReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [appReady]);
+  // Called as soon as the first view lays out, whether or not the app is ready.
+  const hideNativeSplash = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   if (!appReady) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: LOADING_BG }} onLayout={hideNativeSplash} />;
   }
 
   if (fontError) {
@@ -82,7 +85,7 @@ function AppInner() {
           justifyContent: 'center',
           padding: 24,
         }}
-        onLayout={onLayoutRootView}
+        onLayout={hideNativeSplash}
       >
         <Text style={{ color: colors.error, fontWeight: '700', marginBottom: 8 }}>
           Startup error
@@ -95,7 +98,7 @@ function AppInner() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} onLayout={hideNativeSplash}>
       <AuthProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <RootNavigator />
