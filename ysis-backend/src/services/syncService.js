@@ -371,8 +371,8 @@ async function processOperation({
         gender,
         guardianName,
         guardianPhone,
+        dateOfBirth,
       } = norm.value);
-      dateOfBirth = null;
 
       // The session the student was admitted. Older app builds send none, so
       // those fall back to the registration date.

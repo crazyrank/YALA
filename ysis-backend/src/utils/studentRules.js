@@ -94,6 +94,42 @@ function armRuleFor(classLevel) {
   return { required: false, allowed: [] };
 }
 
+// Date of birth bounds, in years. Change here if the school's rule differs.
+const DOB_MIN_AGE = 3;
+const DOB_MAX_AGE = 25;
+const DOB_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validates an optional date of birth in YYYY-MM-DD form.
+ * Returns the date string, or null when empty or invalid.
+ * Errors name the FIELD only, never the value.
+ */
+function parseDateOfBirth(raw, errors) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw !== 'string' || !DOB_PATTERN.test(raw)) {
+    errors.push('dateOfBirth: must be a date in YYYY-MM-DD form');
+    return null;
+  }
+  const [y, m, d] = raw.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Date() rolls impossible dates over (2024-02-30 becomes March 1), so compare the parts.
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    errors.push('dateOfBirth: is not a real calendar date');
+    return null;
+  }
+  const now = Date.now();
+  if (date.getTime() > now) {
+    errors.push('dateOfBirth: cannot be in the future');
+    return null;
+  }
+  const ageYears = (now - date.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  if (ageYears < DOB_MIN_AGE || ageYears > DOB_MAX_AGE) {
+    errors.push(`dateOfBirth: age must be between ${DOB_MIN_AGE} and ${DOB_MAX_AGE} years`);
+    return null;
+  }
+  return raw;
+}
+
 /**
  * Validates and cleans one student record.
  * Input keys are camelCase (the API shape). Returns { ok, value, errors }.
@@ -103,9 +139,7 @@ function normalizeStudent(input = {}) {
   const errors = [];
   const v = {};
 
-  if (input.dateOfBirth !== undefined && input.dateOfBirth !== null && input.dateOfBirth !== '') {
-    errors.push('dateOfBirth: no longer accepted');
-  }
+  v.dateOfBirth = parseDateOfBirth(input.dateOfBirth, errors);
 
   v.admissionNo = cleanText(input.admissionNo).toUpperCase();
   if (!v.admissionNo) errors.push('admissionNo: required');

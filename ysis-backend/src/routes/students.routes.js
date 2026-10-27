@@ -200,7 +200,7 @@ router.post(
         academicSession,
       } = req.body;
 
-      // Shared rules: class, arm by class, gender M/F, no date of birth.
+      // Shared rules: class, arm by class, gender M/F, optional date of birth.
       const norm = normalizeStudent({
         admissionNo,
         fullName,
@@ -224,8 +224,8 @@ router.post(
         gender,
         guardianName,
         guardianPhone,
+        dateOfBirth,
       } = norm.value);
-      dateOfBirth = null;
 
       // Session the student was admitted. Defaults to the current session.
       let sessionValue = null;
