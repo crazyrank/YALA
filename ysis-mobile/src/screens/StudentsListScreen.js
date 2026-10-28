@@ -516,6 +516,15 @@ export default function StudentsListScreen({ navigation, route }) {
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>
+                    {['director', 'principal', 'head_teacher'].includes(user?.role) && (
+                      <Squish
+                        style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
+                        onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
+                      >
+                        <Ionicons name="document-text-outline" size={16} color={colors.goldDark} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Result Portal</Text>
+                      </Squish>
+                    )}
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
                         <Ionicons name="cloud-upload-outline" size={16} color={colors.inkSoft} />

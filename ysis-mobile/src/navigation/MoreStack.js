@@ -8,6 +8,7 @@ import AddDirectoryEntryScreen from '../screens/AddDirectoryEntryScreen';
 import ImportStudentsScreen from '../screens/ImportStudentsScreen';
 import DeviceReviewScreen from '../screens/DeviceReviewScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import ResultPortalScreen from '../screens/ResultPortalScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
@@ -21,7 +22,10 @@ export default function MoreStack() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.inkSoft },
         headerTintColor: '#FFFFFF',
-        headerTitleStyle: { fontFamily: fontFamily.heading, fontSize: 17 },
+        headerTitleStyle: {
+          fontFamily: fontFamily.heading,
+          fontSize: 17,
+        },
       }}
     >
       <Stack.Screen
@@ -63,6 +67,11 @@ export default function MoreStack() {
         name="Notifications"
         component={NotificationsScreen}
         options={{ title: 'Notifications' }}
+      />
+      <Stack.Screen
+        name="ResultPortal"
+        component={ResultPortalScreen}
+        options={{ title: 'Student Result Portal' }}
       />
     </Stack.Navigator>
   );
