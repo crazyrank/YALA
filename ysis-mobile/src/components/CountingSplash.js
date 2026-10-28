@@ -14,10 +14,18 @@ import * as Speech from 'expo-speech';
 const LOGO = require('../../assets/yala-matrix-schools-logo.jpg');
 
 const BG = '#0E1A2B';
-const ACCENT = '#2FA37A';
+const GOLD = '#C9A24B';
 const TEXT = '#F4F1EA';
-const MUTED = '#9FB0C8';
+const MUTED = '#8FA0BA';
+const TRACK = 'rgba(255,255,255,0.12)';
 const TOTAL_MS = 3200;
+
+// Same size and position as the native splash logo, so the hand-off is seamless.
+const CARD_W = 150;
+const CARD_H = 132;
+const CARD_RADIUS = 13;
+const LOGO_W = 131;
+const LOGO_H = 113;
 
 export default function CountingSplash({ onDone, onLayout }) {
   const [count, setCount] = useState(1);
@@ -34,7 +42,8 @@ export default function CountingSplash({ onDone, onLayout }) {
 
     Animated.timing(reveal, {
       toValue: 1,
-      duration: 600,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
 
@@ -72,21 +81,28 @@ export default function CountingSplash({ onDone, onLayout }) {
   return (
     <View style={styles.root} onLayout={onLayout}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
-      <Animated.View style={[styles.inner, { opacity: reveal }]}>
-        <View style={styles.logoPlate}>
-          <Image source={LOGO} style={styles.logoImage} resizeMode="contain" />
-        </View>
 
+      {/* Logo sits at the exact centre, shown instantly. */}
+      <View style={styles.center} pointerEvents="none">
+        <View style={styles.card}>
+          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        </View>
+      </View>
+
+      {/* Brand text sits just below the logo. */}
+      <Animated.View style={[styles.brandBlock, { opacity: reveal }]}>
+        <View style={styles.hairline} />
         <Text style={styles.brand}>YSIS</Text>
         <Text style={styles.sub}>STUDENT INFORMATION SYSTEM</Text>
+      </Animated.View>
 
-        <View style={styles.progressBlock}>
-          <View style={styles.track}>
-            <Animated.View style={[styles.fill, { width: fillWidth }]} />
-          </View>
-          <Text style={styles.count}>{count}</Text>
-          <ActivityIndicator size="small" color={ACCENT} style={styles.spinner} />
+      {/* Counter and spinner at the bottom. */}
+      <Animated.View style={[styles.bottom, { opacity: reveal }]}>
+        <Text style={styles.count}>{count}</Text>
+        <View style={styles.track}>
+          <Animated.View style={[styles.fill, { width: fillWidth }]} />
         </View>
+        <ActivityIndicator size="small" color={GOLD} style={styles.spinner} />
       </Animated.View>
     </View>
   );
@@ -94,51 +110,70 @@ export default function CountingSplash({ onDone, onLayout }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  inner: {
-    flex: 1,
+  center: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
   },
-  logoPlate: {
-    width: 128,
-    height: 128,
-    borderRadius: 24,
+  card: {
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: CARD_RADIUS,
     backgroundColor: '#FFFFFF',
-    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 36,
   },
-  logoImage: { width: '100%', height: '100%' },
+  logo: { width: LOGO_W, height: LOGO_H },
+  brandBlock: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    marginTop: CARD_H / 2 + 36,
+    alignItems: 'center',
+  },
+  hairline: {
+    width: 28,
+    height: 1,
+    backgroundColor: GOLD,
+    marginBottom: 20,
+  },
   brand: {
     fontFamily: 'serif',
     color: TEXT,
-    fontSize: 30,
-    fontWeight: '700',
-    letterSpacing: 8,
+    fontSize: 26,
+    fontWeight: '600',
+    letterSpacing: 10,
+    paddingLeft: 10,
   },
-  sub: { color: MUTED, fontSize: 10, letterSpacing: 3, marginTop: 8 },
-  progressBlock: {
+  sub: {
+    color: MUTED,
+    fontSize: 9,
+    letterSpacing: 4,
+    marginTop: 10,
+    paddingLeft: 4,
+  },
+  bottom: {
     position: 'absolute',
-    bottom: 70,
-    width: '60%',
+    bottom: 64,
+    left: 0,
+    right: 0,
     alignItems: 'center',
   },
-  track: {
-    width: '100%',
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#3A3733',
-    overflow: 'hidden',
-  },
-  fill: { height: 2, backgroundColor: ACCENT },
   count: {
-    color: MUTED,
-    fontSize: 14,
+    color: TEXT,
+    fontSize: 34,
+    fontWeight: '200',
     letterSpacing: 2,
-    marginTop: 14,
     fontVariant: ['tabular-nums'],
   },
-  spinner: { marginTop: 14 },
+  track: {
+    width: 120,
+    height: 1,
+    backgroundColor: TRACK,
+    marginTop: 14,
+    overflow: 'hidden',
+  },
+  fill: { height: 1, backgroundColor: GOLD },
+  spinner: { marginTop: 18 },
 });
