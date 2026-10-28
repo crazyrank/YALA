@@ -176,6 +176,11 @@ export default function MainTabs() {
       <Tab.Screen
         name="MoreTab"
         component={MoreStack}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('MoreTab', { screen: 'MoreHome' });
+          },
+        })}
         options={{
           headerShown: false,
           title: 'More',
