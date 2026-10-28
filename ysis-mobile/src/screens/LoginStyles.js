@@ -59,7 +59,7 @@ export const createLoginStyles = (colors) => StyleSheet.create({
   },
 
   sloganText: {
-    color: colors.gold,
+    color: colors.mode === 'dark' ? '#FFFFFF' : colors.textPrimary,
     fontSize: 13,
     fontStyle: 'italic',
     lineHeight: 19,
