@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import StudentsListScreen from '../screens/StudentsListScreen';
@@ -178,7 +178,19 @@ export default function MainTabs() {
         component={MoreStack}
         listeners={({ navigation }) => ({
           tabPress: () => {
-            navigation.navigate('MoreTab', { screen: 'MoreHome' });
+            // Always land on the More menu. If a sub-screen (School Website,
+            // Result Portal, Import...) was opened from elsewhere, clear it.
+            const moreRoute = navigation.getState().routes.find((r) => r.name === 'MoreTab');
+            const nested = moreRoute && moreRoute.state;
+            if (nested && nested.key) {
+              const onMenuOnly = nested.routes.length === 1 && nested.routes[0].name === 'MoreHome';
+              if (!onMenuOnly) {
+                navigation.dispatch({
+                  ...CommonActions.reset({ index: 0, routes: [{ name: 'MoreHome' }] }),
+                  target: nested.key,
+                });
+              }
+            }
           },
         })}
         options={{
