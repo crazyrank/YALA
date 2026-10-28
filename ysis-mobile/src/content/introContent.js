@@ -12,6 +12,12 @@ export const PROPRIETOR = {
   image: require('../../assets/proprietor.png'),
 };
 
+export const PRINCIPAL = {
+  name: 'Manuwa Peteinu Daniel',
+  title: 'Principal, Yalamatrix Schools',
+  image: require('../../assets/yala-principal-manuwa-peteinu-daniel.png'),
+};
+
 export const SLOGAN =
   'My parents walk so that I can run, and I am running so that my children can fly.';
 
@@ -83,7 +89,7 @@ export const CORE_VALUES = [
 
 export const CREATOR = {
   name: 'Samuel Sunday Rankin',
-  image: require('../../assets/samuel-sunday-rankin.png'),
+  image: require('../../assets/samuel-red-suit.jpg'),
   lines: [
     'B.Sc. Chemistry, University of Uyo  |  Software Developer',
     'NYSC Serving Corps Member',

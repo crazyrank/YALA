@@ -20,6 +20,7 @@ import {
   CREATOR,
   DECLARATION,
   SLOGAN,
+  PRINCIPAL,
   PROPRIETOR,
   SCHOOL,
 } from '../content/introContent';
@@ -35,7 +36,7 @@ const TEXT = '#F4F1EA';
 const TEXT_SOFT = '#D9E0EC';
 const MUTED = '#9FB0C8';
 
-const PAGE_COUNT = 4;
+const PAGE_COUNT = 5;
 const PAD = 24;
 const HERO_HEIGHT = Math.round(SCREEN_H * 0.5);
 const CHAR_MS = 38;
@@ -220,13 +221,13 @@ export default function IntroScreen({ navigation, route }) {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
 
-      {page !== 0 && (
+      {page > 1 && (
       <View style={styles.topBar}>
         <View>
           <Text style={styles.brand}>YSIS</Text>
           <Text style={styles.brandSub}>STUDENT INFORMATION SYSTEM</Text>
         </View>
-        {page !== 1 && (
+        {page !== 2 && (
         <Pressable
           onPress={finish}
           style={styles.skip}
@@ -241,9 +242,10 @@ export default function IntroScreen({ navigation, route }) {
       <View style={styles.body}>
         <Enter key={page} style={styles.fill}>
           {page === 0 && <WelcomePage />}
-          {page === 1 && <TranslationPage onFinished={next} />}
-          {page === 2 && <MantraPage onFinished={next} />}
-          {page === 3 && <CreatorPage />}
+          {page === 1 && <PrincipalPage />}
+          {page === 2 && <TranslationPage onFinished={next} />}
+          {page === 3 && <MantraPage onFinished={next} />}
+          {page === 4 && <CreatorPage />}
         </Enter>
       </View>
 
@@ -256,7 +258,7 @@ export default function IntroScreen({ navigation, route }) {
             />
           ))}
         </View>
-        {page !== 1 && (
+        {page !== 2 && (
         <Pressable
           onPress={next}
           style={styles.nextButton}
@@ -340,7 +342,39 @@ function WelcomePage() {
   );
 }
 
-/* Page 2: English types out and is narrated. The screen moves on by itself. */
+/* Page 2: the Principal. Same photo treatment as page 1, name and title only. */
+function PrincipalPage() {
+  const src = Image.resolveAssetSource(PRINCIPAL.image);
+  const photoW = SCREEN_W * 1.15;
+  const photoH =
+    src && src.width ? photoW * (src.height / src.width) : photoW * 1.04;
+
+  return (
+    <View style={styles.fill}>
+      <View style={styles.heroBox}>
+        <Image
+          source={PRINCIPAL.image}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            top: 6,
+            left: (SCREEN_W - photoW) / 2,
+            width: photoW,
+            height: photoH,
+          }}
+        />
+        <Fade style={styles.fadeBottom} />
+      </View>
+
+      <View style={styles.welcomeText}>
+        <Text style={styles.name}>{PRINCIPAL.name}</Text>
+        <Text style={styles.muted}>{PRINCIPAL.title}</Text>
+      </View>
+    </View>
+  );
+}
+
+/* Page 3: English types out and is narrated. The screen moves on by itself. */
 const PAUSE_AFTER_MS = 3000;
 const START_FALLBACK_MS = 2000;
 
