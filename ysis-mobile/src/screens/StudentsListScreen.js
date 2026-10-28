@@ -522,9 +522,16 @@ export default function StudentsListScreen({ navigation, route }) {
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
                         <Ionicons name="document-text-outline" size={16} color={colors.goldDark} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Result Portal</Text>
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>External Results Checker</Text>
                       </Squish>
                     )}
+                    <Squish
+                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
+                      onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
+                    >
+                      <Ionicons name="globe-outline" size={16} color={colors.goldDark} />
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
+                    </Squish>
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
                         <Ionicons name="cloud-upload-outline" size={16} color={colors.inkSoft} />
