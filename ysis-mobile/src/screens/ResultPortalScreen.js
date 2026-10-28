@@ -87,7 +87,7 @@ export default function ResultPortalScreen({ navigation }) {
             <Ionicons name="arrow-back" size={22} color={colors.textInverse} />
           </Pressable>
           <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Student Results</Text>
+            <Text style={styles.headerTitle}>Check Student Results</Text>
           </View>
           <View style={styles.headerBtn} />
         </View>
@@ -95,7 +95,7 @@ export default function ResultPortalScreen({ navigation }) {
           <Ionicons name="lock-closed-outline" size={40} color={colors.textMuted} />
           <Text style={styles.deniedTitle}>Access restricted</Text>
           <Text style={styles.deniedBody}>
-            Only the Director, Principal, and Head Teachers can open the Student Results.
+            Only the Director, Principal, and Head Teachers can open the Check Student Results.
           </Text>
           <Pressable onPress={() => navigation.goBack()} style={styles.retryBtn}>
             <Text style={styles.retryText}>Go back</Text>
@@ -120,10 +120,10 @@ export default function ResultPortalScreen({ navigation }) {
 
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            Student Results
+            Check Student Results
           </Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            External Results Checker
+            Access student results through the external results system
           </Text>
         </View>
 

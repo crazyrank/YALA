@@ -522,7 +522,7 @@ export default function StudentsListScreen({ navigation, route }) {
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
                         <Ionicons name="document-text-outline" size={16} color={colors.goldDark} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>External Results Checker</Text>
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
                       </Squish>
                     )}
                     <Squish
