@@ -14,8 +14,8 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 
-const SCHOOL_URL = 'https://www.yalamatrixschools.org';
-const ALLOWED_HOST = 'www.yalamatrixschools.org';
+const SCHOOL_URL = 'https://www.yalamatrixschools.com';
+const ALLOWED_HOST = 'www.yalamatrixschools.com';
 
 function isAllowedUrl(url) {
   try {
@@ -23,7 +23,7 @@ function isAllowedUrl(url) {
     return (
       parsed.protocol === 'https:' &&
       (parsed.hostname === ALLOWED_HOST ||
-        parsed.hostname === 'yalamatrixschools.org')
+        parsed.hostname === 'yalamatrixschools.com')
     );
   } catch {
     return false;
