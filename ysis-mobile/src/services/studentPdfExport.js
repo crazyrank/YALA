@@ -219,14 +219,13 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
     <div class="header-text">
       <div class="school-name">${escapeHtml(SCHOOL.name)}</div>
       <div class="tagline">${escapeHtml(SCHOOL.tagline)}</div>
+      <div class="contact">
+        ${escapeHtml(SCHOOL.address)}<br/>
+        Tel: ${escapeHtml(SCHOOL.tel)} &nbsp;|&nbsp;
+        Email: ${escapeHtml(SCHOOL.email)}<br/>
+        ${escapeHtml(SCHOOL.website)}
+      </div>
     </div>
-  </div>
-
-  <div class="contact">
-    ${escapeHtml(SCHOOL.address)}<br/>
-    Tel: ${escapeHtml(SCHOOL.tel)} &nbsp;|&nbsp;
-    Email: ${escapeHtml(SCHOOL.email)} &nbsp;|&nbsp;
-    ${escapeHtml(SCHOOL.website)}
   </div>
 
   <hr class="line" />
