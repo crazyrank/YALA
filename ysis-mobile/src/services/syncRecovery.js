@@ -11,9 +11,26 @@ const SAME_ID_CODES = ['NO_RESULT'];
 // return that old failure, so a fresh ID is used for the retry.
 const NEW_ID_CODES = ['PROCESSING_ERROR', 'PHOTO_UPLOAD_FAILED'];
 
+const FRIENDLY_MESSAGES = {
+  NOT_FOUND: 'This student is no longer on the server, so this change cannot be saved.',
+  FORBIDDEN: 'You do not have permission to make this change.',
+  NO_RESULT: 'The server did not finish this change.',
+  PROCESSING_ERROR: 'The server could not process this change.',
+  PHOTO_UPLOAD_FAILED: 'The photo could not be uploaded.',
+  CREATE_STUDENT_FAILED: 'This record could not be saved to the server.',
+  REQUEST_FAILED: 'The request to the server failed.',
+  ADMISSION_NUMBER_COLLISION: 'Another student already has this admission number.',
+};
+
+function describeFailure(code, message) {
+  if (message && message !== code) return message;
+  return FRIENDLY_MESSAGES[code] || 'This change could not be saved.';
+}
+
 /**
  * Read-only. Lists operations parked on this device, with the reason for
  * each, and whether a retry is safe without a human looking at it first.
+ * Identical failures for the same student and action are shown once.
  */
 export async function getParkedOperations() {
   const db = await getDb();
@@ -26,10 +43,56 @@ export async function getParkedOperations() {
      WHERE so.status IN ('failed', 'conflicted')
      ORDER BY so.last_attempt_at DESC`
   );
-  return rows.map((r) => ({
-    ...r,
-    retryable: SAME_ID_CODES.includes(r.error_code) || NEW_ID_CODES.includes(r.error_code),
-  }));
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = `${r.op_type}|${r.entity_id}|${r.error_code || ''}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.operation_ids.push(r.operation_id);
+      existing.duplicates += 1;
+    } else {
+      groups.set(key, {
+        ...r,
+        operation_ids: [r.operation_id],
+        duplicates: 1,
+        reason: describeFailure(r.error_code, r.error_message),
+        retryable: SAME_ID_CODES.includes(r.error_code) || NEW_ID_CODES.includes(r.error_code),
+      });
+    }
+  }
+  return Array.from(groups.values());
+}
+
+/**
+ * Removes parked changes the person chose to give up on. Only rows that are
+ * already failed or conflicted can be removed.
+ */
+export async function discardParkedOperations(operationIds) {
+  if (!Array.isArray(operationIds) || operationIds.length === 0) return 0;
+  const db = await getDb();
+  const marks = operationIds.map(() => '?').join(', ');
+  const res = await db.runAsync(
+    `DELETE FROM sync_operations
+     WHERE operation_id IN (${marks}) AND status IN ('failed', 'conflicted')`,
+    operationIds
+  );
+  triggerSync();
+  return res?.changes || 0;
+}
+
+/**
+ * Removes every parked change whose student no longer exists on the server.
+ * These can never succeed.
+ */
+export async function discardMissingRecordOperations() {
+  const db = await getDb();
+  const res = await db.runAsync(
+    `DELETE FROM sync_operations
+     WHERE status IN ('failed', 'conflicted') AND error_code = 'NOT_FOUND'`
+  );
+  triggerSync();
+  return res?.changes || 0;
 }
 
 /**

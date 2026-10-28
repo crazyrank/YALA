@@ -1,9 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
-import { getParkedOperations, requeueTransientFailures } from '../services/syncRecovery';
+import {
+  getParkedOperations,
+  requeueTransientFailures,
+  discardParkedOperations,
+  discardMissingRecordOperations,
+} from '../services/syncRecovery';
 
 const OP_LABELS = {
   create_student: 'New student',
@@ -15,11 +19,10 @@ const OP_LABELS = {
 /**
  * Lists changes this device could not save to the server, with the reason
  * for each. Retry resends only the ones that can succeed without a change.
- * Everything else needs the record corrected first.
+ * Anything that can never succeed can be discarded.
  */
 export default function ParkedOperationsScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [items, setItems] = useState([]);
@@ -51,7 +54,59 @@ export default function ParkedOperationsScreen() {
     }
   };
 
+  const confirmDiscard = (item) => {
+    Alert.alert(
+      'Discard this change?',
+      'It will be removed from this device and will not be sent to the server.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await discardParkedOperations(item.operation_ids);
+              await load();
+            } catch (err) {
+              Alert.alert('Could not discard', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const missingCount = items.filter((i) => i.error_code === 'NOT_FOUND').length;
+
+  const confirmDiscardMissing = () => {
+    Alert.alert(
+      'Discard missing-record changes?',
+      `${missingCount} change(s) belong to students that are no longer on the server. They can never be saved.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard all',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await discardMissingRecordOperations();
+              await load();
+            } catch (err) {
+              Alert.alert('Could not discard', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const retryableCount = items.filter((i) => i.retryable).length;
+
+  const tagLabel = (item) => {
+    if (item.retryable) return 'Can be retried';
+    if (item.error_code === 'NOT_FOUND') return 'Missing on server';
+    return 'Needs a correction';
+  };
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -59,17 +114,24 @@ export default function ParkedOperationsScreen() {
       <Text style={styles.meta}>
         {OP_LABELS[item.op_type] || item.op_type}
         {item.admission_no ? `  ${item.admission_no}` : ''}
+        {item.duplicates > 1 ? `  (x${item.duplicates})` : ''}
       </Text>
-      <Text style={styles.reason}>{item.error_message || item.error_code || 'No reason recorded'}</Text>
-      <Text style={item.retryable ? styles.tagRetry : styles.tagFix}>
-        {item.retryable ? 'Can be retried' : 'Needs a correction'}
-      </Text>
+      <Text style={styles.reason}>{item.reason}</Text>
+      <View style={styles.cardFooter}>
+        <Text style={item.retryable ? styles.tagRetry : styles.tagFix}>{tagLabel(item)}</Text>
+        <Pressable
+          onPress={() => confirmDiscard(item)}
+          hitSlop={8}
+          accessibilityRole="button"
+        >
+          <Text style={styles.discard}>Discard</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
-      <Text style={styles.title}>Changes not saved</Text>
+    <View style={styles.container}>
       <Text style={styles.sub}>
         {items.length === 0
           ? 'Everything on this device has reached the server.'
@@ -89,9 +151,21 @@ export default function ParkedOperationsScreen() {
         </Pressable>
       )}
 
+      {missingCount > 0 && (
+        <Pressable
+          onPress={confirmDiscardMissing}
+          accessibilityRole="button"
+          style={styles.buttonOutline}
+        >
+          <Text style={styles.buttonOutlineText}>
+            {`Discard ${missingCount} missing-record change(s)`}
+          </Text>
+        </Pressable>
+      )}
+
       <FlatList
         data={items}
-        keyExtractor={(item) => item.operation_id}
+        keyExtractor={(item) => item.operation_ids[0]}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         refreshing={busy}
@@ -103,18 +177,26 @@ export default function ParkedOperationsScreen() {
 
 function createStyles(colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20 },
-    title: { fontSize: 24, fontWeight: '800', color: colors.textPrimary },
-    sub: { fontSize: 14, color: colors.textSecondary, marginTop: 4, marginBottom: 16 },
+    container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 16 },
+    sub: { fontSize: 14, color: colors.textSecondary, marginBottom: 16 },
     button: {
       backgroundColor: colors.gold,
       borderRadius: 14,
       paddingVertical: 14,
       alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 12,
     },
     buttonDisabled: { opacity: 0.6 },
     buttonText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+    buttonOutline: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.warning,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    buttonOutlineText: { color: colors.warning, fontSize: 14, fontWeight: '700' },
     list: { paddingBottom: 40, gap: 12 },
     card: {
       backgroundColor: colors.surface,
@@ -126,7 +208,14 @@ function createStyles(colors) {
     name: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
     meta: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
     reason: { fontSize: 13, color: colors.textPrimary, marginTop: 8 },
-    tagRetry: { fontSize: 12, fontWeight: '700', color: colors.success, marginTop: 8 },
-    tagFix: { fontSize: 12, fontWeight: '700', color: colors.warning, marginTop: 8 },
+    cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    tagRetry: { fontSize: 12, fontWeight: '700', color: colors.success },
+    tagFix: { fontSize: 12, fontWeight: '700', color: colors.warning },
+    discard: { fontSize: 13, fontWeight: '700', color: colors.error },
   });
 }

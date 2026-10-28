@@ -119,87 +119,12 @@ function Enter({ children, style }) {
   );
 }
 
-/* ---------- Loading splash ---------- */
-
-const SPLASH_MS = 3200;
-
-function SplashLoader({ onDone }) {
-  const [count, setCount] = useState(0);
-  const progress = useRef(new Animated.Value(0)).current;
-  const reveal = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Warm up the speech engine now, so the first sentence starts on time.
-    Speech.getAvailableVoicesAsync().catch(() => {});
-
-    Animated.timing(reveal, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: SPLASH_MS,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    }).start();
-
-    let n = 0;
-    const timer = setInterval(() => {
-      n += 1;
-      setCount(n);
-      if (n >= 100) {
-        clearInterval(timer);
-        setTimeout(onDone, 500);
-      }
-    }, SPLASH_MS / 100);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const fillWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
-  return (
-    <SafeAreaView style={styles.splash}>
-      <StatusBar barStyle="light-content" backgroundColor={BG} />
-      <Animated.View style={[styles.splashInner, { opacity: reveal }]}>
-        <View style={styles.logoPlate}>
-          <Image
-            source={YALA_LOGO}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        </View>
-
-        <Text style={styles.splashBrand}>YSIS</Text>
-        <Text style={styles.splashSub}>STUDENT INFORMATION SYSTEM</Text>
-
-        <View style={styles.progressBlock}>
-          <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, { width: fillWidth }]} />
-          </View>
-          <Text style={styles.splashCount}>{count}</Text>
-        </View>
-      </Animated.View>
-    </SafeAreaView>
-  );
-}
-
 /* ---------- Main onboarding flow ---------- */
 
 export default function IntroScreen({ navigation, route }) {
   const { finishOnboarding } = useAuth();
   const isReplay = Boolean(route?.params?.replay);
-  const [booted, setBooted] = useState(isReplay);
   const [page, setPage] = useState(0);
-
-  if (!booted) {
-    return <SplashLoader onDone={() => setBooted(true)} />;
-  }
 
   const finish = () => {
     if (isReplay) {

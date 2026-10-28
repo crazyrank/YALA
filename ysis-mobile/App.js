@@ -1,21 +1,20 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import CountingSplash from './src/components/CountingSplash';
 import { getDb } from './src/db';
 import { startAutoSyncListener, triggerSync } from './src/services/syncEngine';
 import { useAppFonts } from './src/theme';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
-// Hide the native logo splash on the first frame. The app's own loader
-// (SplashLoader in IntroScreen) is the only splash the user sees.
+// Hide the native splash on the first frame. The dark counting screen
+// (CountingSplash) is the only loading screen the user sees.
 SplashScreen.preventAutoHideAsync().catch(() => {});
-
-const LOADING_BG = '#0E1A2B';
 
 if (global.ErrorUtils) {
   const defaultHandler = global.ErrorUtils.getGlobalHandler();
@@ -42,6 +41,7 @@ function AppInner() {
   const { fontsLoaded, fontError } = useAppFonts();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     let unsubscribe;
@@ -67,8 +67,11 @@ function AppInner() {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
-  if (!appReady) {
-    return <View style={{ flex: 1, backgroundColor: LOADING_BG }} onLayout={hideNativeSplash} />;
+  const handleSplashDone = useCallback(() => setSplashDone(true), []);
+
+  // Dark 1-100 counter shows on every launch, and waits for the app to be ready.
+  if (!appReady || !splashDone) {
+    return <CountingSplash onDone={handleSplashDone} onLayout={hideNativeSplash} />;
   }
 
   if (fontError) {
