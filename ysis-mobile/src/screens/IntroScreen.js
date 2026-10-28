@@ -204,7 +204,7 @@ export default function IntroScreen({ navigation, route }) {
     if (isReplay) {
       navigation.goBack();
     } else {
-      finishOnboarding();
+      navigation.navigate('Policy', { onContinue: finishOnboarding });
     }
   };
 

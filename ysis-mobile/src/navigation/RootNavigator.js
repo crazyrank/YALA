@@ -4,7 +4,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import Skeleton, { SkeletonStudentRow, SkeletonStatCard } from '../components/Skeleton';
-
 import LoginScreen from '../screens/LoginScreen';
 import IntroScreen from '../screens/IntroScreen';
 import UnlockScreen from '../screens/UnlockScreen';
@@ -17,6 +16,7 @@ import CreateAccountScreen from '../screens/CreateAccountScreen';
 import ManageStaffScreen from '../screens/ManageStaffScreen';
 import PromoteClassScreen from '../screens/PromoteClassScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
+import PolicyScreen from '../screens/PolicyScreen';
 import MainTabs from './MainTabs';
 import ParkedOperationsScreen from '../screens/ParkedOperationsScreen';
 
@@ -67,7 +67,6 @@ const bootStyles = StyleSheet.create({
 
 export default function RootNavigator() {
   const { status } = useAuth();
-
   if (status === 'loading') return <AuthBootstrapSkeleton />;
 
   return (
@@ -187,6 +186,14 @@ export default function RootNavigator() {
             />
           </>
         )}
+
+        {/* Registered for every status so onboarding can open it too. */}
+        <Stack.Screen
+          name="Policy"
+          component={PolicyScreen}
+          options={{ headerShown: false }}
+        />
+
         <Stack.Screen
           name="ParkedOperations"
           component={ParkedOperationsScreen}
