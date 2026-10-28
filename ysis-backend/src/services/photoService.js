@@ -81,7 +81,7 @@ async function uploadStudentPhoto({
       );
     }
 
-    const publicId = `student-\( {studentId}- \){Date.now()}`;
+    const publicId = `student-${studentId}-${Date.now()}`;
     const secureUrl = await uploadBase64Image(imageBase64, publicId);
 
     const { rows } = await client.query(
@@ -105,7 +105,7 @@ async function uploadStudentPhoto({
 }
 
 async function uploadDirectoryPhoto(imageBase64, entryId) {
-  const publicId = `directory-\( {entryId}- \){Date.now()}`;
+  const publicId = `directory-${entryId}-${Date.now()}`;
   return uploadBase64Image(imageBase64, publicId);
 }
 
