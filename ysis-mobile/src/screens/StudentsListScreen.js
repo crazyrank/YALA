@@ -504,22 +504,16 @@ export default function StudentsListScreen({ navigation, route }) {
                     </View>
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
-                  <View style={styles.actionRow}>
-                    <Squish style={[styles.primaryAction, { backgroundColor: colors.ink }]} onPress={() => navigation.navigate('RegisterStudent')}>
-                      <Ionicons name="person-add" size={18} color={colors.gold} />
-                      <Text style={styles.primaryActionText}>Register Student</Text>
-                    </Squish>
-                  </View>
                   <View style={styles.secondaryRow}>
-                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('ClassesTab')}>
-                      <Ionicons name="school-outline" size={16} color={colors.inkSoft} />
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Classes</Text>
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
+                      <Ionicons name="person-add-outline" size={26} color={colors.inkSoft} />
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
                     </Squish>
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download-outline" size={16} color={colors.goldDark} />
+                        <Ionicons name="download-outline" size={26} color={colors.goldDark} />
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>
@@ -528,7 +522,7 @@ export default function StudentsListScreen({ navigation, route }) {
                         style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
-                        <Ionicons name="document-text-outline" size={16} color={colors.goldDark} />
+                        <Ionicons name="document-text-outline" size={26} color={colors.goldDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
                       </Squish>
                     )}
@@ -536,24 +530,24 @@ export default function StudentsListScreen({ navigation, route }) {
                       style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
                       onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
                     >
-                      <Ionicons name="globe-outline" size={16} color={colors.goldDark} />
+                      <Ionicons name="globe-outline" size={26} color={colors.goldDark} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
                     </Squish>
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
-                        <Ionicons name="cloud-upload-outline" size={16} color={colors.inkSoft} />
+                        <Ionicons name="cloud-upload-outline" size={26} color={colors.inkSoft} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
                       </Squish>
                     )}
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('PromoteClass')}>
-                        <Ionicons name="arrow-up-circle-outline" size={16} color={colors.goldDark} />
+                        <Ionicons name="arrow-up-circle-outline" size={26} color={colors.goldDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Promote class</Text>
                       </Squish>
                     )}
                     {isAdmin && pendingDevices > 0 && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.warning }]} onPress={() => navigation.navigate('MoreTab', { screen: 'DeviceReview' })}>
-                        <Ionicons name="phone-portrait-outline" size={16} color={colors.warning} />
+                        <Ionicons name="phone-portrait-outline" size={26} color={colors.warning} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Approve devices</Text>
                         <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
                           <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
@@ -855,22 +849,26 @@ const styles = StyleSheet.create({
   },
   secondaryAction: {
     width: '48%',
-    height: 48,
+    height: 92,
     marginBottom: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.raised,
   },
   secondaryActionText: {
-    fontFamily: fontFamily.bodySemibold,
-    fontSize: 13,
-    marginLeft: 8,
+    fontFamily: fontFamily.heading,
+    fontSize: 15,
+    marginTop: 8,
+    textAlign: 'center',
   },
   actionBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 8,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
