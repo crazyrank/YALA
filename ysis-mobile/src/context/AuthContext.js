@@ -1,7 +1,8 @@
 import { registerInBackground } from '../services/pushNotifications';
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { clearPortalLogins } from '../services/portalAccess';
+import { setSessionEndedHandler } from '../api/client';
 import {
   loginOnline,
   hasCompletedFirstLogin,
@@ -32,6 +33,21 @@ async function withLocalPhoto(user) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState('loading');
+  const userRef = useRef(null);
+  userRef.current = user;
+
+  // The server ended the session (refresh refused): sign out at once and remove the
+  // saved results-portal login from this phone.
+  useEffect(() => {
+    setSessionEndedHandler(async () => {
+      const current = userRef.current;
+      if (!current) return;
+      await clearPortalLogins(current.id);
+      setUser(null);
+      setStatus('needsFirstLogin');
+    });
+    return () => setSessionEndedHandler(null);
+  }, []);
 
   const resolvePostOnboardingStatus = useCallback(async () => {
     const completed = await hasCompletedFirstLogin();

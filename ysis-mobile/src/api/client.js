@@ -5,6 +5,13 @@ const ACCESS_TOKEN_KEY = 'ysis_access_token';
 const REFRESH_TOKEN_KEY = 'ysis_refresh_token';
 const DEFAULT_TIMEOUT_MS = 25000;
 
+// Set by AuthContext. Called when the server refuses the refresh token, meaning the session has ended.
+let onSessionEnded = null;
+
+export function setSessionEndedHandler(handler) {
+  onSessionEnded = handler;
+}
+
 export async function getAccessToken() {
   return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 }
@@ -99,6 +106,7 @@ async function tryRefresh() {
     if (!res.ok) {
       await setAccessToken(null);
       await setRefreshToken(null);
+      if (onSessionEnded) onSessionEnded();
       return false;
     }
     const body = await res.json();
