@@ -1,6 +1,7 @@
 import { registerInBackground } from '../services/pushNotifications';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { clearPortalLogins } from '../services/portalAccess';
 import {
   loginOnline,
   hasCompletedFirstLogin,
@@ -103,6 +104,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await clearPortalLogins(user?.id);
     await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');
@@ -111,6 +113,7 @@ export function AuthProvider({ children }) {
   // After a forced password change the old session is invalid on the server,
   // so clear it and make the user sign in again.
   const completePasswordChange = useCallback(async () => {
+    await clearPortalLogins(user?.id);
     await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');

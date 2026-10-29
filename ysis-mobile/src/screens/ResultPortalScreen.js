@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
+import { portalLoginKey } from '../services/portalAccess';
 import WebPageScreen from './WebPageScreen';
 
 const RESULTS_PAGE = {
@@ -15,9 +17,18 @@ export function canAccessResultPortal(role) {
   return ALLOWED_ROLES.has(role);
 }
 
+// Records an event on the server audit trail. Failure here must not block the page.
+function recordEvent(event) {
+  api.post('/results-portal/access', { event }).catch(() => {});
+}
+
 export default function ResultPortalScreen({ navigation }) {
   const { user } = useAuth();
   const allowed = canAccessResultPortal(user?.role);
+
+  useEffect(() => {
+    if (allowed) recordEvent('open');
+  }, [allowed]);
 
   return (
     <WebPageScreen
@@ -29,8 +40,9 @@ export default function ResultPortalScreen({ navigation }) {
           deniedMessage:
             'Only the Director, Principal, and Head Teachers can open the Check Student Results.',
           // One saved login per staff account on this phone.
-          credentialsKey: user?.id ? `portal-login-${user.id}` : null,
+          credentialsKey: user?.id ? portalLoginKey(user.id) : null,
           autoLogin: true,
+          onAutoLogin: () => recordEvent('autologin'),
         },
       }}
     />

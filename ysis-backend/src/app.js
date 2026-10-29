@@ -20,6 +20,7 @@ const notificationsRoutes = require('./routes/notifications.routes');
 const devicesRoutes = require('./routes/devices.routes');
 const directoryRoutes = require('./routes/directory.routes');
 const loginBlocksRoutes = require('./routes/loginBlocks.routes');
+const resultsPortalRoutes = require('./routes/resultsPortal.routes');
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/push', pushRoutes);
 app.use('/users', offboardRoutes);
 app.use('/directory', directoryRoutes);
 app.use('/login-blocks', loginBlocksRoutes);
+app.use('/results-portal', resultsPortalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'That endpoint does not exist.' } });

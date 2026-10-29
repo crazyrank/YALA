@@ -17,6 +17,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { spacing } from '../theme/spacing';
+import { confirmIdentity } from '../services/portalAccess';
 
 /**
  * One reusable web page screen. Open any page from a stack with:
@@ -156,6 +157,7 @@ export default function WebPageScreen({ navigation, route }) {
   const deniedMessage = params.deniedMessage || 'This page is not available.';
   const credentialsKey = params.credentialsKey || null;
   const autoLogin = !!params.autoLogin;
+  const onAutoLogin = typeof params.onAutoLogin === 'function' ? params.onAutoLogin : null;
 
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -193,12 +195,18 @@ export default function WebPageScreen({ navigation, route }) {
       .finally(() => setCredsLoaded(true));
   }, [credentialsKey]);
 
-  const runAutoLogin = () => {
+  const runAutoLogin = async () => {
     if (!autoLogin || !credentialsKey || !credsRef.current || !webRef.current) return;
-    // One automatic attempt per visit. A wrong saved password never causes repeat attempts.
+    // One attempt per visit. A failed check or wrong password never causes repeat attempts.
     if (autoAttemptsRef.current >= 1) return;
     autoAttemptsRef.current += 1;
-    webRef.current.injectJavaScript(fillScript(credsRef.current, true));
+
+    // The saved login is sent only after the person confirms with fingerprint, face or PIN.
+    const confirmed = await confirmIdentity('Confirm it is you to open the results');
+    if (!confirmed) return;
+
+    if (onAutoLogin) onAutoLogin();
+    webRef.current?.injectJavaScript(fillScript(credsRef.current, true));
   };
 
   const onMessage = (event) => {
