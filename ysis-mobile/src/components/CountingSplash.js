@@ -18,14 +18,44 @@ const GOLD = '#C9A24B';
 const TEXT = '#F4F1EA';
 const MUTED = '#8FA0BA';
 const TRACK = 'rgba(255,255,255,0.12)';
+const BAR = 'rgba(255,255,255,0.14)';
 const TOTAL_MS = 3200;
 
-// Same size and position as the native splash logo, so the hand-off is seamless.
 const CARD_W = 150;
 const CARD_H = 132;
 const CARD_RADIUS = 13;
 const LOGO_W = 131;
 const LOGO_H = 113;
+
+// One pulsing placeholder line. Kept local so the splash never depends on the app theme.
+function SkeletonBar({ width, delay = 0 }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, delay]);
+
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
+  return <Animated.View style={[styles.bar, { width, opacity }]} />;
+}
 
 export default function CountingSplash({ onDone, onLayout }) {
   const [count, setCount] = useState(1);
@@ -78,42 +108,48 @@ export default function CountingSplash({ onDone, onLayout }) {
     outputRange: ['0%', '100%'],
   });
 
+  // One centred column: logo, name, then progress. No absolute positioning, so the
+  // logo always stays with the title and the counter on every screen size.
   return (
     <View style={styles.root} onLayout={onLayout}>
       <StatusBar barStyle="light-content" backgroundColor={BG} />
 
-      {/* Logo sits at the exact centre, shown instantly. */}
-      <View style={styles.center} pointerEvents="none">
+      <View style={styles.content}>
         <View style={styles.card}>
           <Image source={LOGO} style={styles.logo} resizeMode="contain" />
         </View>
+
+        <Animated.View style={[styles.brandBlock, { opacity: reveal }]}>
+          <View style={styles.hairline} />
+          <Text style={styles.brand}>YSIS</Text>
+          <Text style={styles.sub}>STUDENT INFORMATION SYSTEM</Text>
+        </Animated.View>
+
+        <Animated.View style={[styles.loadBlock, { opacity: reveal }]}>
+          <Text style={styles.count}>{count}</Text>
+          <View style={styles.track}>
+            <Animated.View style={[styles.fill, { width: fillWidth }]} />
+          </View>
+          <ActivityIndicator size="small" color={GOLD} style={styles.spinner} />
+          <Text style={styles.message}>Please wait while the app gets ready</Text>
+          <View style={styles.skeleton}>
+            <SkeletonBar width={150} />
+            <SkeletonBar width={110} delay={150} />
+            <SkeletonBar width={130} delay={300} />
+          </View>
+        </Animated.View>
       </View>
-
-      {/* Brand text sits just below the logo. */}
-      <Animated.View style={[styles.brandBlock, { opacity: reveal }]}>
-        <View style={styles.hairline} />
-        <Text style={styles.brand}>YSIS</Text>
-        <Text style={styles.sub}>STUDENT INFORMATION SYSTEM</Text>
-      </Animated.View>
-
-      {/* Counter and spinner at the bottom. */}
-      <Animated.View style={[styles.bottom, { opacity: reveal }]}>
-        <Text style={styles.count}>{count}</Text>
-        <View style={styles.track}>
-          <Animated.View style={[styles.fill, { width: fillWidth }]} />
-        </View>
-        <ActivityIndicator size="small" color={GOLD} style={styles.spinner} />
-      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  center: {
-    ...StyleSheet.absoluteFillObject,
+  content: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   card: {
     width: CARD_W,
@@ -125,18 +161,14 @@ const styles = StyleSheet.create({
   },
   logo: { width: LOGO_W, height: LOGO_H },
   brandBlock: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    marginTop: CARD_H / 2 + 36,
     alignItems: 'center',
+    marginTop: 22,
   },
   hairline: {
     width: 28,
     height: 1,
     backgroundColor: GOLD,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   brand: {
     fontFamily: 'serif',
@@ -153,27 +185,37 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingLeft: 4,
   },
-  bottom: {
-    position: 'absolute',
-    bottom: 64,
-    left: 0,
-    right: 0,
+  loadBlock: {
     alignItems: 'center',
+    marginTop: 44,
   },
   count: {
     color: TEXT,
-    fontSize: 34,
-    fontWeight: '200',
-    letterSpacing: 2,
+    fontSize: 18,
+    fontWeight: '300',
+    letterSpacing: 1,
     fontVariant: ['tabular-nums'],
   },
   track: {
     width: 120,
     height: 1,
     backgroundColor: TRACK,
-    marginTop: 14,
+    marginTop: 10,
     overflow: 'hidden',
   },
   fill: { height: 1, backgroundColor: GOLD },
-  spinner: { marginTop: 18 },
+  spinner: { marginTop: 16 },
+  message: {
+    color: MUTED,
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  skeleton: { marginTop: 14, alignItems: 'center' },
+  bar: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: BAR,
+    marginTop: 8,
+  },
 });

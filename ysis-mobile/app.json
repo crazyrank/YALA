@@ -50,8 +50,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0E1A2B",
-          "image": "./assets/splash-logo.png",
-          "imageWidth": 240
+          "image": "./assets/splash-transparent.png",
+          "imageWidth": 200
         }
       ],
       "expo-sqlite",
@@ -59,9 +59,11 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "f6d3169c-7b31-4412-a54b-8685dcc811e4"
+        "projectId": "a92ff0c2-8e23-4adc-a6d8-1d573f5fb531"
       }
     },
-    "icon": "./assets/app-icon.png"
-  }
+    "icon": "./assets/app-icon.png",
+    "owner": "lonescripter"
+  },
+  "owner": "lonescripter"
 }
