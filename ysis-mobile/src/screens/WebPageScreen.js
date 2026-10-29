@@ -199,7 +199,7 @@ export default function WebPageScreen({ navigation, route }) {
               <SkeletonLine width={130} delay={150} color={colors.border} />
               <SkeletonLine width={160} delay={300} color={colors.border} />
             </View>
-            <Text style={styles.loadingText}>Please wait while the page loads</Text>
+            <Text style={styles.loadingText}>Please wait while your request is processed</Text>
           </View>
         )}
       </>
