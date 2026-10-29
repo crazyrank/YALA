@@ -9,10 +9,12 @@
  */
 
 import { normalizeStudent } from '../utils/studentRules';
+import { normalizeSession } from '../utils/academicSession';
 
 const HEADER = [
   'admission_no', 'full_name', 'division', 'class_level',
   'arm', 'guardian_name', 'guardian_phone', 'gender',
+  'date_of_birth', 'session',
 ];
 
 // Report names use the CSV column names, so staff can find the column in their file.
@@ -22,6 +24,7 @@ const API_TO_CSV = {
   classLevel: 'class_level',
   guardianName: 'guardian_name',
   guardianPhone: 'guardian_phone',
+  dateOfBirth: 'date_of_birth',
 };
 
 const MAX_ROWS = 2000;
@@ -110,31 +113,55 @@ function analyzeRecords(records) {
     }
 
     const d = rec.data;
+    const text = (x) => String(x ?? '').trim();
+    const dobRaw = text(d.date_of_birth);
+    // Staff write dates as DD/MM/YYYY. The shared rules and the database use YYYY-MM-DD.
+    const dobMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dobRaw);
+    const dobIso = dobMatch ? `${dobMatch[3]}-${dobMatch[2]}-${dobMatch[1]}` : '';
+    const gender = text(d.gender);
+    const sessionRaw = text(d.session);
+
     const result = normalizeStudent({
       admissionNo: d.admission_no,
       fullName: d.full_name,
       division: d.division,
       classLevel: d.class_level,
       arm: d.arm,
-      gender: d.gender,
+      gender,
       guardianName: d.guardian_name,
       guardianPhone: d.guardian_phone,
+      dateOfBirth: dobIso,
     });
 
+    const problems = [];
     if (!result.ok) {
       for (const message of result.errors) {
         const cut = message.indexOf(':');
         const apiName = message.slice(0, cut);
-        rejected.push({
-          row: rec.sourceRow,
-          column: API_TO_CSV[apiName] || apiName,
-          reason: message.slice(cut + 2),
-        });
+        problems.push({ column: API_TO_CSV[apiName] || apiName, reason: message.slice(cut + 2) });
       }
+    }
+
+    // Gender, date of birth and session are compulsory for imports.
+    // The shared student rules still allow them to be empty for other entry points.
+    if (gender === '') problems.push({ column: 'gender', reason: 'is required (M or F)' });
+    if (dobRaw === '') problems.push({ column: 'date_of_birth', reason: 'is required (use DD/MM/YYYY, for example 25/03/2014)' });
+    else if (!dobMatch) problems.push({ column: 'date_of_birth', reason: 'must be written as DD/MM/YYYY, for example 25/03/2014' });
+
+    let session = null;
+    if (sessionRaw === '') {
+      problems.push({ column: 'session', reason: 'is required (for example 2024/2025)' });
+    } else {
+      session = normalizeSession(sessionRaw);
+      if (!session) problems.push({ column: 'session', reason: 'is not a valid session (use the form 2024/2025)' });
+    }
+
+    if (problems.length > 0) {
+      for (const p of problems) rejected.push({ row: rec.sourceRow, column: p.column, reason: p.reason });
       continue;
     }
 
-    valid.push({ sourceRow: rec.sourceRow, value: result.value });
+    valid.push({ sourceRow: rec.sourceRow, value: { ...result.value, academicSession: session } });
   }
 
   // Every copy of a duplicate admission number is skipped. No guess is made about which is right.

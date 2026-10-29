@@ -173,8 +173,9 @@ router.post(
             await client.query(
               `INSERT INTO students
                  (id, admission_no, full_name, division, class_level, arm, gender,
+                  date_of_birth, academic_session, current_session,
                   guardian_name, guardian_phone, registered_by, registered_device_id)
-               VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+               VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
               [
                 v.admissionNo,
                 v.fullName,
@@ -182,6 +183,9 @@ router.post(
                 v.classLevel,
                 v.arm,
                 v.gender,
+                v.dateOfBirth,
+                v.academicSession,
+                v.academicSession,
                 v.guardianName,
                 v.guardianPhone,
                 req.auth.userId,

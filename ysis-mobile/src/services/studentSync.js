@@ -15,6 +15,9 @@ const THROTTLE_MS = 30 * 1000;
 const PAGE_RETRIES = 3;
 const MAX_PAGES = 500;
 const CURSOR_KEY = 'students_cursor';
+// Bump this when the pull starts carrying new fields. Each phone then pulls everyone once more.
+const PULL_FORMAT_KEY = 'students_pull_format';
+const PULL_FORMAT = '2'; // 2: adds date of birth, gender and current session
 const START_CURSOR = {
   since: '1970-01-01T00:00:00.000Z',
   afterId: '00000000-0000-0000-0000-000000000000',
@@ -55,6 +58,15 @@ async function ensureSyncStateTable(db) {
 }
 
 async function readCursor(db) {
+  const fmt = await db.getFirstAsync('SELECT value FROM sync_state WHERE key = ?', [PULL_FORMAT_KEY]);
+  if (!fmt || fmt.value !== PULL_FORMAT) {
+    const upsert =
+      `INSERT INTO sync_state (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`;
+    await db.runAsync(upsert, [CURSOR_KEY, JSON.stringify(START_CURSOR)]);
+    await db.runAsync(upsert, [PULL_FORMAT_KEY, PULL_FORMAT]);
+    return START_CURSOR;
+  }
   const row = await db.getFirstAsync(
     'SELECT value FROM sync_state WHERE key = ?',
     [CURSOR_KEY]
@@ -75,8 +87,8 @@ async function savePage(db, students, nextCursor) {
     for (const s of students) {
       await db.runAsync(
         `INSERT INTO students
-           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at, academic_session, current_session)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at, academic_session, current_session, date_of_birth, gender)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            admission_no = excluded.admission_no,
            full_name    = excluded.full_name,
@@ -87,12 +99,15 @@ async function savePage(db, students, nextCursor) {
            sync_version = excluded.sync_version,
            updated_at   = excluded.updated_at,
            academic_session = excluded.academic_session,
-           current_session  = excluded.current_session
+           current_session  = excluded.current_session,
+           date_of_birth    = COALESCE(excluded.date_of_birth, students.date_of_birth),
+           gender           = COALESCE(excluded.gender, students.gender)
          WHERE students.local_dirty = 0`,
         [
           s.id, s.admission_no, s.full_name, s.division || 'secondary',
           s.class_level, s.arm, s.status, s.sync_version, s.created_at || stamp, stamp,
           s.academic_session || null, s.current_session || s.academic_session || null,
+          s.date_of_birth || null, s.gender || null,
         ]
       );
     }

@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getDb } from '../db';
+import { isoToDob } from '../utils/dobFormat';
 
 const EXPORT_COLUMNS = [
   { key: 'admission_no', label: 'Admission No' },
@@ -37,7 +38,7 @@ function buildCsv(rows) {
   const header = EXPORT_COLUMNS.map((c) => escapeCsvValue(c.label)).join(',');
 
   const lines = rows.map((row) =>
-    EXPORT_COLUMNS.map((c) => escapeCsvValue(neutralizeFormula(row[c.key]))).join(',')
+    EXPORT_COLUMNS.map((c) => escapeCsvValue(neutralizeFormula(c.key === 'date_of_birth' ? isoToDob(row[c.key]) : row[c.key]))).join(',')
   );
 
   return [header, ...lines].join('\n');

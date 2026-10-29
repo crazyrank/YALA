@@ -25,6 +25,7 @@ import { divisionOfClass, ARMS, formatAdmissionInput } from '../utils/studentRul
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { academicSessionFor, availableSessions } from '../utils/academicSession';
+import { dobToIso, formatDobInput } from '../utils/dobFormat';
 
 export default function RegisterStudentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -94,6 +95,12 @@ export default function RegisterStudentScreen({ route, navigation }) {
       return;
     }
 
+    const dobIso = dobToIso(dateOfBirth);
+    if (dobIso === null) {
+      Alert.alert('Check the details', 'Date of birth must be written as DD/MM/YYYY, for example 25/03/2014.');
+      return;
+    }
+
     const check = checkRegistration({
       admissionNo,
       fullName,
@@ -102,7 +109,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
       arm,
       guardianName,
       guardianPhone,
-      dateOfBirth,
+      dateOfBirth: dobIso,
       gender,
     });
     if (!check.ok) {
@@ -149,7 +156,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm.trim() || null,
           guardianName.trim() || null,
           guardianPhone.trim() || null,
-          dateOfBirth.trim() || null,
+          dobIso || null,
           gender || null,
           academicSession,
           academicSession,
@@ -170,7 +177,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm: arm.trim() || null,
           guardianName: guardianName.trim() || null,
           guardianPhone: guardianPhone.trim() || null,
-          dateOfBirth: dateOfBirth.trim() || null,
+          dateOfBirth: dobIso || null,
           gender: gender || null,
           academicSession,
           currentSession: academicSession,
@@ -347,8 +354,8 @@ export default function RegisterStudentScreen({ route, navigation }) {
           <Field
             label="DATE OF BIRTH"
             value={dateOfBirth}
-            onChangeText={setDateOfBirth}
-            placeholder="YYYY-MM-DD"
+            onChangeText={(t) => setDateOfBirth(formatDobInput(t))}
+            placeholder="DD/MM/YYYY"
             maxLength={10}
             styles={styles}
             colors={colors}
