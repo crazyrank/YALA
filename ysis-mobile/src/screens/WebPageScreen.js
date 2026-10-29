@@ -6,12 +6,14 @@ import {
   ActivityIndicator,
   Pressable,
   Linking,
+  Alert,
   Animated,
   Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import * as SecureStore from 'expo-secure-store';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { spacing } from '../theme/spacing';
@@ -24,11 +26,72 @@ import { spacing } from '../theme/spacing';
  *     subtitle: 'Optional line under the title',
  *     url: 'https://example.school.com/page',
  *     allowedHosts: ['example.school.com'],
+ *     credentialsKey: 'optional-key-for-saved-login',
+ *     autoLogin: false,
  *   });
  *
  * Only https pages on allowedHosts (and their subdomains) open inside the app.
  * Any other link opens in the phone browser.
+ *
+ * With credentialsKey set, a login the person submits can be saved on this phone
+ * (encrypted with SecureStore). With autoLogin also set, the saved login is filled
+ * in and sent automatically, at most once per visit to the screen.
  */
+
+// Finds the password field, and the username field in the same form.
+const FIND_FIELDS =
+  "(function(){var p=document.querySelector('input[type=password]');if(!p)return null;" +
+  "var s=p.form||document;" +
+  "var u=s.querySelector('input[type=email],input[type=text],input:not([type])');" +
+  "return {u:u,p:p};})()";
+
+// Reports a login the person submits by hand, so it can be offered for saving.
+const CAPTURE_SCRIPT = `(function(){
+  if (window.__ysisCapture) return true;
+  window.__ysisCapture = true;
+  function send() {
+    var f = ${FIND_FIELDS};
+    if (!f || !f.u || !f.u.value || !f.p.value) return;
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({ type: 'login', u: f.u.value, p: f.p.value })
+    );
+  }
+  document.addEventListener('submit', send, true);
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('button[type=submit], input[type=submit]')) send();
+  }, true);
+  return true;
+})();`;
+
+// Fills empty fields with the saved login. When submit is true it also sends the form.
+function fillScript(creds, submit) {
+  return `(function(){
+    var f = ${FIND_FIELDS};
+    var found = !!(f && f.u && f.p);
+    if (found) {
+      var c = ${JSON.stringify(creds)};
+      var setVal = function (el, v) {
+        if (el.value) return;
+        el.focus();
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      setVal(f.u, c.u);
+      setVal(f.p, c.p);
+      if (${JSON.stringify(!!submit)}) {
+        var form = f.p.form;
+        var btn = form && form.querySelector('button[type=submit], input[type=submit]');
+        if (btn) btn.click();
+        else if (form && form.requestSubmit) form.requestSubmit();
+        else if (form) form.submit();
+      }
+    }
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'autofill', found: found }));
+    return true;
+  })();`;
+}
 
 export function isAllowedUrl(url, allowedHosts) {
   if (!url || typeof url !== 'string') return false;
@@ -91,6 +154,8 @@ export default function WebPageScreen({ navigation, route }) {
   const allowedHosts = Array.isArray(params.allowedHosts) ? params.allowedHosts : [];
   const accessDenied = !!params.accessDenied;
   const deniedMessage = params.deniedMessage || 'This page is not available.';
+  const credentialsKey = params.credentialsKey || null;
+  const autoLogin = !!params.autoLogin;
 
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -102,6 +167,110 @@ export default function WebPageScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
+  const [credsLoaded, setCredsLoaded] = useState(!credentialsKey);
+
+  const credsRef = useRef(null);
+  const askingRef = useRef(false);
+  const autoAttemptsRef = useRef(0);
+
+  // Read the saved login before the page loads, so auto-login has it ready.
+  useEffect(() => {
+    if (!credentialsKey) {
+      setCredsLoaded(true);
+      return;
+    }
+    SecureStore.getItemAsync(credentialsKey)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.u && parsed.p) {
+          credsRef.current = parsed;
+          setHasSaved(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCredsLoaded(true));
+  }, [credentialsKey]);
+
+  const runAutoLogin = () => {
+    if (!autoLogin || !credentialsKey || !credsRef.current || !webRef.current) return;
+    // One automatic attempt per visit. A wrong saved password never causes repeat attempts.
+    if (autoAttemptsRef.current >= 1) return;
+    autoAttemptsRef.current += 1;
+    webRef.current.injectJavaScript(fillScript(credsRef.current, true));
+  };
+
+  const onMessage = (event) => {
+    let data;
+    try {
+      data = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+    if (!data) return;
+
+    if (data.type === 'autofill') {
+      // No login form on this page, so the next login page may try again.
+      if (!data.found) autoAttemptsRef.current = 0;
+      return;
+    }
+
+    if (!credentialsKey || askingRef.current) return;
+    if (data.type !== 'login' || !data.u || !data.p) return;
+
+    const u = String(data.u).slice(0, 200);
+    const p = String(data.p).slice(0, 200);
+    const current = credsRef.current;
+    if (current && current.u === u && current.p === p) return;
+
+    askingRef.current = true;
+    Alert.alert(
+      'Save this login?',
+      'It is stored on this phone only. Next time it is filled in and sent automatically.',
+      [
+        {
+          text: 'Not now',
+          style: 'cancel',
+          onPress: () => {
+            askingRef.current = false;
+          },
+        },
+        {
+          text: 'Save',
+          onPress: async () => {
+            askingRef.current = false;
+            try {
+              await SecureStore.setItemAsync(credentialsKey, JSON.stringify({ u, p }));
+              credsRef.current = { u, p };
+              setHasSaved(true);
+            } catch {
+              Alert.alert('Could not save', 'The login could not be saved on this phone.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const forgetLogin = () => {
+    Alert.alert(
+      'Forget saved login?',
+      'The next login will need the username and password typed again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Forget',
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync(credentialsKey).catch(() => {});
+            credsRef.current = null;
+            setHasSaved(false);
+          },
+        },
+      ]
+    );
+  };
 
   const openInBrowser = () => {
     if (url.startsWith('https://')) Linking.openURL(url).catch(() => {});
@@ -159,38 +328,47 @@ export default function WebPageScreen({ navigation, route }) {
   } else {
     body = (
       <>
-        <WebView
-          ref={webRef}
-          source={{ uri: url }}
-          style={styles.webview}
-          originWhitelist={['https://*', 'about:blank']}
-          javaScriptEnabled
-          domStorageEnabled
-          thirdPartyCookiesEnabled={false}
-          sharedCookiesEnabled={false}
-          allowFileAccess={false}
-          setSupportMultipleWindows={false}
-          allowsBackForwardNavigationGestures
-          startInLoadingState={false}
-          onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-          onLoadStart={() => {
-            setLoading(true);
-            setError(null);
-          }}
-          onLoadEnd={() => setLoading(false)}
-          onError={(e) => {
-            setLoading(false);
-            setError(e?.nativeEvent?.description || 'Network error while opening the page.');
-          }}
-          onHttpError={(e) => {
-            const code = e?.nativeEvent?.statusCode;
-            if (code >= 400) {
+        {credsLoaded && (
+          <WebView
+            ref={webRef}
+            source={{ uri: url }}
+            style={styles.webview}
+            originWhitelist={['https://*', 'about:blank']}
+            javaScriptEnabled
+            domStorageEnabled
+            thirdPartyCookiesEnabled={false}
+            sharedCookiesEnabled={false}
+            allowFileAccess={false}
+            setSupportMultipleWindows={false}
+            allowsBackForwardNavigationGestures
+            startInLoadingState={false}
+            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+            onMessage={onMessage}
+            onLoadStart={() => {
+              setLoading(true);
+              setError(null);
+            }}
+            onLoadEnd={() => {
               setLoading(false);
-              setError(`The page returned an error (${code}).`);
-            }
-          }}
-          onNavigationStateChange={(nav) => setCanGoBack(!!nav.canGoBack)}
-        />
+              if (credentialsKey) {
+                webRef.current?.injectJavaScript(CAPTURE_SCRIPT);
+                runAutoLogin();
+              }
+            }}
+            onError={(e) => {
+              setLoading(false);
+              setError(e?.nativeEvent?.description || 'Network error while opening the page.');
+            }}
+            onHttpError={(e) => {
+              const code = e?.nativeEvent?.statusCode;
+              if (code >= 400) {
+                setLoading(false);
+                setError(`The page returned an error (${code}).`);
+              }
+            }}
+            onNavigationStateChange={(nav) => setCanGoBack(!!nav.canGoBack)}
+          />
+        )}
         {loading && (
           <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator size="large" color={colors.goldDark} />
@@ -232,6 +410,16 @@ export default function WebPageScreen({ navigation, route }) {
           </View>
 
           <View style={styles.headerRight}>
+            {validUrl && hasSaved && (
+              <Pressable
+                onPress={forgetLogin}
+                hitSlop={10}
+                style={styles.headerBtn}
+                accessibilityLabel="Forget saved login"
+              >
+                <Ionicons name="key-outline" size={20} color={colors.textInverse} />
+              </Pressable>
+            )}
             {validUrl && canGoBack && (
               <Pressable
                 onPress={() => webRef.current?.goBack()}

@@ -28,6 +28,9 @@ export default function ResultPortalScreen({ navigation }) {
           accessDenied: !allowed,
           deniedMessage:
             'Only the Director, Principal, and Head Teachers can open the Check Student Results.',
+          // One saved login per staff account on this phone.
+          credentialsKey: user?.id ? `portal-login-${user.id}` : null,
+          autoLogin: true,
         },
       }}
     />
