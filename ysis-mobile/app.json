@@ -49,7 +49,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0E1A2B"
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/yala-matrix-schools-logo.jpg",
+          "imageWidth": 220
         }
       ],
       "expo-sqlite",
