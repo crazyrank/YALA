@@ -49,10 +49,13 @@ export default function ManageStaffScreen({ navigation }) {
     }, [loadStaff])
   );
 
+  // Only the Director can delete a Principal. The server enforces this too.
+  const canDelete = (member) => isDirector && member.role === 'principal';
+
   const toggleStatus = (member) => {
     const nextStatus = member.status === 'active' ? 'suspended' : 'active';
     const verb = nextStatus === 'suspended' ? 'Disable' : 'Enable';
-    const name = member.fullName || member.full_name || 'This account';
+    const name = member.fullName || 'This account';
 
     Alert.alert(
       `${verb} account?`,
@@ -71,14 +74,33 @@ export default function ManageStaffScreen({ navigation }) {
               const result = await api.patch(`/users/${member.id}/status`, {
                 status: nextStatus,
               });
-              setStaff((prev) =>
-                prev.map((s) => (s.id === member.id ? result.user : s))
-              );
+              setStaff((prev) => prev.map((s) => (s.id === member.id ? result.user : s)));
             } catch (err) {
-              Alert.alert(
-                'Could not update account',
-                err.message || 'Something went wrong.'
-              );
+              Alert.alert('Could not update account', err.message || 'Something went wrong.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteMember = (member) => {
+    const name = member.fullName || 'This account';
+
+    Alert.alert(
+      'Delete principal?',
+      `${name} will no longer be able to sign in. The record is kept for the audit trail.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/users/${member.id}`);
+              setStaff((prev) => prev.filter((s) => s.id !== member.id));
+            } catch (err) {
+              Alert.alert('Could not delete account', err.message || 'Something went wrong.');
             }
           },
         },
@@ -94,10 +116,9 @@ export default function ManageStaffScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => {
-    const name = item.fullName || item.full_name || 'Staff';
+    const name = item.fullName || 'Staff';
     const email = item.email || '';
-    const status = item.status || 'active';
-    const suspended = status === 'suspended';
+    const suspended = (item.status || 'active') === 'suspended';
 
     return (
       <View
@@ -106,7 +127,7 @@ export default function ManageStaffScreen({ navigation }) {
           { backgroundColor: colors.surfaceAlt || '#17263B', borderColor: colors.border },
         ]}
       >
-        <View style={[styles.avatar, { backgroundColor: colors.inkSoft || '#17263B' }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.inkSoft }]}>
           <Text style={styles.avatarText}>{getInitials(name)}</Text>
         </View>
 
@@ -135,30 +156,39 @@ export default function ManageStaffScreen({ navigation }) {
           </View>
         </View>
 
-        <Pressable
-          onPress={() => toggleStatus(item)}
-          style={[
-            styles.actionBtn,
-            {
-              backgroundColor: suspended ? colors.gold : 'rgba(255,255,255,0.08)',
-            },
-          ]}
-        >
-          <Text
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() => toggleStatus(item)}
             style={[
-              styles.actionText,
-              { color: suspended ? '#0E1A2B' : colors.textPrimary },
+              styles.actionBtn,
+              { backgroundColor: suspended ? colors.success : colors.errorBg },
             ]}
           >
-            {suspended ? 'Enable' : 'Disable'}
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.actionText,
+                { color: suspended ? colors.textInverse : colors.error },
+              ]}
+            >
+              {suspended ? 'Enable' : 'Disable'}
+            </Text>
+          </Pressable>
+
+          {canDelete(item) && (
+            <Pressable
+              onPress={() => deleteMember(item)}
+              style={[styles.actionBtn, { backgroundColor: colors.error }]}
+            >
+              <Text style={[styles.actionText, { color: colors.textInverse }]}>Delete</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background || '#0E1A2B' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerBlock}>
         <Text style={[styles.eyebrow, { color: colors.gold }]}>STAFF</Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>{staffLabel}</Text>
@@ -168,11 +198,11 @@ export default function ManageStaffScreen({ navigation }) {
       </View>
 
       <Pressable
-        style={[styles.createBtn, { backgroundColor: colors.gold }]}
+        style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
         onPress={() => navigation.navigate('CreateAccount')}
       >
-        <Ionicons name="person-add" size={18} color="#0E1A2B" />
-        <Text style={styles.createBtnText}>{createLabel}</Text>
+        <Ionicons name="person-add" size={18} color={colors.textInverse} />
+        <Text style={[styles.createBtnText, { color: colors.textInverse }]}>{createLabel}</Text>
       </Pressable>
 
       {loading ? (
@@ -184,10 +214,7 @@ export default function ManageStaffScreen({ navigation }) {
           data={staff}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          contentContainerStyle={[
-            styles.list,
-            staff.length === 0 && styles.emptyList,
-          ]}
+          contentContainerStyle={[styles.list, staff.length === 0 && styles.emptyList]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -202,7 +229,7 @@ export default function ManageStaffScreen({ navigation }) {
                 No {staffLabel.toLowerCase()} yet
               </Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                Tap “{createLabel}” to add the first account.
+                Tap "{createLabel}" to add the first account.
               </Text>
             </View>
           }
@@ -245,12 +272,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    ...shadow.goldGlow,
+    ...shadow.card,
   },
   createBtnText: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 15,
-    color: '#0E1A2B',
   },
   list: {
     paddingHorizontal: 16,
@@ -305,9 +331,15 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemibold,
     fontSize: 11,
   },
+  actions: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   actionBtn: {
+    minWidth: 78,
+    alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: radius.pill,
   },
   actionText: {

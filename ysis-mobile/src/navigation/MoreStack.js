@@ -10,6 +10,7 @@ import DeviceReviewScreen from '../screens/DeviceReviewScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import ResultPortalScreen from '../screens/ResultPortalScreen';
 import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
+import WebPageScreen from '../screens/WebPageScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 
@@ -77,6 +78,11 @@ export default function MoreStack() {
       <Stack.Screen
         name="SchoolWebsite"
         component={SchoolWebsiteScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="WebPage"
+        component={WebPageScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

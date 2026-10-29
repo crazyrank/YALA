@@ -149,7 +149,7 @@ router.get('/', requireAuth, requireRole('director', 'principal'), async (req, r
 
     const { rows } = await db.query(
       `SELECT id, full_name, email, phone, role, status, created_at
-       FROM users WHERE role = $1 AND created_by = $2
+       FROM users WHERE role = $1 AND created_by = $2 AND status <> 'inactive'
        ORDER BY created_at DESC`,
       [targetRole, req.auth.userId]
     );
@@ -187,11 +187,14 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
-      const { rows } = await db.query('SELECT id, role, created_by FROM users WHERE id = $1', [id]);
+      const { rows } = await db.query('SELECT id, role, created_by, status FROM users WHERE id = $1', [id]);
       const target = rows[0];
       if (!target) throw Errors.notFound('That account could not be found.');
 
       const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
+      if (target.status === 'inactive') {
+        throw Errors.badRequest('ACCOUNT_DELETED', 'This account was deleted and cannot be changed.');
+      }
       const ownsTarget = target.role === targetRole && target.created_by === req.auth.userId;
       if (!ownsTarget) throw Errors.forbidden('You are not able to manage this account.');
 
@@ -344,6 +347,70 @@ router.delete(
         entityId: target.id,
         result: 'success',
         metadata: { assignmentId: req.params.assignmentId },
+      });
+
+      return res.status(204).send();
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * DELETE /users/:id
+ * Director only, and only for Principal accounts the Director created.
+ * Hard delete is not possible: audit logs and records point at the account.
+ * The account is marked inactive, its sessions end, its devices are revoked,
+ * and it no longer appears in the staff list.
+ */
+router.delete(
+  '/:id',
+  requireAuth,
+  requireRole('director'),
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { id } = req.params;
+
+      const { rows } = await db.query(
+        'SELECT id, role, created_by, full_name, status FROM users WHERE id = $1',
+        [id]
+      );
+      const target = rows[0];
+      if (!target) throw Errors.notFound('That account could not be found.');
+      if (target.role !== 'principal' || target.created_by !== req.auth.userId) {
+        throw Errors.forbidden('You are not able to delete this account.');
+      }
+      if (target.status === 'inactive') {
+        throw Errors.badRequest('ACCOUNT_DELETED', 'This account was already deleted.');
+      }
+
+      await db.withTransaction(async (client) => {
+        await client.query(
+          `UPDATE users SET status = 'inactive', session_version = session_version + 1, updated_at = now()
+           WHERE id = $1`,
+          [id]
+        );
+        await client.query(
+          `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2, refresh_token_hash = NULL
+           WHERE user_id = $1 AND status <> 'revoked'`,
+          [id, req.auth.userId]
+        );
+      });
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'STAFF_DELETED',
+        entityType: 'user',
+        entityId: id,
+        result: 'success',
+      });
+      notifyDirectors({
+        title: 'Staff deleted',
+        body: `${target.full_name} (principal) was deleted and can no longer sign in.`,
+        entityId: id,
       });
 
       return res.status(204).send();

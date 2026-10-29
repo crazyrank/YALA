@@ -9,24 +9,13 @@ const TEXT = '#F4F1EA';
 const TEXT_SOFT = '#D9E0EC';
 const MUTED = '#9FB0C8';
 const ACCENT = '#2FA37A';
-const PENDING = '#E0B25A';
-
-// Set to false once the school has confirmed every item marked as pending.
-const SHOW_DRAFT_NOTICE = true;
 
 const SECTIONS = [
   {
     title: 'What YSIS records',
     paragraphs: [
       'YSIS stores student records on this device so the app works without internet. A record includes the admission number, full name, division, class, arm, guardian name and phone number, and academic session.',
-      'Date of birth and gender are optional. The school requires them for WAEC and NECO exam registration. Leave them blank if they are not known.',
-    ],
-  },
-  {
-    title: 'When data leaves the device',
-    paragraphs: [
-      'When the device is online, records sync to the school server. The server runs on Render, and its database is hosted on Neon.',
-      'Student photos are stored with Cloudinary. These providers hold the data only to run the system.',
+      'Date of birth and gender are optional when a student is added on the phone. A CSV import requires both, and the school uses them for WAEC and NECO exam registration.',
     ],
   },
   {
@@ -35,11 +24,6 @@ const SECTIONS = [
       'Access is limited to staff accounts that the school sets up.',
       'YSIS does not sell student data, and it does not use student data for advertising.',
     ],
-  },
-  {
-    title: 'How long records are kept',
-    pending: true,
-    paragraphs: ['The retention period is to be confirmed by Yalamatrix Schools.'],
   },
   {
     title: 'Questions and requests',
@@ -55,7 +39,6 @@ export default function PolicyScreen({ navigation, route }) {
 
   const proceed = () => {
     if (!agreed) return;
-    // Close this screen first. Onboarding then finishes and the app moves on.
     if (navigation && navigation.canGoBack()) {
       navigation.goBack();
     }
@@ -78,24 +61,9 @@ export default function PolicyScreen({ navigation, route }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {SHOW_DRAFT_NOTICE && (
-          <View style={styles.draftBox}>
-            <Text style={styles.draftText}>
-              Draft. Items marked "To be confirmed" are not final until Yalamatrix Schools confirms them.
-            </Text>
-          </View>
-        )}
-
         {SECTIONS.map((section) => (
           <View key={section.title} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>{section.title}</Text>
-              {section.pending && (
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingText}>TO BE CONFIRMED</Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.cardTitle}>{section.title}</Text>
             {section.paragraphs.map((text, i) => (
               <Text key={i} style={styles.body}>
                 {text}
@@ -143,31 +111,8 @@ const styles = StyleSheet.create({
   title: { color: TEXT, fontSize: 24, fontWeight: '700', marginTop: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  draftBox: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: PENDING,
-    backgroundColor: CARD,
-    marginBottom: 14,
-  },
-  draftText: { color: PENDING, fontSize: 13, lineHeight: 19 },
   card: { padding: 18, borderRadius: 16, backgroundColor: CARD, marginBottom: 12 },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  cardTitle: { color: TEXT, fontSize: 16, fontWeight: '700', flexShrink: 1 },
-  pendingBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: PENDING,
-  },
-  pendingText: { color: PENDING, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  cardTitle: { color: TEXT, fontSize: 16, fontWeight: '700', marginBottom: 8 },
   body: { color: TEXT_SOFT, fontSize: 14, lineHeight: 21, marginTop: 6 },
   checkRow: {
     flexDirection: 'row',
