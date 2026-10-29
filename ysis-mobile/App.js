@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -6,13 +6,13 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import CountingSplash from './src/components/CountingSplash';
 import { getDb } from './src/db';
 import { startAutoSyncListener, triggerSync } from './src/services/syncEngine';
 import { useAppFonts } from './src/theme';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
-// The native splash (school logo) is the only loader. It stays on screen until
-// the fonts and database are ready, then the app opens on the next screen.
+// Keep the native splash (school logo) up until the loader is on screen.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 if (global.ErrorUtils) {
@@ -40,6 +40,7 @@ function AppInner() {
   const { fontsLoaded, fontError } = useAppFonts();
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
+  const [loaderDone, setLoaderDone] = useState(false);
 
   useEffect(() => {
     let unsubscribe;
@@ -60,16 +61,22 @@ function AppInner() {
 
   const appReady = (fontsLoaded || fontError) && dbReady;
 
-  // Hide the native splash only once the app can show its first screen.
-  useEffect(() => {
-    if (appReady) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [appReady]);
+  // Hides the native splash once the loader has drawn, so the logo does not flicker.
+  const hideNativeSplash = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
-  // Renders nothing while loading, so the native splash stays visible.
-  if (!appReady) {
-    return null;
+  const handleLoaderDone = useCallback(() => setLoaderDone(true), []);
+
+  // The loader stays until the count reaches 100 AND the app is ready.
+  if (!appReady || !loaderDone) {
+    return (
+      <CountingSplash
+        ready={appReady}
+        onDone={handleLoaderDone}
+        onLayout={hideNativeSplash}
+      />
+    );
   }
 
   if (fontError) {
