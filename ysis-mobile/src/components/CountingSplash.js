@@ -131,7 +131,6 @@ export default function CountingSplash({ onDone, onLayout }) {
             <Animated.View style={[styles.fill, { width: fillWidth }]} />
           </View>
           <ActivityIndicator size="small" color={GOLD} style={styles.spinner} />
-          <Text style={styles.message}>Please wait while your request is processed</Text>
           <View style={styles.skeleton}>
             <SkeletonBar width={150} />
             <SkeletonBar width={110} delay={150} />
@@ -191,7 +190,7 @@ const styles = StyleSheet.create({
   },
   count: {
     color: TEXT,
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: '300',
     letterSpacing: 1,
     fontVariant: ['tabular-nums'],
