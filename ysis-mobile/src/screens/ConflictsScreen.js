@@ -121,24 +121,21 @@ export default function ConflictsScreen() {
   };
 
   return (
+    <View style={styles.container}>
+      <View style={[styles.staticHeader, { paddingTop: insets.top + 6 }]}>
+        <Text style={styles.pageTitle}>Conflicts</Text>
+        <Text style={styles.pageSub}>Student records that were changed twice</Text>
+      </View>
     <FlatList
-      style={styles.container}
+      style={styles.flatList}
       data={conflicts}
       refreshing={loading}
       onRefresh={load}
       keyExtractor={(item) => item.id}
       contentContainerStyle={[
         conflicts.length === 0 ? styles.emptyListContent : styles.listContent,
-        { paddingTop: Math.max(insets.top, 12) + 8 },
+        { paddingTop: 8 },
       ]}
-      ListHeaderComponent={
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Conflicts</Text>
-          <Text style={styles.pageSub}>
-            Student records that were changed twice
-          </Text>
-        </View>
-      }
       renderItem={({ item }) => (
         <View style={styles.card}>
           <Text style={styles.studentName}>{item.full_name}</Text>
@@ -204,6 +201,7 @@ export default function ConflictsScreen() {
         )
       }
     />
+    </View>
   );
 }
 
@@ -221,6 +219,15 @@ function createStyles(colors) {
     emptyListContent: {
       flexGrow: 1,
       padding: spacing.lg,
+    },
+
+    staticHeader: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+
+    flatList: {
+      flex: 1,
     },
 
     pageHeader: {

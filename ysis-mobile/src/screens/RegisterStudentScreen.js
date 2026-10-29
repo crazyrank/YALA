@@ -214,7 +214,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
         backgroundColor={colors.background}
       />
 
-      <View style={[styles.fixedHeader, { paddingTop: Math.max(insets.top, 12) + 12 }]}>
+      <View style={[styles.fixedHeader, { paddingTop: insets.top + 6 }]}>
         <Text style={styles.title}>Register student</Text>
       </View>
 
