@@ -17,7 +17,7 @@ const {
   scopeToSqlClause,
   isWithinScope,
 } = require('../services/studentScopeService');
-const { uploadStudentPhoto } = require('../services/photoService');
+const { uploadStudentPhoto, signedStudentPhotoUrl } = require('../services/photoService');
 const { isAtMaxClass, getNextClass, CLASS_ORDER } = require('../utils/classProgression');
 
 const router = express.Router();
@@ -585,6 +585,72 @@ router.post(
       return res.json({
         student: result.student,
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * GET /students/:id/photo
+ * Returns a signed link to the student's current photo. Only staff whose scope
+ * covers the student get a link. Student photos are private, so this is the
+ * only way to view one.
+ */
+router.get(
+  '/:id/photo',
+  requireAuth,
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      const result = validationResult(req);
+      if (!result.isEmpty()) {
+        throw Errors.badRequest('VALIDATION_ERROR', result.array()[0].msg);
+      }
+
+      const currentStudent = await getCurrentServerState(req.params.id);
+      if (!currentStudent) {
+        throw Errors.notFound('That student could not be found.');
+      }
+
+      const scope = await getScopeForUser(req.auth);
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden('You do not have permission to view this student\'s photo.');
+      }
+
+      const { rows } = await db.query(
+        `SELECT cloudinary_public_id, storage_url
+           FROM student_photos
+          WHERE student_id = $1 AND is_current = TRUE
+          LIMIT 1`,
+        [req.params.id]
+      );
+      const photo = rows[0];
+      if (!photo) {
+        return res.json({ url: null });
+      }
+
+      // Old rows keep their public link until they are moved to private storage.
+      const url = photo.cloudinary_public_id
+        ? signedStudentPhotoUrl(photo.cloudinary_public_id)
+        : photo.storage_url;
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'STUDENT_PHOTO_VIEWED',
+        entityType: 'student',
+        entityId: req.params.id,
+        result: 'success',
+      });
+
+      return res.json({ url });
     } catch (err) {
       return next(err);
     }

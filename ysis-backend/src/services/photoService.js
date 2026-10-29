@@ -23,7 +23,7 @@ function assertValidImageBase64(imageBase64) {
   if (typeof imageBase64 !== 'string' || imageBase64.length < 100) {
     throw Errors.badRequest('INVALID_PHOTO', 'Photo data is missing or too small.');
   }
-  // Cap \~1.5MB base64 (\~1MB binary) — passport photos are compressed to 30-60KB client-side
+  // Cap about 1.5MB base64 (about 1MB binary). Passport photos are compressed to 30-60KB on the phone.
   if (imageBase64.length > 1.5 * 1024 * 1024) {
     throw Errors.badRequest('INVALID_PHOTO', 'Photo is too large. Re-capture and try again.');
   }
@@ -42,7 +42,12 @@ function assertValidImageBase64(imageBase64) {
   return raw;
 }
 
-async function uploadBase64Image(imageBase64, publicId) {
+/**
+ * Uploads a JPEG. Student photos pass { authenticated: true }, so Cloudinary
+ * will only serve them through signed links. Returns { publicId } for those,
+ * and the public secure_url for directory photos.
+ */
+async function uploadBase64Image(imageBase64, publicId, { authenticated = false } = {}) {
   ensureCloudinary();
   const raw = assertValidImageBase64(imageBase64);
   const result = await cloudinary.uploader.upload(`data:image/jpeg;base64,${raw}`, {
@@ -52,8 +57,23 @@ async function uploadBase64Image(imageBase64, publicId) {
     overwrite: true,
     format: 'jpg',
     transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
+    ...(authenticated ? { type: 'authenticated' } : {}),
   });
-  return result.secure_url;
+  return authenticated ? { publicId: result.public_id } : result.secure_url;
+}
+
+/**
+ * Signed link to a private student photo. Only call this after the caller's
+ * scope has been checked. The link is signed but does not expire yet.
+ */
+function signedStudentPhotoUrl(publicId) {
+  ensureCloudinary();
+  return cloudinary.url(publicId, {
+    type: 'authenticated',
+    sign_url: true,
+    secure: true,
+    format: 'jpg',
+  });
 }
 
 async function uploadStudentPhoto({
@@ -82,17 +102,19 @@ async function uploadStudentPhoto({
     }
 
     const publicId = `student-${studentId}-${Date.now()}`;
-    const secureUrl = await uploadBase64Image(imageBase64, publicId);
+    const uploaded = await uploadBase64Image(imageBase64, publicId, { authenticated: true });
 
+    // storage_url holds the Cloudinary file ID for private photos, not a link.
     const { rows } = await client.query(
       `INSERT INTO student_photos
-         (student_id, storage_url, uploaded_by, uploaded_from_device_id, is_current,
-          corrected_by, correction_reason)
-       VALUES ($1, $2, $3, $4, TRUE, $5, $6)
+         (student_id, storage_url, cloudinary_public_id, uploaded_by, uploaded_from_device_id,
+          is_current, corrected_by, correction_reason)
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
        RETURNING *`,
       [
         studentId,
-        secureUrl,
+        uploaded.publicId,
+        uploaded.publicId,
         uploaderId,
         deviceId,
         hasExisting ? uploaderId : null,
@@ -109,4 +131,4 @@ async function uploadDirectoryPhoto(imageBase64, entryId) {
   return uploadBase64Image(imageBase64, publicId);
 }
 
-module.exports = { uploadStudentPhoto, uploadDirectoryPhoto };
+module.exports = { uploadStudentPhoto, uploadDirectoryPhoto, signedStudentPhotoUrl };
