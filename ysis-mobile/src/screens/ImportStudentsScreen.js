@@ -232,7 +232,7 @@ export default function ImportStudentsScreen() {
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.label, { color: colors.textMuted }]}>FILE FORMAT</Text>
         <Text style={[styles.body, { color: colors.textPrimary }]}>
-          Use a CSV file (UTF-8) with up to 2,000 students and a size under 1 MB. The first row must contain these column names, spelled exactly as shown:
+          Use a CSV file (UTF-8) with up to 2,000 students and a size under 1 MB. The first row must contain these column names, spelled exactly as shown. A file made by Export students on the Students screen already uses this format and can be imported as it is:
         </Text>
         <Text style={[styles.mono, { color: colors.textPrimary }]}>{HEADER.join(', ')}</Text>
 

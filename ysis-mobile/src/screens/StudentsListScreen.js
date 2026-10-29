@@ -304,9 +304,16 @@ export default function StudentsListScreen({ navigation, route }) {
     setExporting(true);
     tap();
     try {
-      const count = await exportStudentsToCsv();
-      if (count === 0) {
+      const result = await exportStudentsToCsv();
+      if (result.count === 0) {
         Alert.alert('Nothing to export', 'There are no student records stored on this device yet.');
+      } else if (result.notImportable > 0) {
+        Alert.alert(
+          'Export complete',
+          `${result.count} students exported. ${result.notImportable} of them are missing a value the import needs ` +
+            '(gender, date of birth, session, or arm for SS2 and SS3). They are in the file, but a re-import will skip them ' +
+            'until those values are filled in.'
+        );
       }
     } catch (err) {
       Alert.alert('Export failed', err.message || 'Could not export student records.');

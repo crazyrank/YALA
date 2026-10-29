@@ -1,93 +1,68 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getDb } from '../db';
-import { isoToDob } from '../utils/dobFormat';
-
-const EXPORT_COLUMNS = [
-  { key: 'admission_no', label: 'Admission No' },
-  { key: 'full_name', label: 'Full Name' },
-  { key: 'date_of_birth', label: 'Date of Birth' },
-  { key: 'gender', label: 'Gender' },
-  { key: 'division', label: 'Division' },
-  { key: 'class_level', label: 'Class Level' },
-  { key: 'arm', label: 'Arm' },
-  { key: 'guardian_name', label: 'Guardian Name' },
-  { key: 'guardian_phone', label: 'Guardian Phone' },
-  { key: 'status', label: 'Status' },
-  { key: 'created_at', label: 'Registered At' },
-];
-
-// Spreadsheet apps run cells starting with these characters as formulas.
-function neutralizeFormula(value) {
-  if (typeof value !== 'string') return value;
-  return /^[=+\-@\t\r]/.test(value) ? "'" + value : value;
-}
-
-function escapeCsvValue(value) {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-
-  return str;
-}
-
-function buildCsv(rows) {
-  const header = EXPORT_COLUMNS.map((c) => escapeCsvValue(c.label)).join(',');
-
-  const lines = rows.map((row) =>
-    EXPORT_COLUMNS.map((c) => escapeCsvValue(neutralizeFormula(c.key === 'date_of_birth' ? isoToDob(row[c.key]) : row[c.key]))).join(',')
-  );
-
-  return [header, ...lines].join('\n');
-}
+import {
+  studentToCells,
+  buildCsvText,
+  countNotReimportable,
+  chunk,
+  EXPORT_CHUNK_ROWS,
+} from './studentCsvFormat';
 
 /**
- * Exports every student currently stored on this device to a CSV file
- * and opens the native share sheet so it can be saved or sent on.
+ * Exports every student stored on this device to CSV files in the exact format
+ * the import screen accepts, then opens the share sheet for each file.
  *
- * Reads from local SQLite only — this is offline-first by design, so
- * the export reflects exactly what has synced to this device. A Head
- * Teacher only ever has their assigned classes synced locally, so the
- * export is naturally scoped the same way the rest of the app already
- * is, with no extra filtering needed here.
+ * Reads from local SQLite only (offline-first). A Head Teacher's export holds
+ * only their assigned classes, the same as the rest of the app.
  *
- * Returns the number of rows exported, or 0 if there was nothing to
- * export (the caller should show its own "no students" message then).
+ * Returns { count, notImportable, files }:
+ *   count:         students exported
+ *   notImportable: students whose record is missing a required import value
+ *                  (gender, date of birth, session, or arm for SS2/SS3). They
+ *                  are still in the file, but the import will skip them.
+ *   files:         number of files shared (more than one above 2,000 students)
  */
 export async function exportStudentsToCsv() {
   const db = await getDb();
 
   const rows = await db.getAllAsync(
-    `SELECT admission_no, full_name, date_of_birth, gender, division,
-            class_level, arm, guardian_name, guardian_phone, status, created_at
-     FROM students
-     ORDER BY full_name ASC`
+    `SELECT admission_no, full_name, division, class_level, arm,
+            guardian_name, guardian_phone, gender, date_of_birth,
+            COALESCE(academic_session, current_session) AS session
+       FROM students
+      ORDER BY division, class_level, full_name ASC`
   );
 
   if (!rows || rows.length === 0) {
-    return 0;
+    return { count: 0, notImportable: 0, files: 0 };
   }
 
-  const csv = buildCsv(rows);
-  const timestamp = new Date().toISOString().slice(0, 10);
-  const fileUri = `${FileSystem.cacheDirectory}yala-students-${timestamp}.csv`;
-
-  await FileSystem.writeAsStringAsync(fileUri, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const cellRows = rows.map(studentToCells);
+  const { notImportable } = countNotReimportable(cellRows);
 
   const canShare = await Sharing.isAvailableAsync();
+  const parts = chunk(cellRows, EXPORT_CHUNK_ROWS);
+  const timestamp = new Date().toISOString().slice(0, 10);
 
-  if (canShare) {
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'text/csv',
-      dialogTitle: 'Export students',
-      UTI: 'public.comma-separated-values-text',
+  let files = 0;
+  for (let i = 0; i < parts.length; i += 1) {
+    const suffix = parts.length > 1 ? `-part-${i + 1}` : '';
+    const fileUri = `${FileSystem.cacheDirectory}yala-students-${timestamp}${suffix}.csv`;
+
+    await FileSystem.writeAsStringAsync(fileUri, buildCsvText(parts[i]), {
+      encoding: FileSystem.EncodingType.UTF8,
     });
+
+    if (canShare) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: parts.length > 1 ? `Export students (part ${i + 1} of ${parts.length})` : 'Export students',
+        UTI: 'public.comma-separated-values-text',
+      });
+    }
+    files += 1;
   }
 
-  return rows.length;
+  return { count: rows.length, notImportable, files };
 }
