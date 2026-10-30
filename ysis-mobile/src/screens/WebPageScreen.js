@@ -558,9 +558,10 @@ function createStyles(colors, insets) {
       justifyContent: 'center',
     },
     logo: {
-      width: 88,
-      height: 88,
-      resizeMode: 'contain',
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      resizeMode: 'cover',
     },
     ring: {
       position: 'absolute',
