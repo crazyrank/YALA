@@ -14,6 +14,7 @@ The project has two parts:
 - Manage classes, promotions, and sessions
 - Review conflicts when two devices change the same record
 - Manage staff accounts and trusted devices
+- Show the Board of Directors and management team in the Staff Directory
 - Keep the school website and the results portal available inside the app
 - Sign in with a password, then unlock with fingerprint or PIN
 
@@ -28,18 +29,22 @@ The project has two parts:
 ## Setting up the backend
 
 1. Install packages:
+
    cd ysis-backend
    npm install
 
 2. Copy the example environment file and fill in your values:
+
    cp .env.example .env
 
    Required variables: DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, NODE_ENV. Never commit the .env file.
 
 3. Run the database migrations on an empty database:
+
    npm run migrate:up
 
 4. Start the server:
+
    npm start
 
    For development with automatic restart, use npm run dev.
@@ -47,12 +52,14 @@ The project has two parts:
 ## Setting up the mobile app
 
 1. Install packages:
+
    cd ysis-mobile
    npm install
 
-2. Point the app at the backend by setting the server address in [file and variable name].
+2. Point the app at the backend. The server address is set in src/config.js as API_BASE_URL. Change it to the address of the school's backend before building.
 
 3. Start the development server:
+
    npx expo start -c
 
    Scan the QR code with Expo Go, or open the app on an emulator.
@@ -67,15 +74,21 @@ Keep the Android signing keystore somewhere safe. Without it, the app cannot be 
 ## First use
 
 1. Start the backend with an empty database.
-2. Create the first Director account using [method].
+2. Create the first Director account:
+
+   cd ysis-backend
+   node scripts/seed-director.js
+
+   The script asks for the full name, email, and a temporary password. The Director must change the password at first sign in.
+
 3. Sign in, change the password when prompted, and add staff accounts from the Manage Staff screen.
 4. Approve each phone as a trusted device before it can sync.
 
 ## Deployment notes
 
-- Backend: [hosting provider and where the environment variables are set]
-- Database: Neon
-- Photos: stored on Cloudinary as private, authenticated images
+- Backend: Render. Set the environment variables in the service's Environment tab.
+- Database: Neon. Use a connection string with SSL enabled (sslmode=verify-full).
+- Photos: stored on Cloudinary as private, authenticated images.
 
 ## Security notes
 
@@ -93,4 +106,4 @@ Keep the Android signing keystore somewhere safe. Without it, the app cannot be 
 
 ## Owner
 
-YSIS is owned by Yalamatrix Schools. [Contact name, email, and license terms.]
+YSIS is owned by Yalamatrix Schools.
