@@ -35,7 +35,16 @@ function RegisterTabButton({ onPress }) {
       accessibilityRole="button"
       accessibilityLabel="Register student"
     >
-      <View style={[styles.registerBtn, { backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.textPrimary }]}>
+      <View
+        style={[
+          styles.registerBtn,
+          {
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            borderColor: colors.textPrimary,
+          },
+        ]}
+      >
         <Ionicons name="person-add" size={20} color={colors.textPrimary} />
       </View>
     </Pressable>
@@ -141,11 +150,19 @@ export default function MainTabs() {
           name="ConflictsTab"
           component={ConflictsScreen}
           options={{
-          headerShown: false,
+            headerShown: false,
             title: 'Conflicts',
             tabBarLabel: 'Conflicts',
             tabBarBadge: openConflictCount > 0 ? openConflictCount : undefined,
-            tabBarBadgeStyle: { backgroundColor: colors.error },
+            tabBarBadgeStyle: {
+              backgroundColor: colors.error,
+              color: '#FFFFFF',
+              fontSize: 11,
+              fontWeight: '700',
+              minWidth: 18,
+              height: 18,
+              lineHeight: 16,
+            },
             tabBarIcon: ({ focused }) => (
               <AnimatedTabIcon
                 focused={focused}
@@ -216,25 +233,26 @@ export default function MainTabs() {
 
 const styles = StyleSheet.create({
   registerWrap: {
-    top: -10,
+    // Small lift only — keeps the circle inside the tab bar so the top
+    // stroke stays fully visible in light mode.
+    top: -4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   registerBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#2FA37A',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#2FA37A',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
       },
-      android: { elevation: 8 },
+      android: { elevation: 6 },
     }),
   },
 });

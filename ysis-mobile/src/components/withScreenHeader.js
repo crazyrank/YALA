@@ -38,11 +38,13 @@ export default function withScreenHeader(Screen, title) {
           )}
           <Text
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
             style={{
               flex: 1,
               fontFamily: fontFamily.display,
-              fontSize: 28,
-              letterSpacing: -0.6,
+              fontSize: 24,
+              letterSpacing: -0.5,
               color: colors.textPrimary,
             }}
           >

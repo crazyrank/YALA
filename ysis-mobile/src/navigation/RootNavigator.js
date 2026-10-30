@@ -68,9 +68,9 @@ const bootStyles = StyleSheet.create({
   },
 });
 
-const ClassStudentsWrapped = withScreenHeader(ClassStudentsScreen, (props) =>
-  props.route?.params?.classLevel ? `${props.route.params.classLevel} Students` : 'Students'
-);
+// ClassStudents uses the same hero as the Students dashboard (with back button
+// when a class is selected). Do not wrap with withScreenHeader — that produced
+// a second large title and truncated text.
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 const MergeQueueWrapped = withScreenHeader(MergeQueueScreen, 'Duplicate Registrations');
 const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Account');
@@ -136,12 +136,8 @@ export default function RootNavigator() {
 
             <Stack.Screen
               name="ClassStudents"
-              component={ClassStudentsWrapped}
-              options={({ route }) => ({
-                title: route?.params?.classLevel
-                  ? route.params.classLevel + ' Students'
-                  : 'Students',
-              })}
+              component={ClassStudentsScreen}
+              options={{ headerShown: false }}
             />
 
             <Stack.Screen

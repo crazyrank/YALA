@@ -342,11 +342,25 @@ export default function StudentsListScreen({ navigation, route }) {
         style={[styles.hero, { paddingTop: insets.top }]}
       >
         <View style={styles.heroTopRow}>
+          {classLevel ? (
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={12}
+              style={styles.heroBackBtn}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+
           <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={styles.heroEyebrow}>
-              {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+              {classLevel ? 'CLASS' : 'YALAMATRIX SIS'}
             </Text>
-            <Text style={styles.heroTitle} numberOfLines={1}>
+            <Text
+              style={[styles.heroTitle, classLevel && styles.heroTitleClass]}
+              numberOfLines={1}
+            >
               {classLevel ? `${classLevel} Students` : 'Students'}
             </Text>
           </View>

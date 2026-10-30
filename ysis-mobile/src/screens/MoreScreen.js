@@ -380,7 +380,15 @@ export default function MoreScreen({ navigation }) {
                 </Text>
               </View>
             )}
-            <View style={[styles.cameraBadge, { backgroundColor: colors.gold }]}>
+            <View
+              style={[
+                styles.cameraBadge,
+                {
+                  backgroundColor: colors.gold,
+                  borderColor: colors.surface,
+                },
+              ]}
+            >
               {uploading ? (
                 <ActivityIndicator size="small" color="#0E1A2B" />
               ) : (
@@ -653,7 +661,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   avatarText: {
     color: '#FFFFFF',
