@@ -353,21 +353,23 @@ export default function StudentsListScreen({ navigation, route }) {
             </Pressable>
           ) : null}
 
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={styles.heroEyebrow}>
-              {classLevel ? 'CLASS' : 'YALAMATRIX SIS'}
-            </Text>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            {!classLevel && (
+              <Text style={styles.heroEyebrow} numberOfLines={1}>YALAMATRIX SIS</Text>
+            )}
             <Text
-              style={[styles.heroTitle, classLevel && styles.heroTitleClass]}
+              style={styles.heroTitle}
               numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
             >
-              {classLevel ? `${classLevel} Students` : 'Students'}
+              {classLevel || 'Students'}
             </Text>
           </View>
 
           <View style={styles.heroMetaPill}>
             {initialLoading ? (
-              <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
+              <Skeleton width={24} height={14} borderRadius={6} style={{ marginBottom: 2 }} />
             ) : (
               <Text style={styles.heroMetaNum}>{matchCount}</Text>
             )}
@@ -394,7 +396,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 </Text>
               </View>
             )}
-            <Ionicons name="chevron-down" size={14} color="#2FA37A" style={{ marginLeft: 4 }} />
+            <Ionicons name="chevron-down" size={12} color="#2FA37A" style={{ marginLeft: 3 }} />
           </Pressable>
         </View>
       </LinearGradient>
@@ -704,21 +706,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
-    paddingVertical: 4,
-    paddingLeft: 4,
-    paddingRight: 8,
+    paddingVertical: 3,
+    paddingLeft: 3,
+    paddingRight: 6,
     borderWidth: 1,
     borderColor: 'rgba(201,162,75,0.35)',
   },
   profileAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#2FA37A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileAvatarImg: { width: 36, height: 36, borderRadius: 18 },
+  profileAvatarImg: { width: 28, height: 28, borderRadius: 14 },
   profileAvatarText: {
     color: '#0E1A2B',
     fontFamily: fontFamily.bodyBold,
@@ -783,6 +785,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0E1A2B',
   },
+  heroBackBtn: { marginRight: 6, padding: 2 },
   heroEyebrow: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 10,
@@ -808,9 +811,9 @@ const styles = StyleSheet.create({
   heroMetaPill: {
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
