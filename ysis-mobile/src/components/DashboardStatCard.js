@@ -96,12 +96,12 @@ export default function DashboardStatCard({
           {displayValue}
         </Text>
 
-        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
           {title}
         </Text>
 
         {!!subtitle && (
-          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={2}>
             {subtitle}
           </Text>
         )}
@@ -113,11 +113,11 @@ export default function DashboardStatCard({
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 88,
+    minHeight: 96,
     borderRadius: radius.lg,
     borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 12,
@@ -125,11 +125,11 @@ const styles = StyleSheet.create({
   },
 
   icon: {
-    marginRight: 12,
+    marginBottom: 6,
   },
 
   textWrap: {
-    flex: 1,
+    alignSelf: 'stretch',
   },
 
   value: {

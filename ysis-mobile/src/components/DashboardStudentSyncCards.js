@@ -116,7 +116,7 @@ export default function DashboardStudentSyncCards() {
                 color: colors.textPrimary,
               },
             ]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             Synced to Database
           </Text>
@@ -128,7 +128,7 @@ export default function DashboardStudentSyncCards() {
                 color: colors.textMuted,
               },
             ]}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {syncedStudents === null
               ? 'Checking sync status'
@@ -143,22 +143,22 @@ export default function DashboardStudentSyncCards() {
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 88,
+    minHeight: 96,
     borderRadius: radius.lg,
     borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 12,
   },
 
   icon: {
-    marginRight: 12,
+    marginBottom: 6,
   },
 
   textWrap: {
-    flex: 1,
+    alignSelf: 'stretch',
   },
 
   value: {

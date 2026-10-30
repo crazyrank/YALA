@@ -513,7 +513,7 @@ export default function StudentsListScreen({ navigation, route }) {
                       <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.textPrimary} bg={colors.surface} delay={0} />
                       <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
                       <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
-                      <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
+                      <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color={colors.accentPurple} bg={colors.surface} delay={150} />
                       <DashboardStudentSyncCards />
                     </View>
                   )}

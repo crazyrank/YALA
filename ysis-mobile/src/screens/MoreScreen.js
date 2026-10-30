@@ -421,7 +421,7 @@ export default function MoreScreen({ navigation }) {
           icon="camera"
           label="Change profile picture"
           subtitle="Upload, view, or remove your photo"
-          color={colors.inkSoft}
+          color={colors.textPrimary}
           onPress={handleChangePhoto}
         />
 
@@ -432,7 +432,7 @@ export default function MoreScreen({ navigation }) {
             icon="people"
             label="Manage Staff"
             subtitle="Create and manage accounts"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('ManageStaff')}
           />
         )}
@@ -442,7 +442,7 @@ export default function MoreScreen({ navigation }) {
             icon="phone-portrait"
             label="Trusted Devices"
             subtitle="Approve, review and revoke devices"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('DeviceReview')}
           />
         )}
@@ -459,7 +459,7 @@ export default function MoreScreen({ navigation }) {
           icon="notifications"
           label="Notifications"
           subtitle="Alerts for your account"
-          color={colors.inkSoft}
+          color={colors.textPrimary}
           onPress={() => navigation.navigate('Notifications')}
         />
 
@@ -486,7 +486,7 @@ export default function MoreScreen({ navigation }) {
             icon="git-merge"
             label="Duplicate Registrations"
             subtitle="Merge queue"
-            color="#5B3A8E"
+            color={colors.accentPurple}
             onPress={() => navigation.navigate('MergeQueue')}
           />
         )}
@@ -496,7 +496,7 @@ export default function MoreScreen({ navigation }) {
             icon="cloud-upload"
             label="Import Students"
             subtitle="Upload a CSV from this phone"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('ImportStudents')}
           />
         )}
@@ -505,7 +505,7 @@ export default function MoreScreen({ navigation }) {
           icon="person-add"
           label="Register Student"
           subtitle="Add a new student record"
-          color={colors.inkSoft}
+          color={colors.textPrimary}
           onPress={() => navigation.navigate('RegisterTab')}
         />
 

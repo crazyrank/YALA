@@ -20,6 +20,7 @@ export const lightColors = {
 
   // Champagne gold accent
   gold: '#B99A5B',
+  accentPurple: '#5B3A8E',
   goldLight: '#D6BF8B',
   goldDark: '#8F713B',
   goldTint: '#F5F0E5',
@@ -57,6 +58,7 @@ export const darkColors = {
 
   // Muted champagne gold
   gold: '#BCA470',
+  accentPurple: '#B9A2E0',
   goldLight: '#D6C596',
   goldDark: '#9A7F4C',
   goldTint: '#282620',
