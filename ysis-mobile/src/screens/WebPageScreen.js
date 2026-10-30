@@ -1,15 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-  Linking,
-  Alert,
-  Animated,
-  Easing,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, Linking, Alert, Animated, Easing, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -18,6 +8,11 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 import { confirmIdentity } from '../services/portalAccess';
+
+const SCHOOL_LOGO = require('../../assets/yala-matrix-schools-logo.jpg');
+
+// If the page has not shown anything after this long, stop and offer a retry.
+const LOAD_TIMEOUT_MS = 20000;
 
 /**
  * One reusable web page screen. Open any page from a stack with:
@@ -107,46 +102,6 @@ export function isAllowedUrl(url, allowedHosts) {
   }
 }
 
-function SkeletonLine({ width, delay = 0, color }) {
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse, delay]);
-
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
-  return (
-    <Animated.View
-      style={{
-        width,
-        height: 10,
-        borderRadius: 5,
-        marginTop: 10,
-        backgroundColor: color,
-        opacity,
-      }}
-    />
-  );
-}
-
 export default function WebPageScreen({ navigation, route }) {
   const params = route?.params || {};
   const title = params.title || 'Web page';
@@ -163,18 +118,72 @@ export default function WebPageScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
   const webRef = useRef(null);
-
   const validUrl = !accessDenied && isAllowedUrl(url, allowedHosts);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [credsLoaded, setCredsLoaded] = useState(!credentialsKey);
-
+  const [loaderVisible, setLoaderVisible] = useState(true);
   const credsRef = useRef(null);
   const askingRef = useRef(false);
   const autoAttemptsRef = useRef(0);
+  const contentShownRef = useRef(false);
+
+  // Show loader until we decide the page is ready
+  const showLoader = validUrl && !error && (loading || !credsLoaded || loaderVisible);
+
+  // The logo ring: a gold arc (top and right edges) that spins around the logo.
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!showLoader) return undefined;
+    spin.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spin, showLoader]);
+
+  const spinStyle = {
+    transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
+  };
+
+  // Fade animation for the loader
+  const fade = useRef(new Animated.Value(1)).current;
+
+  const hideLoader = () => {
+    if (contentShownRef.current) return;
+    contentShownRef.current = true;
+    setLoading(false);
+
+    Animated.timing(fade, {
+      toValue: 0,
+      duration: 280,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => {
+      setLoaderVisible(false);
+    });
+  };
+
+  // If nothing shows within the time limit, stop and offer a retry.
+  useEffect(() => {
+    if (!showLoader) return undefined;
+    const timer = setTimeout(() => {
+      setLoading(false);
+      setLoaderVisible(false);
+      setError('The school website took too long to respond. Check your internet connection and try again.');
+    }, LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [showLoader, attempt]);
 
   // Read the saved login before the page loads, so auto-login has it ready.
   useEffect(() => {
@@ -285,8 +294,12 @@ export default function WebPageScreen({ navigation, route }) {
   };
 
   const handleRetry = () => {
+    contentShownRef.current = false;
     setError(null);
     setLoading(true);
+    setLoaderVisible(true);
+    fade.setValue(1);
+    setAttempt((n) => n + 1);
   };
 
   const onShouldStartLoadWithRequest = (request) => {
@@ -334,54 +347,59 @@ export default function WebPageScreen({ navigation, route }) {
       </View>
     );
   } else {
-    body = (
-      <>
-        {credsLoaded && (
-          <WebView
-            ref={webRef}
-            source={{ uri: url }}
-            style={styles.webview}
-            originWhitelist={['https://*', 'about:blank']}
-            javaScriptEnabled
-            domStorageEnabled
-            thirdPartyCookiesEnabled={false}
-            sharedCookiesEnabled={false}
-            allowFileAccess={false}
-            setSupportMultipleWindows={false}
-            allowsBackForwardNavigationGestures
-            startInLoadingState={false}
-            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-            onMessage={onMessage}
-            onLoadStart={() => {
-              setLoading(true);
-              setError(null);
-            }}
-            onLoadEnd={() => {
-              setLoading(false);
-              if (credentialsKey) {
-                webRef.current?.injectJavaScript(CAPTURE_SCRIPT);
-                runAutoLogin();
-              }
-            }}
-            onLoadProgress={({ nativeEvent }) => {
-              if (nativeEvent?.progress >= 0.9) setLoading(false);
-            }}
-            onError={(e) => {
-              setLoading(false);
-              setError(e?.nativeEvent?.description || 'Network error while opening the page.');
-            }}
-            onHttpError={(e) => {
-              const code = e?.nativeEvent?.statusCode;
-              if (code >= 400) {
-                setLoading(false);
-                setError(`The page returned an error (${code}).`);
-              }
-            }}
-            onNavigationStateChange={(nav) => setCanGoBack(!!nav.canGoBack)}
-          />
-        )}
-      </>
-    );
+    body = credsLoaded ? (
+      <WebView
+        ref={webRef}
+        source={{ uri: url }}
+        style={styles.webview}
+        originWhitelist={['https://*', 'about:blank']}
+        javaScriptEnabled
+        domStorageEnabled
+        thirdPartyCookiesEnabled={false}
+        sharedCookiesEnabled={false}
+        allowFileAccess={false}
+        setSupportMultipleWindows={false}
+        allowsBackForwardNavigationGestures
+        startInLoadingState={false}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onMessage={onMessage}
+        onLoadStart={() => {
+          contentShownRef.current = false;
+          setLoaderVisible(true);
+          fade.setValue(1);
+          setLoading(true);
+        }}
+        onLoadProgress={({ nativeEvent }) => {
+          // Only hide after significant progress
+          if (nativeEvent?.progress >= 0.85) {
+            setTimeout(hideLoader, 150);
+          }
+        }}
+        onLoadEnd={() => {
+          // Always hide on load end (safety net)
+          setTimeout(hideLoader, 200);
+
+          if (credentialsKey) {
+            webRef.current?.injectJavaScript(CAPTURE_SCRIPT);
+            runAutoLogin();
+          }
+        }}
+        onError={(e) => {
+          setLoading(false);
+          setLoaderVisible(false);
+          setError(e?.nativeEvent?.description || 'Network error while opening the page.');
+        }}
+        onHttpError={(e) => {
+          const code = e?.nativeEvent?.statusCode;
+          if (code >= 400) {
+            setLoading(false);
+            setLoaderVisible(false);
+            setError(`The page returned an error (${code}).`);
+          }
+        }}
+        onNavigationStateChange={(nav) => setCanGoBack(!!nav.canGoBack)}
+      />
+    ) : null;
   }
 
   return (
@@ -397,7 +415,6 @@ export default function WebPageScreen({ navigation, route }) {
           >
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </Pressable>
-
           <View style={styles.titleWrap}>
             <Text style={styles.title} numberOfLines={1}>
               {title}
@@ -408,7 +425,6 @@ export default function WebPageScreen({ navigation, route }) {
               </Text>
             )}
           </View>
-
           <View style={styles.headerRight}>
             {validUrl && hasSaved && (
               <Pressable
@@ -444,7 +460,30 @@ export default function WebPageScreen({ navigation, route }) {
         </View>
       </View>
 
-      <View style={styles.body}>{body}</View>
+      {/* Body + Loader overlay (loader is a true overlay, never a sibling of WebView) */}
+      <View style={styles.body}>
+        {body}
+
+        {showLoader && (
+          <Animated.View
+            style={[styles.loader, { opacity: fade }]}
+            pointerEvents="none"
+            accessibilityLabel="Loading school website"
+          >
+            <View style={styles.logoWrap}>
+              <Image source={SCHOOL_LOGO} style={styles.logo} />
+              <Animated.View
+                style={[
+                  styles.ring,
+                  { borderTopColor: colors.gold, borderRightColor: colors.gold },
+                  spinStyle,
+                ]}
+              />
+            </View>
+            <Text style={styles.loadingText}>Loading...</Text>
+          </Animated.View>
+        )}
+      </View>
     </View>
   );
 }
@@ -493,32 +532,52 @@ function createStyles(colors, insets) {
     },
     body: {
       flex: 1,
+      position: 'relative',
+      overflow: 'hidden',
     },
     webview: {
       flex: 1,
       backgroundColor: colors.background,
     },
-    loading: {
-      ...StyleSheet.absoluteFillObject,
+    loader: {
+      position: 'absolute',
       top: 0,
+      left: 0,
+      right: 0,
       bottom: 0,
-      zIndex: 2,
-      elevation: 2,
+      zIndex: 20,
+      elevation: 20,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: spacing.xl,
       backgroundColor: colors.background,
     },
-    skeleton: {
+    logoWrap: {
+      width: 110,
+      height: 110,
       alignItems: 'center',
-      marginTop: spacing.md,
+      justifyContent: 'center',
+    },
+    logo: {
+      width: 88,
+      height: 88,
+      resizeMode: 'contain',
+    },
+    ring: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: 110,
+      height: 110,
+      borderRadius: 55,
+      borderWidth: 2.5,
+      borderColor: 'transparent',
     },
     loadingText: {
-      textAlign: 'center',
-      color: colors.textSecondary,
-      marginTop: spacing.md,
+      marginTop: 16,
+      color: colors.textMuted,
       fontFamily: fontFamily.body,
       fontSize: 13,
+      letterSpacing: 0.4,
     },
     message: {
       flex: 1,
@@ -527,35 +586,41 @@ function createStyles(colors, insets) {
       padding: spacing.xl,
     },
     messageTitle: {
-      color: colors.textPrimary,
+      marginTop: 12,
       fontFamily: fontFamily.heading,
       fontSize: 18,
-      marginTop: spacing.md,
+      color: colors.textPrimary,
       textAlign: 'center',
     },
     messageText: {
-      color: colors.textMuted,
+      marginTop: 8,
+      fontFamily: fontFamily.body,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
       textAlign: 'center',
-      marginTop: spacing.sm,
     },
     primaryBtn: {
-      marginTop: spacing.lg,
-      backgroundColor: colors.inkSoft,
-      paddingHorizontal: spacing.xl,
-      paddingVertical: spacing.md,
-      borderRadius: 10,
+      marginTop: 20,
+      backgroundColor: colors.gold,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
     },
     primaryBtnText: {
-      color: colors.textInverse,
-      fontFamily: fontFamily.heading,
+      color: colors.ink,
+      fontFamily: fontFamily.bodyBold,
+      fontSize: 14,
     },
     linkBtn: {
-      marginTop: spacing.sm,
-      padding: spacing.md,
+      marginTop: 14,
+      padding: 8,
     },
     linkText: {
-      color: colors.textPrimary,
-      fontFamily: fontFamily.heading,
+      color: colors.textSecondary,
+      fontFamily: fontFamily.bodySemibold,
+      fontSize: 13,
+      textDecorationLine: 'underline',
     },
   });
 }
