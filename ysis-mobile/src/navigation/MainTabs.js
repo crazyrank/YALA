@@ -23,6 +23,34 @@ function StudentsTab({ navigation, route }) {
   return <StudentsListScreen navigation={navigation} route={route} />;
 }
 
+function withAlpha(hex, alpha, fallback) {
+  if (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return hex + Math.round(alpha * 255).toString(16).padStart(2, '0');
+  }
+  return fallback;
+}
+
+// Soft pill behind the active tab icon (WhatsApp / Telegram style).
+function PillIcon(props) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        width: 56,
+        height: 30,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: props.focused
+          ? withAlpha(colors.gold, 0.18, colors.border)
+          : 'transparent',
+      }}
+    >
+      <AnimatedTabIcon {...props} />
+    </View>
+  );
+}
+
 function RegisterTabButton({ onPress }) {
   const { colors } = useTheme();
   return (
@@ -92,11 +120,23 @@ export default function MainTabs() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 28,
+          marginHorizontal: 12,
+          marginBottom: Platform.OS === 'ios' ? 24 : 12,
+          height: Platform.OS === 'ios' ? 84 : 70,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+            },
+            android: { elevation: 10 },
+          }),
         },
         tabBarLabelStyle: {
           fontFamily: fontFamily.bodySemibold,
@@ -113,7 +153,7 @@ export default function MainTabs() {
           title: 'Yala Matrix Schools',
           tabBarLabel: 'Students',
           tabBarIcon: ({ focused }) => (
-            <AnimatedTabIcon
+            <PillIcon
               focused={focused}
               activeName="people"
               inactiveName="people-outline"
@@ -133,7 +173,7 @@ export default function MainTabs() {
           title: 'Classes',
           tabBarLabel: 'Classes',
           tabBarIcon: ({ focused }) => (
-            <AnimatedTabIcon
+            <PillIcon
               focused={focused}
               activeName="school"
               inactiveName="school-outline"
@@ -164,7 +204,7 @@ export default function MainTabs() {
               lineHeight: 16,
             },
             tabBarIcon: ({ focused }) => (
-              <AnimatedTabIcon
+              <PillIcon
                 focused={focused}
                 activeName="warning"
                 inactiveName="warning-outline"
@@ -216,7 +256,7 @@ export default function MainTabs() {
           title: 'More',
           tabBarLabel: 'More',
           tabBarIcon: ({ focused }) => (
-            <AnimatedTabIcon
+            <PillIcon
               focused={focused}
               activeName="grid"
               inactiveName="grid-outline"
