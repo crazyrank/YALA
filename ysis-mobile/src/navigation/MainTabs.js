@@ -24,6 +24,7 @@ function StudentsTab({ navigation, route }) {
 }
 
 function RegisterTabButton({ onPress }) {
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={() => {
@@ -34,8 +35,8 @@ function RegisterTabButton({ onPress }) {
       accessibilityRole="button"
       accessibilityLabel="Register student"
     >
-      <View style={styles.registerBtn}>
-        <Ionicons name="person-add" size={20} color="#0E1A2B" />
+      <View style={[styles.registerBtn, { backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.textPrimary }]}>
+        <Ionicons name="person-add" size={20} color={colors.textPrimary} />
       </View>
     </Pressable>
   );
