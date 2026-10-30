@@ -111,6 +111,7 @@ export default function MainTabs() {
   const openConflictCount = useOpenConflictCount(isAdmin);
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background ?? colors.inkSoft }} testID="footerBgWrap">
     <Tab.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.inkSoft },
@@ -268,6 +269,7 @@ export default function MainTabs() {
         }}
       />
     </Tab.Navigator>
+    </View>
   );
 }
 
