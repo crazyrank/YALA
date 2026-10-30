@@ -316,7 +316,7 @@ export default function MoreScreen({ navigation }) {
 
   return (
     <>
-      <View style={[styles.settingsHeader, { paddingTop: insets.top + 6 }]}>
+      <View style={[styles.settingsHeader, { paddingTop: insets.top, backgroundColor: colors.background }]}>
         <Text style={[styles.settingsTitle, { color: colors.textPrimary }]}>Settings</Text>
         <Pressable
           onPress={toggleSearch}
@@ -567,13 +567,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
   },
   settingsTitle: {
     fontFamily: fontFamily.display,
-    fontSize: 22,
-    letterSpacing: -0.4,
+    fontSize: 28,
+    letterSpacing: -0.6,
   },
   searchBtn: {
     width: 40,

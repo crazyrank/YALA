@@ -10,6 +10,9 @@ import UnlockScreen from '../screens/UnlockScreen';
 import ClassStudentsScreen from '../screens/ClassStudentsScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
+import { useTheme } from '../theme/ThemeContext';
+import { stackHeaderOptions } from '../theme/stackHeader';
+import withScreenHeader from '../components/withScreenHeader';
 import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
@@ -65,24 +68,25 @@ const bootStyles = StyleSheet.create({
   },
 });
 
+const ClassStudentsWrapped = withScreenHeader(ClassStudentsScreen, (props) =>
+  props.route?.params?.classLevel ? `${props.route.params.classLevel} Students` : 'Students'
+);
+const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
+const MergeQueueWrapped = withScreenHeader(MergeQueueScreen, 'Duplicate Registrations');
+const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Account');
+const ManageStaffWrapped = withScreenHeader(ManageStaffScreen, 'Manage Staff');
+const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
+const ParkedOperationsWrapped = withScreenHeader(ParkedOperationsScreen, 'Changes not saved');
+
 export default function RootNavigator() {
   const { status } = useAuth();
+  const { colors } = useTheme();
   if (status === 'loading') return <AuthBootstrapSkeleton />;
 
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: '#17263B',
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: '700',
-          },
-          headerTitleAlign: 'center',
-          headerBackTitle: '',
-        }}
+        screenOptions={stackHeaderOptions(colors)}
       >
         {status === 'onboarding' && (
           <Stack.Screen
@@ -132,7 +136,7 @@ export default function RootNavigator() {
 
             <Stack.Screen
               name="ClassStudents"
-              component={ClassStudentsScreen}
+              component={ClassStudentsWrapped}
               options={({ route }) => ({
                 title: route?.params?.classLevel
                   ? route.params.classLevel + ' Students'
@@ -142,7 +146,7 @@ export default function RootNavigator() {
 
             <Stack.Screen
               name="StudentDetail"
-              component={StudentDetailScreen}
+              component={StudentDetailWrapped}
               options={{ title: 'Student' }}
             />
 
@@ -154,7 +158,7 @@ export default function RootNavigator() {
 
             <Stack.Screen
               name="MergeQueue"
-              component={MergeQueueScreen}
+              component={MergeQueueWrapped}
               options={{ title: 'Duplicate Registrations' }}
             />
 
@@ -169,19 +173,19 @@ export default function RootNavigator() {
 
             <Stack.Screen
               name="CreateAccount"
-              component={CreateAccountScreen}
+              component={CreateAccountWrapped}
               options={{ title: 'Create Account' }}
             />
 
             <Stack.Screen
               name="ManageStaff"
-              component={ManageStaffScreen}
+              component={ManageStaffWrapped}
               options={{ title: 'Manage Staff' }}
             />
 
             <Stack.Screen
               name="PromoteClass"
-              component={PromoteClassScreen}
+              component={PromoteClassWrapped}
               options={{ title: 'Promote a class' }}
             />
           </>
@@ -196,7 +200,7 @@ export default function RootNavigator() {
 
         <Stack.Screen
           name="ParkedOperations"
-          component={ParkedOperationsScreen}
+          component={ParkedOperationsWrapped}
           options={{ title: 'Changes not saved' }}
         />
       </Stack.Navigator>

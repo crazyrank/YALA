@@ -74,7 +74,6 @@ function fillScript(creds, submit) {
       var c = ${JSON.stringify(creds)};
       var setVal = function (el, v) {
         if (el.value) return;
-        el.focus();
         el.value = v;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -89,6 +88,7 @@ function fillScript(creds, submit) {
         else if (form) form.submit();
       }
     }
+    window.scrollTo(0, 0);
     window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'autofill', found: found }));
     return true;
   })();`;
@@ -363,6 +363,9 @@ export default function WebPageScreen({ navigation, route }) {
                 runAutoLogin();
               }
             }}
+            onLoadProgress={({ nativeEvent }) => {
+              if (nativeEvent?.progress >= 0.9) setLoading(false);
+            }}
             onError={(e) => {
               setLoading(false);
               setError(e?.nativeEvent?.description || 'Network error while opening the page.');
@@ -376,17 +379,6 @@ export default function WebPageScreen({ navigation, route }) {
             }}
             onNavigationStateChange={(nav) => setCanGoBack(!!nav.canGoBack)}
           />
-        )}
-        {loading && (
-          <View style={styles.loading} pointerEvents="none">
-            <ActivityIndicator size="large" color={colors.goldDark} />
-            <View style={styles.skeleton}>
-              <SkeletonLine width={180} color={colors.border} />
-              <SkeletonLine width={130} delay={150} color={colors.border} />
-              <SkeletonLine width={160} delay={300} color={colors.border} />
-            </View>
-            <Text style={styles.loadingText}>Please wait while your request is processed</Text>
-          </View>
         )}
       </>
     );
@@ -403,7 +395,7 @@ export default function WebPageScreen({ navigation, route }) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={22} color={colors.textInverse} />
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </Pressable>
 
           <View style={styles.titleWrap}>
@@ -425,7 +417,7 @@ export default function WebPageScreen({ navigation, route }) {
                 style={styles.headerBtn}
                 accessibilityLabel="Forget saved login"
               >
-                <Ionicons name="key-outline" size={20} color={colors.textInverse} />
+                <Ionicons name="key-outline" size={20} color={colors.textPrimary} />
               </Pressable>
             )}
             {validUrl && canGoBack && (
@@ -435,7 +427,7 @@ export default function WebPageScreen({ navigation, route }) {
                 style={styles.headerBtn}
                 accessibilityLabel="Page back"
               >
-                <Ionicons name="chevron-back" size={22} color={colors.textInverse} />
+                <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
               </Pressable>
             )}
             {validUrl && (
@@ -445,7 +437,7 @@ export default function WebPageScreen({ navigation, route }) {
                 style={styles.headerBtn}
                 accessibilityLabel="Open in browser"
               >
-                <Ionicons name="open-outline" size={20} color={colors.textInverse} />
+                <Ionicons name="open-outline" size={20} color={colors.textPrimary} />
               </Pressable>
             )}
           </View>
@@ -465,14 +457,14 @@ function createStyles(colors, insets) {
       paddingBottom: insets.bottom,
     },
     header: {
-      backgroundColor: colors.inkSoft,
-      paddingTop: insets.top,
+      backgroundColor: colors.background,
+      paddingTop: insets.top + 6,
     },
     headerRow: {
-      height: 56,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: 20,
+      paddingBottom: 14,
     },
     headerBtn: {
       width: 38,
@@ -485,14 +477,14 @@ function createStyles(colors, insets) {
       marginLeft: spacing.sm,
     },
     title: {
-      color: colors.textInverse,
-      fontFamily: fontFamily.heading,
-      fontSize: 16,
+      color: colors.textPrimary,
+      fontFamily: fontFamily.display,
+      fontSize: 28,
+      letterSpacing: -0.6,
     },
     subtitle: {
-      color: colors.textInverse,
-      opacity: 0.8,
-      fontSize: 12,
+      color: colors.textMuted,
+      fontSize: 13,
       marginTop: 2,
     },
     headerRight: {
@@ -508,9 +500,13 @@ function createStyles(colors, insets) {
     },
     loading: {
       ...StyleSheet.absoluteFillObject,
+      top: 0,
+      bottom: 0,
       zIndex: 2,
+      elevation: 2,
       alignItems: 'center',
       justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
       backgroundColor: colors.background,
     },
     skeleton: {
@@ -518,6 +514,7 @@ function createStyles(colors, insets) {
       marginTop: spacing.md,
     },
     loadingText: {
+      textAlign: 'center',
       color: colors.textSecondary,
       marginTop: spacing.md,
       fontFamily: fontFamily.body,

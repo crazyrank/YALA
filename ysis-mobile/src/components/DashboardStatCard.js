@@ -88,23 +88,24 @@ export default function DashboardStatCard({
         animatedStyle,
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={18} color="#FFFFFF" />
-      </View>
+      {/* Icon sits on the card with no background tile, drawn large for weight */}
+      <Ionicons name={icon} size={30} color={color} style={styles.icon} />
 
-      <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
-        {displayValue}
-      </Text>
-
-      <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
-        {title}
-      </Text>
-
-      {!!subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {subtitle}
+      <View style={styles.textWrap}>
+        <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
+          {displayValue}
         </Text>
-      )}
+
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+          {title}
+        </Text>
+
+        {!!subtitle && (
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -112,38 +113,38 @@ export default function DashboardStatCard({
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 118,
+    minHeight: 88,
     borderRadius: radius.lg,
     borderWidth: 1,
-    paddingTop: 14,
-    paddingBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 12,
     ...shadow.card,
   },
 
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+  icon: {
+    marginRight: 12,
+  },
+
+  textWrap: {
+    flex: 1,
   },
 
   value: {
     fontFamily: fontFamily.display,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 26,
     letterSpacing: -0.8,
   },
 
   title: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontSize: 10.5,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginTop: 4,
+    marginTop: 3,
   },
 
   subtitle: {

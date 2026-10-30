@@ -13,22 +13,25 @@ import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
 import WebPageScreen from '../screens/WebPageScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
+import { stackHeaderOptions } from '../theme/stackHeader';
+import withScreenHeader from '../components/withScreenHeader';
 
 const Stack = createNativeStackNavigator();
+
+const ManageStaffWrapped = withScreenHeader(ManageStaffScreen, 'Manage Staff');
+const MergeQueueWrapped = withScreenHeader(MergeQueueScreen, 'Duplicate Registrations');
+const StaffDirectoryWrapped = withScreenHeader(StaffDirectoryScreen, 'Staff Directory');
+const AddDirectoryEntryWrapped = withScreenHeader(AddDirectoryEntryScreen, 'Directory Card');
+const ImportStudentsWrapped = withScreenHeader(ImportStudentsScreen, 'Import Students');
+const DeviceReviewWrapped = withScreenHeader(DeviceReviewScreen, 'Trusted Devices');
+const NotificationsWrapped = withScreenHeader(NotificationsScreen, 'Notifications');
 
 export default function MoreStack() {
   const { colors } = useTheme();
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.inkSoft },
-        headerTintColor: '#FFFFFF',
-        headerTitleStyle: {
-          fontFamily: fontFamily.heading,
-          fontSize: 17,
-        },
-      }}
+      screenOptions={stackHeaderOptions(colors)}
     >
       <Stack.Screen
         name="MoreHome"
@@ -37,37 +40,37 @@ export default function MoreStack() {
       />
       <Stack.Screen
         name="ManageStaff"
-        component={ManageStaffScreen}
+        component={ManageStaffWrapped}
         options={{ title: 'Manage Staff' }}
       />
       <Stack.Screen
         name="MergeQueue"
-        component={MergeQueueScreen}
+        component={MergeQueueWrapped}
         options={{ title: 'Duplicate Registrations' }}
       />
       <Stack.Screen
         name="StaffDirectory"
-        component={StaffDirectoryScreen}
+        component={StaffDirectoryWrapped}
         options={{ title: 'Staff Directory' }}
       />
       <Stack.Screen
         name="AddDirectoryEntry"
-        component={AddDirectoryEntryScreen}
+        component={AddDirectoryEntryWrapped}
         options={{ title: 'Directory Card' }}
       />
       <Stack.Screen
         name="ImportStudents"
-        component={ImportStudentsScreen}
+        component={ImportStudentsWrapped}
         options={{ title: 'Import Students' }}
       />
       <Stack.Screen
         name="DeviceReview"
-        component={DeviceReviewScreen}
+        component={DeviceReviewWrapped}
         options={{ title: 'Trusted Devices' }}
       />
       <Stack.Screen
         name="Notifications"
-        component={NotificationsScreen}
+        component={NotificationsWrapped}
         options={{ title: 'Notifications' }}
       />
       <Stack.Screen

@@ -9,6 +9,7 @@ import { api } from '../api/client';
 import { fetchAndCacheAllStudents, getLocalStudentCount } from '../services/studentSync';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
+import { radius, shadow } from '../theme/spacing';
 
 const PAGE_SIZE = 30;
 
@@ -69,14 +70,10 @@ export default function DashboardStudentSyncCards() {
     <>
       <DashboardStatCard
         icon="people-circle"
-        value={
-          totalStudents === null
-            ? '—'
-            : totalStudents
-        }
+        value={totalStudents === null ? '-' : totalStudents}
         title="Total Students"
         subtitle="In database"
-        color={colors.ink}
+        color={colors.textPrimary}
         bg={colors.surface}
         delay={200}
       />
@@ -88,59 +85,56 @@ export default function DashboardStudentSyncCards() {
             backgroundColor: colors.surface,
             borderColor: colors.border,
           },
+          shadow.card,
         ]}
       >
-        <View
-          style={[
-            styles.iconContainer,
-            {
-              backgroundColor: colors.success,
-            },
-          ]}
-        >
-          <Ionicons
-            name="cloud-done"
-            size={19}
-            color="#FFFFFF"
-          />
+        {/* Icon sits beside the number, with no background tile */}
+        <Ionicons
+          name="cloud-done"
+          size={30}
+          color={colors.success}
+          style={styles.icon}
+        />
+
+        <View style={styles.textWrap}>
+          <Text
+            style={[
+              styles.value,
+              {
+                color: colors.textPrimary,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {syncedStudents === null ? '-' : syncedStudents}
+          </Text>
+
+          <Text
+            style={[
+              styles.title,
+              {
+                color: colors.textPrimary,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            Synced to Database
+          </Text>
+
+          <Text
+            style={[
+              styles.subtitle,
+              {
+                color: colors.textMuted,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {syncedStudents === null
+              ? 'Checking sync status'
+              : 'Records fully synchronized'}
+          </Text>
         </View>
-
-        <Text
-          style={[
-            styles.value,
-            {
-              color: colors.textPrimary,
-            },
-          ]}
-        >
-          {syncedStudents === null
-            ? '—'
-            : syncedStudents}
-        </Text>
-
-        <Text
-          style={[
-            styles.title,
-            {
-              color: colors.textPrimary,
-            },
-          ]}
-        >
-          Synced to Database
-        </Text>
-
-        <Text
-          style={[
-            styles.subtitle,
-            {
-              color: colors.textMuted,
-            },
-          ]}
-        >
-          {syncedStudents === null
-            ? 'Checking sync status'
-            : 'Records fully synchronized'}
-        </Text>
       </View>
     </>
   );
@@ -149,42 +143,42 @@ export default function DashboardStudentSyncCards() {
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 118,
-    borderRadius: 16,
+    minHeight: 88,
+    borderRadius: radius.lg,
     borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 14,
-    paddingVertical: 14,
     marginBottom: 12,
   },
 
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+  icon: {
+    marginRight: 12,
+  },
+
+  textWrap: {
+    flex: 1,
   },
 
   value: {
     fontFamily: fontFamily.display,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 26,
     letterSpacing: -0.8,
   },
 
   title: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontSize: 10.5,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginTop: 4,
+    marginTop: 3,
   },
 
   subtitle: {
     fontFamily: fontFamily.body,
     fontSize: 11,
-    lineHeight: 15,
     marginTop: 2,
   },
 });

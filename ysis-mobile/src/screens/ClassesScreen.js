@@ -79,7 +79,7 @@ export default function ClassesScreen({ navigation }) {
       <View
         style={[
           styles.header,
-          { paddingTop: insets.top + 6 },
+          { paddingTop: insets.top },
         ]}
       >
         <Text style={[styles.title, { color: colors.textPrimary }]}>Classes</Text>

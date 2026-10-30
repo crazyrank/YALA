@@ -91,8 +91,8 @@ export function createOnboardingStyles(colors) {
     },
 
     heroFrame: {
-      width: width * 0.62,
       height: height * 0.37,
+      aspectRatio: 900 / 1125,
       borderRadius: radius.xl,
       overflow: 'hidden',
       borderWidth: 4,

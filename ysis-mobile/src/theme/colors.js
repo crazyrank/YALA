@@ -38,49 +38,49 @@ export const lightColors = {
 export const darkColors = {
   mode: 'dark',
 
-  // Midnight navy
-  ink: '#0A1220',
-  inkSoft: '#17253A',
+  // Soft slate instead of midnight navy
+  ink: '#161B26',
+  inkSoft: '#1E2433',
 
   // Surfaces
-  surface: '#121E30',
-  surfaceAlt: '#18263B',
-  background: '#0A1220',
-  border: '#29364A',
-  borderStrong: '#39485E',
+  surface: '#1E2433',
+  surfaceAlt: '#232B3D',
+  background: '#161B26',
+  border: '#2A3142',
+  borderStrong: '#363E52',
 
   // Typography
-  textPrimary: '#F0F1F3',
-  textSecondary: '#B0BBCB',
-  textMuted: '#8592A5',
+  textPrimary: '#F2F4F8',
+  textSecondary: '#A3ACBE',
+  textMuted: '#7D8698',
   textInverse: '#FFFFFF',
 
   // Muted champagne gold
-  gold: '#C4A96E',
-  goldLight: '#D8C392',
-  goldDark: '#A88A4D',
-  goldTint: '#2B281F',
+  gold: '#BCA470',
+  goldLight: '#D6C596',
+  goldDark: '#9A7F4C',
+  goldTint: '#282620',
 
   // Status colours
-  success: '#70B49D',
-  successBg: '#18332D',
-  error: '#E28A83',
-  errorBg: '#3A2225',
-  warning: '#D8B56C',
-  warningBg: '#382F20',
+  success: '#7DBBA5',
+  successBg: '#1D2F2A',
+  error: '#E09A94',
+  errorBg: '#33222A',
+  warning: '#DDBB78',
+  warningBg: '#342D1F',
 
-  overlay: 'rgba(0,0,0,0.65)',
+  overlay: 'rgba(0,0,0,0.6)',
 };
 
 // Shared brand gradients
 export const gradients = {
-  navy: ['#101C30', '#1C2D46'],
-  navyDeep: ['#070D17', '#101C30'],
-  gold: ['#A88A4D', '#D6BF8B'],
-  goldSubtle: ['#F5F0E5', '#FFFFFF'],
+  navy: ['#161B26', '#1E2433'],
+  navyDeep: ['#11151E', '#161B26'],
+  gold: ['#9A7F4C', '#D6C596'],
+  goldSubtle: ['#282620', '#1E2433'],
   sheen: [
     'rgba(255,255,255,0.0)',
-    'rgba(255,255,255,0.12)',
+    'rgba(255,255,255,0.06)',
     'rgba(255,255,255,0.0)',
   ],
 };

@@ -339,7 +339,7 @@ export default function StudentsListScreen({ navigation, route }) {
         colors={gradients.navy}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 4 }]}
+        style={[styles.hero, { paddingTop: insets.top }]}
       >
         <View style={styles.heroTopRow}>
           <View style={{ flex: 1, paddingRight: 10 }}>
@@ -496,7 +496,7 @@ export default function StudentsListScreen({ navigation, route }) {
                     </View>
                   ) : (
                     <View style={styles.statsGrid}>
-                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.textPrimary} bg={colors.surface} delay={0} />
                       <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
                       <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
                       <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
@@ -506,14 +506,14 @@ export default function StudentsListScreen({ navigation, route }) {
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.secondaryRow}>
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
-                      <Ionicons name="person-add-outline" size={26} color={colors.inkSoft} />
+                      <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
                     </Squish>
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download-outline" size={26} color={colors.goldDark} />
+                        <Ionicons name="download-outline" size={22} color={colors.goldDark} />
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>
@@ -522,7 +522,7 @@ export default function StudentsListScreen({ navigation, route }) {
                         style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
-                        <Ionicons name="document-text-outline" size={26} color={colors.goldDark} />
+                        <Ionicons name="document-text-outline" size={22} color={colors.goldDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
                       </Squish>
                     )}
@@ -530,24 +530,24 @@ export default function StudentsListScreen({ navigation, route }) {
                       style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
                       onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
                     >
-                      <Ionicons name="globe-outline" size={26} color={colors.goldDark} />
+                      <Ionicons name="globe-outline" size={22} color={colors.goldDark} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
                     </Squish>
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
-                        <Ionicons name="cloud-upload-outline" size={26} color={colors.inkSoft} />
+                        <Ionicons name="cloud-upload-outline" size={22} color={colors.textPrimary} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
                       </Squish>
                     )}
                     {isAdmin && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('PromoteClass')}>
-                        <Ionicons name="arrow-up-circle-outline" size={26} color={colors.goldDark} />
+                        <Ionicons name="arrow-up-circle-outline" size={22} color={colors.goldDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Promote class</Text>
                       </Squish>
                     )}
                     {isAdmin && pendingDevices > 0 && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.warning }]} onPress={() => navigation.navigate('MoreTab', { screen: 'DeviceReview' })}>
-                        <Ionicons name="phone-portrait-outline" size={26} color={colors.warning} />
+                        <Ionicons name="phone-portrait-outline" size={22} color={colors.warning} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Approve devices</Text>
                         <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
                           <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
@@ -640,7 +640,7 @@ export default function StudentsListScreen({ navigation, route }) {
           ) : (
             <View style={styles.empty}>
               <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
+                <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.textPrimary} />
               </View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
                 {query ? 'No student found' : 'Search for a student'}
@@ -778,9 +778,9 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontFamily: fontFamily.display,
-    fontSize: 24,
-    lineHeight: 28,
-    letterSpacing: -0.5,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.6,
     color: '#FFFFFF',
   },
   heroSub: {
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
   },
   secondaryAction: {
     width: '48%',
-    height: 92,
+    height: 60,
     marginBottom: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -861,8 +861,9 @@ const styles = StyleSheet.create({
   },
   secondaryActionText: {
     fontFamily: fontFamily.heading,
-    fontSize: 15,
-    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 17,
+    marginTop: 6,
     textAlign: 'center',
   },
   actionBadge: {

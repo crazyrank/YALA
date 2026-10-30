@@ -35,7 +35,7 @@ function RegisterTabButton({ onPress }) {
       accessibilityLabel="Register student"
     >
       <View style={styles.registerBtn}>
-        <Ionicons name="add" size={30} color="#0E1A2B" />
+        <Ionicons name="person-add" size={20} color="#0E1A2B" />
       </View>
     </Pressable>
   );
@@ -215,14 +215,14 @@ export default function MainTabs() {
 
 const styles = StyleSheet.create({
   registerWrap: {
-    top: -14,
+    top: -10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   registerBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#2FA37A',
     alignItems: 'center',
     justifyContent: 'center',

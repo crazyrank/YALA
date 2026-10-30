@@ -122,7 +122,7 @@ export default function ConflictsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.staticHeader, { paddingTop: insets.top + 6 }]}>
+      <View style={[styles.staticHeader, { paddingTop: insets.top }]}>
         <Text style={styles.pageTitle}>Conflicts</Text>
         <Text style={styles.pageSub}>Student records that were changed twice</Text>
       </View>

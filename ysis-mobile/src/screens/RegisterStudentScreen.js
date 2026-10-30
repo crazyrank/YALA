@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
@@ -50,6 +51,7 @@ export default function RegisterStudentScreen({ route, navigation }) {
 
   const [lookupQuery, setLookupQuery] = useState('');
   const [lookupResults, setLookupResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const handleLookupChange = async (text) => {
     setLookupQuery(text);
@@ -204,6 +206,16 @@ export default function RegisterStudentScreen({ route, navigation }) {
     }
   };
 
+  const closeSearch = () => {
+    setSearchOpen(false);
+    handleLookupChange('');
+  };
+
+  // This screen draws its own header, so hide the navigation bar
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
   return (
     <KeyboardAvoidingView
       style={styles.safe}
@@ -214,8 +226,16 @@ export default function RegisterStudentScreen({ route, navigation }) {
         backgroundColor={colors.background}
       />
 
-      <View style={[styles.fixedHeader, { paddingTop: insets.top + 6 }]}>
+      <View style={[styles.headerRow, { paddingTop: insets.top + 6 }]}>
         <Text style={styles.title}>Register student</Text>
+        <Pressable
+          onPress={() => setSearchOpen(true)}
+          hitSlop={12}
+          style={styles.searchBtn}
+          accessibilityLabel="Search"
+        >
+          <Ionicons name="search" size={22} color={colors.textPrimary} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -227,45 +247,6 @@ export default function RegisterStudentScreen({ route, navigation }) {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* FIND EXISTING STUDENT */}
-        <View style={styles.lookupBox}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
-          <TextInput
-            style={styles.lookupInput}
-            placeholder="Find an existing student"
-            placeholderTextColor={colors.textSecondary}
-            value={lookupQuery}
-            onChangeText={handleLookupChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {lookupQuery.length > 0 && (
-            <Pressable onPress={() => handleLookupChange('')} hitSlop={10}>
-              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-            </Pressable>
-          )}
-        </View>
-
-        {lookupResults.length > 0 && (
-          <View style={styles.resultsCard}>
-            {lookupResults.map((item, index) => (
-              <Pressable
-                key={item.id}
-                style={[styles.resultRow, index > 0 && styles.resultDivider]}
-                onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
-              >
-                <View style={styles.resultText}>
-                  <Text style={styles.resultName}>{item.full_name}</Text>
-                  <Text style={styles.resultSub}>
-                    {item.admission_no || 'No admission number'}
-                    {item.class_level ? `  ${item.class_level}` : ''}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-              </Pressable>
-            ))}
-          </View>
-        )}
 
         {/* STUDENT DETAILS */}
         <View style={styles.card}>
@@ -457,6 +438,55 @@ export default function RegisterStudentScreen({ route, navigation }) {
           )}
         </Pressable>
       </ScrollView>
+      <Modal visible={searchOpen} animationType="slide" onRequestClose={closeSearch}>
+        <View style={[styles.modalSafe, { paddingTop: insets.top + 6 }]}>
+          <View style={styles.modalTop}>
+            <View style={styles.modalInputWrap}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Find an existing student"
+                placeholderTextColor={colors.textSecondary}
+                value={lookupQuery}
+                onChangeText={handleLookupChange}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <Pressable onPress={closeSearch} hitSlop={12} style={styles.searchBtn} accessibilityLabel="Close search">
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            {lookupQuery.trim().length > 0 && lookupResults.length === 0 && (
+              <Text style={styles.modalEmpty}>No student matches that search.</Text>
+            )}
+            {lookupResults.length > 0 && (
+              <View style={styles.resultsCard}>
+                {lookupResults.map((item, index) => (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.resultRow, index > 0 && styles.resultDivider]}
+                    onPress={() => {
+                      closeSearch();
+                      navigation.navigate('StudentDetail', { studentId: item.id });
+                    }}
+                  >
+                    <View style={styles.resultText}>
+                      <Text style={styles.resultName}>{item.full_name}</Text>
+                      <Text style={styles.resultSub}>
+                        {item.admission_no || 'No admission number'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -481,9 +511,46 @@ function createStyles(colors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     content: { paddingHorizontal: 20 },
-    fixedHeader: {
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 20,
       paddingBottom: 14,
+    },
+    searchBtn: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalSafe: { flex: 1, backgroundColor: colors.background },
+    modalTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+    },
+    modalInputWrap: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      height: 44,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    modalInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    modalList: { paddingHorizontal: 20, paddingBottom: 32 },
+    modalEmpty: {
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 24,
+      fontSize: 14,
     },
     title: {
       fontFamily: fontFamily.display,
