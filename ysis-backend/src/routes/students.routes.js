@@ -136,6 +136,17 @@ router.get(
           ? `WHERE ${conditions.join(' AND ')}`
           : '';
 
+      // Count all records matching the same access scope and filters.
+      // This runs before pagination parameters are added.
+      const countResult = await db.query(
+        `SELECT COUNT(*)::int AS total
+         FROM students
+         ${whereClause}`,
+        params
+      );
+
+      const total = Number(countResult.rows[0]?.total || 0);
+
       params.push(pageSize, offset);
 
       const { rows } = await db.query(
@@ -159,6 +170,7 @@ router.get(
         students: rows,
         page,
         pageSize,
+        total,
       });
     } catch (err) {
       return next(err);
