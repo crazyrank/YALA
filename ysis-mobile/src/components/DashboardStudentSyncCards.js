@@ -1,17 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 
 import DashboardStatCard from './DashboardStatCard';
 import { getDb } from '../db';
-import { api } from '../api/client';
 import { fetchAndCacheAllStudents, getLocalStudentCount } from '../services/studentSync';
 import { useTheme } from '../theme/ThemeContext';
-import { fontFamily } from '../theme/typography';
-import { radius, shadow } from '../theme/spacing';
-
-const PAGE_SIZE = 30;
 
 export default function DashboardStudentSyncCards() {
   const { colors } = useTheme();
@@ -78,107 +71,19 @@ export default function DashboardStudentSyncCards() {
         delay={200}
       />
 
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-          },
-          shadow.card,
-        ]}
-      >
-        {/* Icon sits beside the number, with no background tile */}
-        <Ionicons
-          name="cloud-done"
-          size={30}
-          color={colors.success}
-          style={styles.icon}
-        />
-
-        <View style={styles.textWrap}>
-          <Text
-            style={[
-              styles.value,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {syncedStudents === null ? '-' : syncedStudents}
-          </Text>
-
-          <Text
-            style={[
-              styles.title,
-              {
-                color: colors.textPrimary,
-              },
-            ]}
-            numberOfLines={2}
-          >
-            Synced to Database
-          </Text>
-
-          <Text
-            style={[
-              styles.subtitle,
-              {
-                color: colors.textMuted,
-              },
-            ]}
-            numberOfLines={2}
-          >
-            {syncedStudents === null
-              ? 'Checking sync status'
-              : 'Records fully synchronized'}
-          </Text>
-        </View>
-      </View>
+      <DashboardStatCard
+        icon="cloud-done"
+        value={syncedStudents === null ? '-' : syncedStudents}
+        title="Synced to Database"
+        subtitle={
+          syncedStudents === null
+            ? 'Checking sync status'
+            : 'Records fully synchronized'
+        }
+        color={colors.success}
+        bg={colors.surface}
+        delay={250}
+      />
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    width: '48%',
-    minHeight: 96,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-
-  icon: {
-    marginBottom: 6,
-  },
-
-  textWrap: {
-    alignSelf: 'stretch',
-  },
-
-  value: {
-    fontFamily: fontFamily.display,
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: -0.8,
-  },
-
-  title: {
-    fontFamily: fontFamily.bodyBold,
-    fontSize: 10.5,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginTop: 3,
-  },
-
-  subtitle: {
-    fontFamily: fontFamily.body,
-    fontSize: 11,
-    marginTop: 2,
-  },
-});

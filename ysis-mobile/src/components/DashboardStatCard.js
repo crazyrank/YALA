@@ -88,8 +88,10 @@ export default function DashboardStatCard({
         animatedStyle,
       ]}
     >
-      {/* Icon sits on the card with no background tile, drawn large for weight */}
-      <Ionicons name={icon} size={30} color={color} style={styles.icon} />
+      {/* Icon sits to the left, centred vertically, in a fixed-width slot so every card's text lines up */}
+      <View style={styles.iconSlot}>
+        <Ionicons name={icon} size={30} color={color} />
+      </View>
 
       <View style={styles.textWrap}>
         <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -113,29 +115,32 @@ export default function DashboardStatCard({
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 96,
+    minHeight: 88,
     borderRadius: radius.lg,
     borderWidth: 1,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 12,
     ...shadow.card,
   },
 
-  icon: {
-    marginBottom: 6,
+  iconSlot: {
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
 
   textWrap: {
-    alignSelf: 'stretch',
+    flex: 1,
   },
 
   value: {
     fontFamily: fontFamily.display,
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 26,
+    lineHeight: 30,
     letterSpacing: -0.8,
   },
 

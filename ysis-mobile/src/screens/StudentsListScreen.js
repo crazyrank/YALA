@@ -509,6 +509,8 @@ export default function StudentsListScreen({ navigation, route }) {
                       <SkeletonStatCard />
                       <SkeletonStatCard />
                       <SkeletonStatCard />
+                      <SkeletonStatCard />
+                      <SkeletonStatCard />
                     </View>
                   ) : (
                     <View style={styles.statsGrid}>
