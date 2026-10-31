@@ -18,12 +18,22 @@ export const lightColors = {
   textMuted: '#8791A0',
   textInverse: '#FFFFFF',
 
-  // Champagne gold accent
-  gold: '#B99A5B',
+  // School brand, sampled from the school buildings: blue (main) and pink (secondary).
+  brand: '#1BA8DD', // fills: buttons, chips, active states (dark text on top)
+  brandLight: '#8ADBF2',
+  brandDark: '#0A74A3', // text and icons on light surfaces
+  brandStrong: '#0A74A3', // fills that carry white text
+  brandTint: '#E4F3FA',
+  pink: '#E8847F', // borders and fills
+  pinkDark: '#C24A52', // icons and text on light surfaces
+  pinkTint: '#FCEDEC',
   accentPurple: '#5B3A8E',
-  goldLight: '#D6BF8B',
-  goldDark: '#8F713B',
-  goldTint: '#F5F0E5',
+
+  // Legacy names kept so older screens keep working. They now point at the blue.
+  gold: '#1BA8DD',
+  goldLight: '#8ADBF2',
+  goldDark: '#0A74A3',
+  goldTint: '#E4F3FA',
 
   // Status colours
   success: '#3D8B75',
@@ -56,12 +66,22 @@ export const darkColors = {
   textMuted: '#7D8698',
   textInverse: '#FFFFFF',
 
-  // Muted champagne gold
-  gold: '#BCA470',
+  // School brand, sampled from the school buildings: blue (main) and pink (secondary).
+  brand: '#2BB3D9', // fills: buttons, chips, active states (dark text on top)
+  brandLight: '#7ED6EF',
+  brandDark: '#2AA3C8', // text and icons on dark surfaces
+  brandStrong: '#1678A0', // fills that carry white text
+  brandTint: '#17303D',
+  pink: '#F4958F', // borders and fills
+  pinkDark: '#F4958F', // icons and text on dark surfaces
+  pinkTint: '#3A2530',
   accentPurple: '#B9A2E0',
-  goldLight: '#D6C596',
-  goldDark: '#9A7F4C',
-  goldTint: '#282620',
+
+  // Legacy names kept so older screens keep working. They now point at the blue.
+  gold: '#2BB3D9',
+  goldLight: '#7ED6EF',
+  goldDark: '#2AA3C8',
+  goldTint: '#17303D',
 
   // Status colours
   success: '#7DBBA5',
@@ -78,8 +98,8 @@ export const darkColors = {
 export const gradients = {
   navy: ['#161B26', '#1E2433'],
   navyDeep: ['#11151E', '#161B26'],
-  gold: ['#9A7F4C', '#D6C596'],
-  goldSubtle: ['#282620', '#1E2433'],
+  gold: ['#1BA8DD', '#8ADBF2'],
+  goldSubtle: ['#17303D', '#1E2433'],
   sheen: [
     'rgba(255,255,255,0.0)',
     'rgba(255,255,255,0.06)',

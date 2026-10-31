@@ -66,14 +66,10 @@ function RegisterTabButton({ onPress }) {
       <View
         style={[
           styles.registerBtn,
-          {
-            backgroundColor: 'transparent',
-            borderWidth: 2,
-            borderColor: colors.textPrimary,
-          },
+          { backgroundColor: colors.brand },
         ]}
       >
-        <Ionicons name="person-add" size={20} color={colors.textPrimary} />
+        <Ionicons name="person-add" size={18} color={colors.ink} />
       </View>
     </Pressable>
   );
@@ -282,19 +278,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   registerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: '#2FA37A',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.22,
+        shadowRadius: 4,
       },
-      android: { elevation: 6 },
+      android: { elevation: 3 },
     }),
   },
 });

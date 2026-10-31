@@ -513,14 +513,14 @@ function CreatorPage() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.photoFrame}>
+        {/* The source photo has a dark border around the red card. These
+            percentages crop to the red area only, so it fills the frame. */}
         <Image
           source={CREATOR.image}
           style={styles.creatorPhoto}
-          resizeMode="cover"
+          resizeMode="stretch"
         />
       </View>
-
-      <Text style={styles.creatorName}>{CREATOR.name}</Text>
 
       <View style={styles.infoCard}>
         {CREATOR.lines.map((line, i) => (
@@ -819,8 +819,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   creatorPhoto: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    width: '200%',
+    height: '112%',
+    left: '-49.7222%',
+    top: '-12%',
   },
   infoCard: {
     width: '100%',

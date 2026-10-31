@@ -204,12 +204,14 @@ export const createLoginStyles = (colors) => StyleSheet.create({
   },
 
   login: {
-    height: 58,
-    borderRadius: radius.lg - 1,
+    height: 56,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    // Solid fill: Android draws a grey box when an elevated view has no
+    // opaque background of its own.
+    backgroundColor: colors.mode === 'dark' ? colors.brand : colors.ink,
     ...shadow.button,
   },
 
@@ -229,11 +231,18 @@ export const createLoginStyles = (colors) => StyleSheet.create({
   loginText: {
     ...type.button,
     fontSize: 16,
-    color: colors.textInverse,
+    color: colors.mode === 'dark' ? colors.ink : colors.textInverse,
   },
 
   arrowWrap: {
-    marginLeft: spacing.sm + 2,
+    marginLeft: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      colors.mode === 'dark' ? 'rgba(22,27,38,0.14)' : 'rgba(255,255,255,0.14)',
   },
 
   divider: {

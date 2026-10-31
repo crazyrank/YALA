@@ -294,13 +294,6 @@ export default function LoginScreen() {
                 loading && styles.disabled,
               ]}
             >
-              <LinearGradient
-                colors={gradients.navy}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.loginGradient}
-              />
-
               {loading ? (
                 <>
                   <ActivityIndicator color={colors.textInverse} size="small" />
@@ -312,7 +305,11 @@ export default function LoginScreen() {
                 <>
                   <Text style={styles.loginText}>Sign in</Text>
                   <View style={styles.arrowWrap}>
-                    <Feather name="arrow-right" size={19} color={colors.goldLight} />
+                    <Feather
+                      name="arrow-right"
+                      size={17}
+                      color={colors.mode === 'dark' ? colors.ink : colors.goldLight}
+                    />
                   </View>
                 </>
               )}

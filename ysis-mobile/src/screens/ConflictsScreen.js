@@ -310,7 +310,7 @@ function createStyles(colors) {
     },
 
     keepServer: {
-      backgroundColor: colors.goldDark || colors.gold,
+      backgroundColor: colors.brandStrong,
     },
 
     buttonText: {

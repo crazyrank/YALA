@@ -537,18 +537,18 @@ export default function StudentsListScreen({ navigation, route }) {
                     </Squish>
                     {['director', 'principal', 'head_teacher'].includes(user?.role) && (
                       <Squish
-                        style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
+                        style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
-                        <Ionicons name="document-text-outline" size={22} color={colors.goldDark} />
+                        <Ionicons name="document-text-outline" size={22} color={colors.pinkDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
                       </Squish>
                     )}
                     <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.gold }]}
+                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
                       onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
                     >
-                      <Ionicons name="globe-outline" size={22} color={colors.goldDark} />
+                      <Ionicons name="globe-outline" size={22} color={colors.pinkDark} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
                     </Squish>
                     {isAdmin && (
