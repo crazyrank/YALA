@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import Skeleton, { SkeletonStudentRow, SkeletonStatCard } from '../components/Skeleton';
@@ -22,8 +22,12 @@ import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import MainTabs from './MainTabs';
 import ParkedOperationsScreen from '../screens/ParkedOperationsScreen';
+import GlobalFooter from '../components/GlobalFooter';
 
 const Stack = createNativeStackNavigator();
+
+// Lets the footer (which sits outside the navigator) change screens.
+const navigationRef = createNavigationContainerRef();
 
 /** Shown while AuthContext resolves SecureStore / biometric status. */
 function AuthBootstrapSkeleton() {
@@ -81,10 +85,24 @@ const ParkedOperationsWrapped = withScreenHeader(ParkedOperationsScreen, 'Change
 export default function RootNavigator() {
   const { status } = useAuth();
   const { colors } = useTheme();
+
+  // Name of the screen currently on top of the root stack (drives the footer).
+  const [topRoute, setTopRoute] = useState(null);
+  const syncTopRoute = useCallback(() => {
+    const root = navigationRef.isReady() ? navigationRef.getRootState() : null;
+    setTopRoute(root && root.routes[root.index] ? root.routes[root.index].name : null);
+  }, []);
+
   if (status === 'loading') return <AuthBootstrapSkeleton />;
 
   return (
-    <NavigationContainer>
+    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={syncTopRoute}
+      onStateChange={syncTopRoute}
+    >
       <Stack.Navigator
         screenOptions={stackHeaderOptions(colors)}
       >
@@ -201,5 +219,10 @@ export default function RootNavigator() {
         />
       </Stack.Navigator>
     </NavigationContainer>
+    </View>
+    {status === 'authenticated' && (
+      <GlobalFooter navigationRef={navigationRef} routeName={topRoute} />
+    )}
+    </View>
   );
 }
