@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +22,7 @@ export default function ManageStaffScreen({ navigation }) {
   const { user } = useAuth();
   const { colors } = useTheme();
   const isDirector = user?.role === 'director';
-  const staffLabel = isDirector ? 'Principals' : 'Head Teachers';
+  const staffLabel = isDirector ? 'Staff accounts' : 'Head Teachers';
   const createLabel = isDirector ? 'Create Principal' : 'Create Head Teacher';
 
   const [staff, setStaff] = useState([]);
@@ -49,8 +50,9 @@ export default function ManageStaffScreen({ navigation }) {
     }, [loadStaff])
   );
 
-  // Only the Director can delete a Principal. The server enforces this too.
-  const canDelete = (member) => isDirector && member.role === 'principal';
+  // Director can permanently delete principals and head teachers they created.
+  const canDelete = (member) =>
+    isDirector && (member.role === 'principal' || member.role === 'head_teacher');
 
   const toggleStatus = (member) => {
     const nextStatus = member.status === 'active' ? 'suspended' : 'active';
@@ -86,14 +88,16 @@ export default function ManageStaffScreen({ navigation }) {
 
   const deleteMember = (member) => {
     const name = member.fullName || 'This account';
+    const roleLabel =
+      member.role === 'principal' ? 'principal' : 'head teacher';
 
     Alert.alert(
-      'Delete principal?',
-      `${name} will no longer be able to sign in. The record is kept for the audit trail.`,
+      `Delete ${roleLabel}?`,
+      `${name} will be permanently removed from the database and will no longer be able to sign in. Audit history that mentioned this account is kept.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Delete permanently',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -113,6 +117,12 @@ export default function ManageStaffScreen({ navigation }) {
     if (parts.length === 0) return '?';
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const roleLabel = (role) => {
+    if (role === 'principal') return 'Principal';
+    if (role === 'head_teacher') return 'Head Teacher';
+    return role || 'Staff';
   };
 
   const renderItem = ({ item }) => {
@@ -153,6 +163,16 @@ export default function ManageStaffScreen({ navigation }) {
             >
               {suspended ? 'Suspended' : 'Active'}
             </Text>
+            {isDirector && item.role ? (
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: colors.textSecondary, marginLeft: 10 },
+                ]}
+              >
+                · {roleLabel(item.role)}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -197,13 +217,59 @@ export default function ManageStaffScreen({ navigation }) {
         </Text>
       </View>
 
-      <Pressable
-        style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
-        onPress={() => navigation.navigate('CreateAccount')}
-      >
-        <Ionicons name="person-add" size={18} color={colors.textInverse} />
-        <Text style={[styles.createBtnText, { color: colors.textInverse }]}>{createLabel}</Text>
-      </Pressable>
+      {isDirector ? (
+        <View style={styles.createGroup}>
+          <Pressable
+            style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', { targetRole: 'principal' })
+            }
+          >
+            <Ionicons name="person-add" size={18} color={colors.textInverse} />
+            <Text style={[styles.createBtnText, { color: colors.textInverse }]}>
+              Create Principal
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.createBtn, styles.createBtnSecondary, { borderColor: colors.border }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', {
+                targetRole: 'head_teacher',
+                division: 'primary',
+              })
+            }
+          >
+            <Ionicons name="school-outline" size={18} color={colors.textPrimary} />
+            <Text style={[styles.createBtnText, { color: colors.textPrimary }]}>
+              Create Primary school HT
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.createBtn, styles.createBtnSecondary, { borderColor: colors.border }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', {
+                targetRole: 'head_teacher',
+                division: 'secondary',
+              })
+            }
+          >
+            <Ionicons name="school-outline" size={18} color={colors.textPrimary} />
+            <Text style={[styles.createBtnText, { color: colors.textPrimary }]}>
+              Create Secondary school HT
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.createGroup}>
+          <Pressable
+            style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
+            onPress={() => navigation.navigate('CreateAccount')}
+          >
+            <Ionicons name="person-add" size={18} color={colors.textInverse} />
+            <Text style={[styles.createBtnText, { color: colors.textInverse }]}>{createLabel}</Text>
+          </Pressable>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -262,10 +328,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  createBtn: {
+  createGroup: {
     marginHorizontal: 20,
     marginTop: 12,
     marginBottom: 8,
+    gap: 10,
+  },
+  createBtn: {
     height: 52,
     borderRadius: radius.md,
     flexDirection: 'row',
@@ -273,6 +342,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     ...shadow.card,
+  },
+  createBtnSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    ...Platform.select({
+      ios: { shadowOpacity: 0 },
+      android: { elevation: 0 },
+    }),
   },
   createBtnText: {
     fontFamily: fontFamily.bodyBold,

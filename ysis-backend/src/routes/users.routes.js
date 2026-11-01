@@ -79,8 +79,14 @@ router.post(
       checkValidation(req);
       const { fullName, email, phone, division } = req.body;
 
-      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
+      // Principal always creates head_teacher.
+      // Director creates principal by default; if division is supplied, creates head_teacher.
+      let targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
       if (!targetRole) throw Errors.forbidden('You are not able to create accounts.');
+
+      if (req.auth.role === 'director' && ['primary', 'secondary'].includes(division)) {
+        targetRole = 'head_teacher';
+      }
 
       const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
@@ -93,7 +99,12 @@ router.post(
 
       const tempCredential = generateTempCredential();
       const passwordHash = await hashPassword(tempCredential);
-      const directoryTitle = targetRole === 'principal' ? 'Principal' : 'Head Teacher';
+      const directoryTitle =
+        targetRole === 'principal'
+          ? 'Principal'
+          : division === 'primary'
+            ? 'Primary Head Teacher'
+            : 'Secondary Head Teacher';
 
       const created = await db.withTransaction(async (client) => {
         const { rows } = await client.query(
@@ -128,7 +139,7 @@ router.post(
         entityType: 'user',
         entityId: created.id,
         result: 'success',
-        metadata: { role: targetRole },
+        metadata: { role: targetRole, division: division || null },
       });
 
       return res.status(201).json({
@@ -154,18 +165,36 @@ router.post(
 
 /**
  * GET /users
+ * Principal: head teachers they created.
+ * Director: principals and head teachers they created.
  */
 router.get('/', requireAuth, requireRole('director', 'principal'), async (req, res, next) => {
   try {
-    const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
-    if (!targetRole) throw Errors.forbidden('You are not able to view staff accounts.');
-
-    const { rows } = await db.query(
-      `SELECT id, full_name, email, phone, role, status, created_at
-       FROM users WHERE role = $1 AND created_by = $2 AND status <> 'inactive'
-       ORDER BY created_at DESC`,
-      [targetRole, req.auth.userId]
-    );
+    let rows;
+    if (req.auth.role === 'director') {
+      const result = await db.query(
+        `SELECT id, full_name, email, phone, role, status, created_at
+         FROM users
+         WHERE created_by = $1
+           AND role IN ('principal', 'head_teacher')
+           AND status <> 'inactive'
+         ORDER BY
+           CASE role WHEN 'principal' THEN 0 ELSE 1 END,
+           created_at DESC`,
+        [req.auth.userId]
+      );
+      rows = result.rows;
+    } else {
+      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
+      if (!targetRole) throw Errors.forbidden('You are not able to view staff accounts.');
+      const result = await db.query(
+        `SELECT id, full_name, email, phone, role, status, created_at
+         FROM users WHERE role = $1 AND created_by = $2 AND status <> 'inactive'
+         ORDER BY created_at DESC`,
+        [targetRole, req.auth.userId]
+      );
+      rows = result.rows;
+    }
 
     return res.json({
       users: rows.map((u) => ({
@@ -204,11 +233,17 @@ router.patch(
       const target = rows[0];
       if (!target) throw Errors.notFound('That account could not be found.');
 
-      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
       if (target.status === 'inactive') {
         throw Errors.badRequest('ACCOUNT_DELETED', 'This account was deleted and cannot be changed.');
       }
-      const ownsTarget = target.role === targetRole && target.created_by === req.auth.userId;
+      // Director may manage principals and head teachers they created.
+      // Principal may only manage head teachers they created.
+      const allowedRoles =
+        req.auth.role === 'director'
+          ? ['principal', 'head_teacher']
+          : [CREATABLE_ROLE_BY_CALLER[req.auth.role]];
+      const ownsTarget =
+        allowedRoles.includes(target.role) && target.created_by === req.auth.userId;
       if (!ownsTarget) throw Errors.forbidden('You are not able to manage this account.');
 
       const updated = await db.query(
@@ -371,10 +406,10 @@ router.delete(
 
 /**
  * DELETE /users/:id
- * Director only, and only for Principal accounts the Director created.
- * Hard delete is not possible: audit logs and records point at the account.
- * The account is marked inactive, its sessions end, its devices are revoked,
- * and it no longer appears in the staff list.
+ * Director only. Removes principals or head teachers the Director created
+ * from the database (hard delete). Dependent rows are cleaned first.
+ * Audit log entries that referenced the account are left in place (append-only);
+ * their user_id / entity_id simply point at a removed account.
  */
 router.delete(
   '/:id',
@@ -392,24 +427,56 @@ router.delete(
       );
       const target = rows[0];
       if (!target) throw Errors.notFound('That account could not be found.');
-      if (target.role !== 'principal' || target.created_by !== req.auth.userId) {
+      if (
+        !['principal', 'head_teacher'].includes(target.role) ||
+        target.created_by !== req.auth.userId
+      ) {
         throw Errors.forbidden('You are not able to delete this account.');
       }
-      if (target.status === 'inactive') {
-        throw Errors.badRequest('ACCOUNT_DELETED', 'This account was already deleted.');
+
+      const roleLabel = target.role === 'principal' ? 'principal' : 'head teacher';
+
+      // Refuse if this account still has subordinates (e.g. principal who created HTs).
+      const subordinates = await db.query(
+        `SELECT id FROM users WHERE created_by = $1 AND status <> 'inactive' LIMIT 1`,
+        [id]
+      );
+      if (subordinates.rows.length > 0) {
+        throw Errors.badRequest(
+          'HAS_SUBORDINATES',
+          'Delete or reassign accounts created by this person first.'
+        );
       }
 
       await db.withTransaction(async (client) => {
+        // Clean dependents that would block a hard delete (FKs).
         await client.query(
-          `UPDATE users SET status = 'inactive', session_version = session_version + 1, updated_at = now()
-           WHERE id = $1`,
+          `DELETE FROM password_reset_tokens WHERE user_id = $1 OR issued_by = $1`,
+          [id]
+        );
+        await client.query(`DELETE FROM notifications WHERE user_id = $1`, [id]);
+        await client.query(
+          `DELETE FROM head_teacher_class_assignments WHERE user_id = $1 OR assigned_by = $1`,
           [id]
         );
         await client.query(
-          `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2, refresh_token_hash = NULL
-           WHERE user_id = $1 AND status <> 'revoked'`,
-          [id, req.auth.userId]
+          `DELETE FROM staff_directory WHERE linked_user_id = $1 OR created_by = $1`,
+          [id]
         );
+        await client.query(`DELETE FROM devices WHERE user_id = $1`, [id]);
+        // Clear optional references on other rows so the user row can be removed.
+        await client.query(
+          `UPDATE devices SET revoked_by = NULL WHERE revoked_by = $1`,
+          [id]
+        );
+        await client.query(
+          `DELETE FROM user_permissions WHERE user_id = $1 OR granted_by = $1`,
+          [id]
+        );
+        // Inactive subordinates (if any) must go too so created_by FK does not block.
+        await client.query(`DELETE FROM users WHERE created_by = $1`, [id]);
+        // Finally remove the account row.
+        await client.query(`DELETE FROM users WHERE id = $1`, [id]);
       });
 
       await writeAudit({
@@ -419,10 +486,11 @@ router.delete(
         entityType: 'user',
         entityId: id,
         result: 'success',
+        metadata: { hardDelete: true, role: target.role, fullName: target.full_name },
       });
       notifyDirectors({
         title: 'Staff deleted',
-        body: `${target.full_name} (principal) was deleted and can no longer sign in.`,
+        body: `${target.full_name} (${roleLabel}) was permanently removed from the system.`,
         entityId: id,
       });
 

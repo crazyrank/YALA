@@ -7,21 +7,12 @@ import Skeleton, { SkeletonStudentRow, SkeletonStatCard } from '../components/Sk
 import LoginScreen from '../screens/LoginScreen';
 import IntroScreen from '../screens/IntroScreen';
 import UnlockScreen from '../screens/UnlockScreen';
-import ClassStudentsScreen from '../screens/ClassStudentsScreen';
-import StudentDetailScreen from '../screens/StudentDetailScreen';
-import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { stackHeaderOptions } from '../theme/stackHeader';
-import withScreenHeader from '../components/withScreenHeader';
-import MergeQueueScreen from '../screens/MergeQueueScreen';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
-import CreateAccountScreen from '../screens/CreateAccountScreen';
-import ManageStaffScreen from '../screens/ManageStaffScreen';
-import PromoteClassScreen from '../screens/PromoteClassScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import PolicyScreen from '../screens/PolicyScreen';
 import MainTabs from './MainTabs';
-import ParkedOperationsScreen from '../screens/ParkedOperationsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -67,16 +58,6 @@ const bootStyles = StyleSheet.create({
     marginBottom: 8,
   },
 });
-
-// ClassStudents uses the same hero as the Students dashboard (with back button
-// when a class is selected). Do not wrap with withScreenHeader — that produced
-// a second large title and truncated text.
-const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
-const MergeQueueWrapped = withScreenHeader(MergeQueueScreen, 'Duplicate Registrations');
-const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Account');
-const ManageStaffWrapped = withScreenHeader(ManageStaffScreen, 'Manage Staff');
-const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
-const ParkedOperationsWrapped = withScreenHeader(ParkedOperationsScreen, 'Changes not saved');
 
 export default function RootNavigator() {
   const { status } = useAuth();
@@ -134,30 +115,7 @@ export default function RootNavigator() {
               options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
 
-            <Stack.Screen
-              name="ClassStudents"
-              component={ClassStudentsScreen}
-              options={{ headerShown: false }}
-            />
-
-            <Stack.Screen
-              name="StudentDetail"
-              component={StudentDetailWrapped}
-              options={{ title: 'Student' }}
-            />
-
-            <Stack.Screen
-              name="RegisterStudent"
-              component={RegisterStudentScreen}
-              options={{ title: 'Register Student' }}
-            />
-
-            <Stack.Screen
-              name="MergeQueue"
-              component={MergeQueueWrapped}
-              options={{ title: 'Duplicate Registrations' }}
-            />
-
+            {/* Full-screen camera — intentionally above the tab bar */}
             <Stack.Screen
               name="CameraCapture"
               component={CameraCaptureScreen}
@@ -165,24 +123,6 @@ export default function RootNavigator() {
                 headerShown: false,
                 presentation: 'fullScreenModal',
               }}
-            />
-
-            <Stack.Screen
-              name="CreateAccount"
-              component={CreateAccountWrapped}
-              options={{ title: 'Create Account' }}
-            />
-
-            <Stack.Screen
-              name="ManageStaff"
-              component={ManageStaffWrapped}
-              options={{ title: 'Manage Staff' }}
-            />
-
-            <Stack.Screen
-              name="PromoteClass"
-              component={PromoteClassWrapped}
-              options={{ title: 'Promote a class' }}
             />
           </>
         )}
@@ -192,12 +132,6 @@ export default function RootNavigator() {
           name="Policy"
           component={PolicyScreen}
           options={{ headerShown: false }}
-        />
-
-        <Stack.Screen
-          name="ParkedOperations"
-          component={ParkedOperationsWrapped}
-          options={{ title: 'Changes not saved' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -14,6 +14,7 @@ const Errors = {
     new AppError(403, 'FORBIDDEN', message),
   notFound: (message = 'That resource could not be found.') =>
     new AppError(404, 'NOT_FOUND', message),
+  conflict: (code, message) => new AppError(409, code || 'CONFLICT', message),
   deviceNotTrusted: (message = 'This device is not trusted. Contact a Principal or Director.') =>
     new AppError(423, 'DEVICE_NOT_TRUSTED', message),
   accountLocked: (message = 'This account is temporarily locked. Try again later or contact your administrator.') =>

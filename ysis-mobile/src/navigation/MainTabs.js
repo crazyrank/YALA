@@ -4,9 +4,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import StudentsListScreen from '../screens/StudentsListScreen';
-import ClassesScreen from '../screens/ClassesScreen';
 import MoreStack from './MoreStack';
+import StudentsStack from './StudentsStack';
+import ClassesStack from './ClassesStack';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
 import AnimatedTabIcon from '../components/AnimatedTabIcon';
@@ -18,11 +18,6 @@ import { api } from '../api/client';
 import { setConflictCount, useConflictCount } from '../services/conflictBadge';
 
 const Tab = createBottomTabNavigator();
-
-function StudentsTab({ navigation, route }) {
-  // Conflicts are handled on the Conflicts tab only — never block the dashboard.
-  return <StudentsListScreen navigation={navigation} route={route} />;
-}
 
 function withAlpha(hex, alpha, fallback) {
   if (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -146,7 +141,7 @@ export default function MainTabs() {
     >
       <Tab.Screen
         name="StudentsTab"
-        component={StudentsTab}
+        component={StudentsStack}
         options={{
           headerShown: false,
           title: 'Yala Matrix Schools',
@@ -166,7 +161,7 @@ export default function MainTabs() {
 
       <Tab.Screen
         name="ClassesTab"
-        component={ClassesScreen}
+        component={ClassesStack}
         options={{
           headerShown: false,
           title: 'Classes',

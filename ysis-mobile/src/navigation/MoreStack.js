@@ -11,8 +11,10 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import ResultPortalScreen from '../screens/ResultPortalScreen';
 import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
 import WebPageScreen from '../screens/WebPageScreen';
+import CreateAccountScreen from '../screens/CreateAccountScreen';
+import PromoteClassScreen from '../screens/PromoteClassScreen';
+import StudentDetailScreen from '../screens/StudentDetailScreen';
 import { useTheme } from '../theme/ThemeContext';
-import { fontFamily } from '../theme/typography';
 import { stackHeaderOptions } from '../theme/stackHeader';
 import withScreenHeader from '../components/withScreenHeader';
 
@@ -25,14 +27,15 @@ const AddDirectoryEntryWrapped = withScreenHeader(AddDirectoryEntryScreen, 'Dire
 const ImportStudentsWrapped = withScreenHeader(ImportStudentsScreen, 'Import Students');
 const DeviceReviewWrapped = withScreenHeader(DeviceReviewScreen, 'Trusted Devices');
 const NotificationsWrapped = withScreenHeader(NotificationsScreen, 'Notifications');
+const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Account');
+const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
+const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 
 export default function MoreStack() {
   const { colors } = useTheme();
 
   return (
-    <Stack.Navigator
-      screenOptions={stackHeaderOptions(colors)}
-    >
+    <Stack.Navigator screenOptions={stackHeaderOptions(colors)}>
       <Stack.Screen
         name="MoreHome"
         component={MoreScreen}
@@ -42,6 +45,11 @@ export default function MoreStack() {
         name="ManageStaff"
         component={ManageStaffWrapped}
         options={{ title: 'Manage Staff' }}
+      />
+      <Stack.Screen
+        name="CreateAccount"
+        component={CreateAccountWrapped}
+        options={{ title: 'Create Account' }}
       />
       <Stack.Screen
         name="MergeQueue"
@@ -72,6 +80,16 @@ export default function MoreStack() {
         name="Notifications"
         component={NotificationsWrapped}
         options={{ title: 'Notifications' }}
+      />
+      <Stack.Screen
+        name="PromoteClass"
+        component={PromoteClassWrapped}
+        options={{ title: 'Promote a class' }}
+      />
+      <Stack.Screen
+        name="StudentDetail"
+        component={StudentDetailWrapped}
+        options={{ title: 'Student' }}
       />
       <Stack.Screen
         name="ResultPortal"
