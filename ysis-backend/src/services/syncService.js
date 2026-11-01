@@ -78,6 +78,15 @@ async function processOperation({
   }
 
   try {
+    if (
+      (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
+      userRole !== 'principal' &&
+      userRole !== 'director'
+    ) {
+      await markOpStatus(syncOpRowId, 'failed', 'Only the principal or director can do this.');
+      return { operationId, status: 'failed', error: 'FORBIDDEN' };
+    }
+
     if (opType === 'edit_student' || opType === 'promote_student' || opType === 'undo_promote_student') {
       if (
         (opType === 'promote_student' || opType === 'undo_promote_student') &&
@@ -146,6 +155,15 @@ async function processOperation({
 
       if (opType === 'edit_student') {
         const changes = payload.changes || {};
+
+        if (userRole === 'head_teacher') {
+          const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
+          const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
+          if (blocked.length > 0) {
+            await markOpStatus(syncOpRowId, 'failed', 'Head teachers can only edit name, gender and guardian details.');
+            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+          }
+        }
 
         const touchesClassFields = [
           'division',

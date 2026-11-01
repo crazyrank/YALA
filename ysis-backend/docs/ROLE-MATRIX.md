@@ -11,7 +11,11 @@ Compiled from the route checks in the code. Confirm with the Director before rel
 | Disable or enable Head Teacher accounts | Principals (own) | Yes (own) | No |
 | Approve or revoke devices | Yes | Yes | No |
 | View all devices | Yes | Yes | No (own only) |
-| Edit, promote, archive students | Yes | Yes | No |
+| Register students | Yes | Yes | No |
+| Promote students | Yes | Yes | No |
+| Edit student name, gender, guardian details | Yes | Yes | Yes (own level only) |
+| Edit student class, arm, status | Yes | Yes | No |
+| Archive students | Yes | Yes | No |
 | Import students | Yes | Yes | No |
 | Resolve conflicts and merge queue | Yes | Yes | No |
 | Replace an existing passport photo | No | Yes (reason required) | No |

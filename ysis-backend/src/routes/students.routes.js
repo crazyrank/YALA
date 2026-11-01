@@ -4,7 +4,7 @@ const { academicSessionFor, normalizeSession } = require('../utils/academicSessi
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 const { userHasPermission } = require('../services/permissionService');
@@ -184,6 +184,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
+  requireRole('principal', 'director'),
   [
     body('id').isUUID(),
     body('admissionNo').isString().notEmpty(),
@@ -418,6 +419,14 @@ router.patch(
         );
       }
 
+      if (req.auth.role === 'head_teacher') {
+        const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
+        const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
+        if (blocked.length > 0) {
+          throw Errors.forbidden('Head teachers can only edit name, gender and guardian details.');
+        }
+      }
+
       const touchesClassFields = [
         'division',
         'class_level',
@@ -496,6 +505,7 @@ router.patch(
 router.post(
   '/:id/promote',
   requireAuth,
+  requireRole('principal', 'director'),
   [
     param('id').isUUID(),
 

@@ -28,6 +28,14 @@ router.post(
       checkValidation(req);
       const { userId, permissionCode, expiresInHours, reason } = req.body;
 
+      const target = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      if (
+        target.rows[0]?.role === 'head_teacher' &&
+        ['PROMOTE_STUDENT', 'REGISTER_STUDENT'].includes(permissionCode)
+      ) {
+        throw Errors.forbidden('Head teachers cannot be granted this permission.');
+      }
+
       const perm = await db.query('SELECT id FROM permissions WHERE code = $1', [permissionCode]);
       if (perm.rows.length === 0) throw Errors.badRequest('UNKNOWN_PERMISSION', 'That permission does not exist.');
 
