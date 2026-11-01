@@ -6,6 +6,7 @@ const { Errors } = require('../utils/errors');
 const {
   getScopeForUser,
   scopeToSqlClause,
+  scopeKeyFor,
 } = require('../services/studentScopeService');
 
 const router = express.Router();
@@ -87,6 +88,7 @@ router.get(
       return res.json({
         students,
         hasMore,
+        scopeKey: scopeKeyFor(scope),
         nextCursor: last
           ? { since: last.cursor_ts, afterId: last.id }
           : { since, afterId },

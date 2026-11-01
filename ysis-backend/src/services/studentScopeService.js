@@ -88,4 +88,17 @@ function isWithinScope(scope, { division, classLevel, arm }) {
   });
 }
 
-module.exports = { getScopeForUser, scopeToSqlClause, isWithinScope };
+
+/**
+ * Stable text key for a user's scope. Admins get "unscoped". The phone saves
+ * this key and clears its local students when the key changes.
+ */
+function scopeKeyFor(scope) {
+  if (scope === null) return 'unscoped';
+  if (scope.length === 0) return 'none';
+  const parts = scope.map((s) => `${s.division}|${s.class_level}|${s.arm || ''}`);
+  parts.sort();
+  return parts.join(';');
+}
+
+module.exports = { getScopeForUser, scopeToSqlClause, isWithinScope, scopeKeyFor };

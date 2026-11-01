@@ -9,6 +9,7 @@
  */
 import { getDb } from '../db';
 import { api } from '../api/client';
+import { checkScopeChanged } from './scopeGuard';
 
 const PAGE_SIZE = 200;
 const THROTTLE_MS = 30 * 1000;
@@ -136,9 +137,18 @@ async function runPull(force) {
 
   let cursor = await readCursor(db);
   let pages = 0;
+  let checkedScope = false;
 
   while (pages < MAX_PAGES) {
     const response = await fetchChangesPage(cursor);
+    if (!checkedScope) {
+      checkedScope = true;
+      const scopeResult = await checkScopeChanged(response?.scopeKey);
+      if (scopeResult.reset) {
+        cursor = START_CURSOR;
+        continue;
+      }
+    }
     const students = Array.isArray(response?.students) ? response.students : [];
     const nextCursor = response?.nextCursor || cursor;
 
