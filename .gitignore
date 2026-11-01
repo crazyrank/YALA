@@ -68,3 +68,13 @@ apply-trusted-devices.py
 apply-notifications.py
 apply-session-registration.py
 ysis-backend/scripts/session-report.js
+
+# Local backups and build output
+*.backup
+*.bak
+*.before-*
+src_backup*
+node_modules/
+dist/
+.env
+.env.*

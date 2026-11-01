@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
-import { radius, shadow } from '../theme/spacing';
+import { radius } from '../theme/spacing';
 
 export default function DashboardStatCard({
   icon = 'ellipse',
@@ -13,11 +13,14 @@ export default function DashboardStatCard({
   color = '#17263B',
   bg = '#FFFFFF',
   delay = 0,
+  accent = 'brand', // 'brand' (school blue) or 'strong' (navy in light mode)
 }) {
   const { colors } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
   const valueAnim = useRef(new Animated.Value(0)).current;
   const [displayValue, setDisplayValue] = useState(value);
+
+  const barColor = accent === 'strong' ? colors.brandStrong : colors.brand;
 
   // Entrance animation (runs once on mount)
   useEffect(() => {
@@ -88,6 +91,9 @@ export default function DashboardStatCard({
         animatedStyle,
       ]}
     >
+      {/* Left accent bar. The card clips it to the rounded corner. */}
+      <View style={[styles.accentBar, { backgroundColor: barColor }]} />
+
       {/* Icon sits to the left, centred vertically, in a fixed-width slot so every card's text lines up */}
       <View style={styles.iconSlot}>
         <Ionicons name={icon} size={30} color={color} />
@@ -117,13 +123,22 @@ const styles = StyleSheet.create({
     width: '48%',
     minHeight: 88,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingLeft: 20,
+    paddingRight: 16,
     marginBottom: 12,
-    ...shadow.card,
+  },
+
+  accentBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
 
   iconSlot: {
