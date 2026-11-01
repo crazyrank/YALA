@@ -19,7 +19,7 @@ export const lightColors = {
   textInverse: '#FFFFFF',
 
   // School brand, sampled from the school buildings: blue (main) and pink (secondary).
-  brand: '#1BA8DD', // fills: buttons, chips, active states (dark text on top)
+  brand: '#0A74A3', // fills: buttons, chips, active states (dark text on top)
   brandLight: '#8ADBF2',
   brandDark: '#0A74A3', // text and icons on light surfaces
   brandStrong: '#0A74A3', // fills that carry white text
@@ -30,7 +30,7 @@ export const lightColors = {
   accentPurple: '#5B3A8E',
 
   // Legacy names kept so older screens keep working. They now point at the blue.
-  gold: '#1BA8DD',
+  gold: '#0A74A3',
   goldLight: '#8ADBF2',
   goldDark: '#0A74A3',
   goldTint: '#E4F3FA',

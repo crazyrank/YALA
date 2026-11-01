@@ -66,6 +66,10 @@ async function apiFetch(path, options = {}, isRetry = false) {
     });
   } catch (networkErr) {
     clearTimeout(timeoutId);
+    if (!isRetry && path === "/auth/login" && networkErr.name !== "AbortError") {
+      await new Promise((r) => setTimeout(r, 700));
+      return apiFetch(path, options, true);
+    }
     const err = new Error(
       networkErr.name === 'AbortError' ? 'Request timed out' : 'Network unavailable'
     );
