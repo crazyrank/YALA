@@ -78,6 +78,7 @@ export async function wipeLocalData() {
     // eslint-disable-next-line no-await-in-loop
     await database.runAsync(`DELETE FROM ${table}`);
   }
+  await database.runAsync('DELETE FROM sync_state').catch(() => {});
 }
 
 export { DEVICE_META_KEYS };
