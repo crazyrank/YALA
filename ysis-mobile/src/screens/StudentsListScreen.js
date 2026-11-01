@@ -523,10 +523,12 @@ export default function StudentsListScreen({ navigation, route }) {
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.secondaryRow}>
+                    {isAdmin && (
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
                       <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
                     </Squish>
+                    )}
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
@@ -668,7 +670,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   ? 'No matching student was found in the local records. Try a name or admission number.'
                   : 'Student records assigned to your account will appear here.'}
               </Text>
-              {query.length > 0 ? (
+              {isAdmin && (query.length > 0 ? (
                 <Squish
                   style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                   onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
@@ -682,7 +684,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 >
                   <Text style={styles.emptyRegisterText}>+ Register first student</Text>
                 </Squish>
-              )}
+              ))}
             </View>
           )
         }
