@@ -10,6 +10,7 @@ import MoreStack from './MoreStack';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
 import ConflictsScreen from '../screens/ConflictsScreen';
 import AnimatedTabIcon from '../components/AnimatedTabIcon';
+import FooterBorder from '../components/FooterBorder';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
@@ -113,6 +114,7 @@ export default function MainTabs() {
         headerStyle: { backgroundColor: colors.inkSoft },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontFamily: fontFamily.heading, fontSize: 17 },
+        tabBarBackground: () => <FooterBorder />,
         tabBarActiveTintColor: colors.gold,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
