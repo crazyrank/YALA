@@ -107,3 +107,28 @@ Keep the Android signing keystore somewhere safe. Without it, the app cannot be 
 ## Owner
 
 YSIS is owned by Yalamatrix Schools.
+
+---
+
+## Handover notes (working branch)
+
+This branch is the clean working copy of the project as handed over.
+
+**Roles**
+- Director: creates principal accounts, manages devices and the directory.
+- Principal: creates head teacher accounts and chooses each head teacher's division (Primary or Secondary). Registers, promotes, and edits students.
+- Head teacher: sees only their division. Can edit a student's name, gender, and guardian details. Cannot register, promote, or change class, arm, or status.
+
+**Setup**
+1. Run database migrations: `cd ysis-backend && npm run migrate:up` (check package.json for the exact command).
+2. Create the first director account with `node scripts/seed-director.js`. Enter the password at the prompt. Never store it in a file.
+3. Restart the backend.
+
+**Mobile**
+- Development build: `npx eas build --profile development --platform android`
+- Run with `npx expo start --dev-client -c`
+
+**Before go-live**
+- Change the director password.
+- Test one principal, one primary head teacher, and one secondary head teacher.
+- Confirm the Register Student button on the Students screen is hidden for head teachers.
