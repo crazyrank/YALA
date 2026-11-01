@@ -92,7 +92,7 @@ export const CREATOR = {
   image: require('../../assets/samuel-red-suit.jpg'),
   lines: [
     'B.Sc. Chemistry, University of Uyo  |  Software Developer',
-    'NYSC Serving Corps Member',
+    'Served at Yalamatrix Schools',
     'Batch C 2025',
     'Personal CDS Project for Yalamatrix Schools, Okitipupa, Ondo State.',
     'Fully offline support. Keeps student records and school information, making manual work easier even when there is no internet connection.',

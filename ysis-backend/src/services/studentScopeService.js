@@ -40,6 +40,12 @@ function scopeToSqlClause(scope, startIndex) {
   let idx = startIndex;
 
   for (const s of scope) {
+    if (!s.class_level) {
+      clauses.push(`(division = $${idx})`);
+      params.push(s.division);
+      idx += 1;
+      continue;
+    }
     if (s.arm) {
       clauses.push(
         `(division = $${idx}
@@ -82,7 +88,7 @@ function isWithinScope(scope, { division, classLevel, arm }) {
 
   return scope.some((s) => {
     if (s.division !== division) return false;
-    if (s.class_level !== classLevel) return false;
+    if (s.class_level && s.class_level !== classLevel) return false;
     if (s.arm) return s.arm === arm;
     return true;
   });
@@ -96,7 +102,7 @@ function isWithinScope(scope, { division, classLevel, arm }) {
 function scopeKeyFor(scope) {
   if (scope === null) return 'unscoped';
   if (scope.length === 0) return 'none';
-  const parts = scope.map((s) => `${s.division}|${s.class_level}|${s.arm || ''}`);
+  const parts = scope.map((s) => `${s.division}|${s.class_level || ''}|${s.arm || ''}`);
   parts.sort();
   return parts.join(';');
 }

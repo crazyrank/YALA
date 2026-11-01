@@ -214,6 +214,7 @@ export default function MainTabs() {
         />
       )}
 
+      {isAdmin && (
       <Tab.Screen
         name="RegisterTab"
         component={RegisterStudentScreen}
@@ -227,6 +228,7 @@ export default function MainTabs() {
           ),
         }}
       />
+      )}
 
       <Tab.Screen
         name="MoreTab"

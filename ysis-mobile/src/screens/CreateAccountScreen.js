@@ -21,6 +21,7 @@ export default function CreateAccountScreen({ navigation }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [division, setDivision] = useState('');
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null); // { user, tempCredential } — shown once
 
@@ -30,12 +31,18 @@ export default function CreateAccountScreen({ navigation }) {
       return;
     }
 
+    if (user?.role === 'principal' && !division) {
+      Alert.alert('Choose a division', 'Pick Primary or Secondary for this head teacher.');
+      return;
+    }
+
     setSaving(true);
     try {
       const result = await api.post('/users', {
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
+        division: user?.role === 'principal' ? division : undefined,
       });
       setCreated(result);
     } catch (err) {
@@ -111,6 +118,26 @@ export default function CreateAccountScreen({ navigation }) {
         autoCapitalize="none"
       />
       <Field label="Phone" value={phone} onChangeText={setPhone} placeholder="Optional" keyboardType="phone-pad" />
+
+      {user?.role === 'principal' && (
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+          {['primary', 'secondary'].map((d) => (
+            <Pressable
+              key={d}
+              onPress={() => setDivision(d)}
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+                borderWidth: 1, borderColor: '#D9DEE5',
+                backgroundColor: division === d ? '#1D3557' : '#FFFFFF',
+              }}
+            >
+              <Text style={{ fontWeight: '600', color: division === d ? '#FFFFFF' : '#1F2933' }}>
+                {d === 'primary' ? 'Primary' : 'Secondary'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       <Pressable style={styles.button} onPress={handleCreate} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Creating...' : `Create ${creatingRole}`}</Text>

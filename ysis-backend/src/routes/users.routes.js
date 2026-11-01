@@ -72,11 +72,12 @@ router.post(
     body('fullName').isString().trim().notEmpty(),
     body('email').isEmail(),
     body('phone').optional().isString(),
+    body('division').optional().isIn(['primary', 'secondary']),
   ],
   async (req, res, next) => {
     try {
       checkValidation(req);
-      const { fullName, email, phone } = req.body;
+      const { fullName, email, phone, division } = req.body;
 
       const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
       if (!targetRole) throw Errors.forbidden('You are not able to create accounts.');
@@ -84,6 +85,10 @@ router.post(
       const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
         throw Errors.conflict('EMAIL_IN_USE', 'An account with this email already exists.');
+      }
+
+      if (targetRole === 'head_teacher' && !['primary', 'secondary'].includes(division)) {
+        throw Errors.badRequest('DIVISION_REQUIRED', 'Choose Primary or Secondary for this head teacher.');
       }
 
       const tempCredential = generateTempCredential();
@@ -104,6 +109,14 @@ router.post(
            VALUES ('management', $1, $2, $3, $4)`,
           [user.full_name, directoryTitle, user.id, req.auth.userId]
         );
+
+        if (targetRole === 'head_teacher') {
+          await client.query(
+            `INSERT INTO head_teacher_class_assignments (user_id, division, class_level, arm, assigned_by)
+             VALUES ($1, $2, NULL, NULL, $3)`,
+            [user.id, division, req.auth.userId]
+          );
+        }
 
         return user;
       });
@@ -246,7 +259,7 @@ router.post(
   [
     param('id').isUUID(),
     body('division').isIn(['primary', 'secondary']),
-    body('classLevel').isIn(CLASS_ORDER),
+    body('classLevel').optional().isIn(CLASS_ORDER),
     body('arm').optional().isString().trim(),
   ],
   async (req, res, next) => {
@@ -262,7 +275,7 @@ router.post(
         `INSERT INTO head_teacher_class_assignments (user_id, division, class_level, arm, assigned_by)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, division, class_level, arm, assigned_at`,
-        [target.id, division, classLevel, arm || null, req.auth.userId]
+        [target.id, division, classLevel || null, arm || null, req.auth.userId]
       );
 
       await writeAudit({
