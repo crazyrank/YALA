@@ -73,19 +73,32 @@ router.post(
     body('email').isEmail(),
     body('phone').optional().isString(),
     body('division').optional().isIn(['primary', 'secondary']),
+    // Explicit role from the app. Validated below — never allows privilege escalation.
+    body('role').optional().isIn(['principal', 'head_teacher']),
   ],
   async (req, res, next) => {
     try {
       checkValidation(req);
-      const { fullName, email, phone, division } = req.body;
+      const { fullName, email, phone, division, role: requestedRole } = req.body;
 
-      // Principal always creates head_teacher.
-      // Director creates principal by default; if division is supplied, creates head_teacher.
-      let targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
-      if (!targetRole) throw Errors.forbidden('You are not able to create accounts.');
-
-      if (req.auth.role === 'director' && ['primary', 'secondary'].includes(division)) {
+      /**
+       * Resolve role to create (server decides, client only requests):
+       * - principal caller → always head_teacher
+       * - director → body.role if present; else division ⇒ head_teacher; else principal
+       */
+      let targetRole;
+      if (req.auth.role === 'principal') {
         targetRole = 'head_teacher';
+      } else if (req.auth.role === 'director') {
+        if (requestedRole === 'head_teacher' || requestedRole === 'principal') {
+          targetRole = requestedRole;
+        } else if (['primary', 'secondary'].includes(division)) {
+          targetRole = 'head_teacher';
+        } else {
+          targetRole = 'principal';
+        }
+      } else {
+        throw Errors.forbidden('You are not able to create accounts.');
       }
 
       const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -94,7 +107,10 @@ router.post(
       }
 
       if (targetRole === 'head_teacher' && !['primary', 'secondary'].includes(division)) {
-        throw Errors.badRequest('DIVISION_REQUIRED', 'Choose Primary or Secondary for this head teacher.');
+        throw Errors.badRequest(
+          'DIVISION_REQUIRED',
+          'Choose Primary or Secondary for this head teacher.'
+        );
       }
 
       const tempCredential = generateTempCredential();
@@ -139,7 +155,11 @@ router.post(
         entityType: 'user',
         entityId: created.id,
         result: 'success',
-        metadata: { role: targetRole, division: division || null },
+        metadata: {
+          role: targetRole,
+          requestedRole: requestedRole || null,
+          division: division || null,
+        },
       });
 
       return res.status(201).json({

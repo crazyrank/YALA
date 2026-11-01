@@ -61,11 +61,12 @@ export default function CreateAccountScreen({ navigation, route }) {
 
     setSaving(true);
     try {
+      // Always send explicit role. Server enforces what the caller may create.
       const result = await api.post('/users', {
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
-        // Sending division is what tells the server a Director wants an HT.
+        role: isHeadTeacher ? 'head_teacher' : 'principal',
         division: isHeadTeacher ? division : undefined,
       });
       setCreated(result);
