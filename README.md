@@ -117,7 +117,7 @@ This branch is the clean working copy of the project as handed over.
 **Roles**
 - Director: creates principal accounts, manages devices and the directory.
 - Principal: creates head teacher accounts and chooses each head teacher's division (Primary or Secondary). Registers, promotes, and edits students.
-- Head teacher: sees only their division. Can edit a student's name, gender, and guardian details. Cannot register, promote, or change class, arm, or status.
+- Head teacher: sees only their assigned division or classes. Can register students, import students into their own division or classes only, and edit all profile fields (registration number, name, date of birth, gender, arm, guardian details) within that scope. Can view results and the school website. Cannot promote, archive, restore, or replace photos.
 
 **Setup**
 1. Run database migrations: `cd ysis-backend && npm run migrate:up` (check package.json for the exact command).
@@ -131,4 +131,4 @@ This branch is the clean working copy of the project as handed over.
 **Before go-live**
 - Change the director password.
 - Test one principal, one primary head teacher, and one secondary head teacher.
-- Confirm the Register Student button on the Students screen is hidden for head teachers.
+- Confirm head teachers can register, edit, and import students in their own division, and cannot see Conflicts, Merge Queue, Trusted Devices, or Manage Staff.

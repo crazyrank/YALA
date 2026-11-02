@@ -20,12 +20,13 @@ const DB_TO_API = {
   gender: 'gender',
   guardian_name: 'guardianName',
   guardian_phone: 'guardianPhone',
+  date_of_birth: 'dateOfBirth',
 };
 const API_TO_DB = Object.fromEntries(Object.entries(DB_TO_API).map(([k, v]) => [v, k]));
 
 // Profile fields a normal edit may change. Division and class are never edited
 // directly; they change only through promotion.
-const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'guardianName', 'guardianPhone'];
+const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone'];
 
 // Status may be changed by edit only to these two values (archive and restore).
 // Promotion sets 'promoted' through planPromotion, never through edit.
@@ -187,7 +188,12 @@ function validateEdit(currentRow, changes) {
   }
 
   const merged = {};
-  for (const [db, api] of Object.entries(DB_TO_API)) merged[api] = currentRow[db];
+  for (const [db, api] of Object.entries(DB_TO_API)) {
+    let value = currentRow[db];
+    // pg returns DATE columns as Date objects; the rules expect YYYY-MM-DD.
+    if (value instanceof Date) value = value.toISOString().slice(0, 10);
+    merged[api] = value;
+  }
   for (const key of profileKeys) merged[DB_TO_API[key]] = changes[key];
 
   const check = normalizeStudent(merged);

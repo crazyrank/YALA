@@ -81,7 +81,8 @@ async function processOperation({
     if (
       (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
       userRole !== 'principal' &&
-      userRole !== 'director'
+      userRole !== 'director' &&
+      !(opType === 'create_student' && userRole === 'head_teacher')
     ) {
       await markOpStatus(syncOpRowId, 'failed', 'Only the principal or director can do this.');
       return { operationId, status: 'failed', error: 'FORBIDDEN' };
@@ -156,13 +157,9 @@ async function processOperation({
       if (opType === 'edit_student') {
         const changes = payload.changes || {};
 
-        if (userRole === 'head_teacher') {
-          const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
-          const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
-          if (blocked.length > 0) {
-            await markOpStatus(syncOpRowId, 'failed', 'Head teachers can only edit name, gender and guardian details.');
-            return { operationId, status: 'failed', error: 'FORBIDDEN' };
-          }
+        if (userRole === 'head_teacher' && 'status' in changes) {
+          await markOpStatus(syncOpRowId, 'failed', 'Head teachers cannot archive or restore students.');
+          return { operationId, status: 'failed', error: 'FORBIDDEN' };
         }
 
         const touchesClassFields = [
@@ -391,6 +388,15 @@ async function processOperation({
         guardianPhone,
         dateOfBirth,
       } = norm.value);
+
+      // Head teachers may register only inside their own assigned scope.
+      if (userRole === 'head_teacher') {
+        const createScope = await getScopeForUser({ role: userRole, userId });
+        if (!isWithinScope(createScope, { division, classLevel, arm: arm || null })) {
+          await markOpStatus(syncOpRowId, 'failed', 'You do not have permission to register students in this class.');
+          return { operationId, status: 'failed', error: 'FORBIDDEN' };
+        }
+      }
 
       // The session the student was admitted. Older app builds send none, so
       // those fall back to the registration date.

@@ -184,7 +184,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
-  requireRole('principal', 'director'),
+  requireRole('principal', 'director', 'head_teacher'),
   [
     body('id').isUUID(),
     body('admissionNo').isString().notEmpty(),
@@ -419,12 +419,10 @@ router.patch(
         );
       }
 
-      if (req.auth.role === 'head_teacher') {
-        const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
-        const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
-        if (blocked.length > 0) {
-          throw Errors.forbidden('Head teachers can only edit name, gender and guardian details.');
-        }
+      // Head teachers may edit every profile field inside their own scope.
+      // Archive and restore stay with the Principal and Director.
+      if (req.auth.role === 'head_teacher' && 'status' in changes) {
+        throw Errors.forbidden('Head teachers cannot archive or restore students.');
       }
 
       const touchesClassFields = [

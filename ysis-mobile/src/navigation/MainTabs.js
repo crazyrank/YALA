@@ -100,6 +100,7 @@ export default function MainTabs() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const canRegister = isAdmin || user?.role === 'head_teacher';
   const openConflictCount = useOpenConflictCount(isAdmin);
 
   return (
@@ -211,7 +212,7 @@ export default function MainTabs() {
         />
       )}
 
-      {isAdmin && (
+      {canRegister && (
       <Tab.Screen
         name="RegisterTab"
         component={RegisterStudentScreen}

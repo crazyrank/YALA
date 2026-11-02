@@ -65,7 +65,8 @@ function messageFor(outcome) {
 export default function ImportStudentsScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  // Head teachers may import, but the server accepts only rows in their own scope.
+  const canImport = user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher';
 
   const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -86,7 +87,7 @@ export default function ImportStudentsScreen() {
   // Sends anything still waiting, then shows the current list.
   useFocusEffect(
     useCallback(() => {
-      if (!isAdmin) return undefined;
+      if (!canImport) return undefined;
       let cancelled = false;
       (async () => {
         setBusy(true);
@@ -102,7 +103,7 @@ export default function ImportStudentsScreen() {
         }
       })();
       return () => { cancelled = true; };
-    }, [isAdmin, refresh])
+    }, [canImport, refresh])
   );
 
   const pickFile = async () => {
@@ -212,11 +213,11 @@ export default function ImportStudentsScreen() {
     );
   };
 
-  if (!isAdmin) {
+  if (!canImport) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Only a Principal or Director can import students.
+          Only a Principal, Director, or Head Teacher can import students.
         </Text>
       </View>
     );

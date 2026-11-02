@@ -17,6 +17,8 @@ import { queueOperation } from '../services/syncEngine';
 import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
 import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
 import { exportStudentToPdf } from '../services/studentPdfExport';
+import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
+import { checkRegistration, formatErrors } from '../services/registrationGuard';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -48,11 +50,15 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [editName, setEditName] = useState('');
   const [editArm, setEditArm] = useState('');
   const [editGuardian, setEditGuardian] = useState('');
+  const [editAdmissionNo, setEditAdmissionNo] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [editGender, setEditGender] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
+  const canEdit = isAdmin || user?.role === 'head_teacher';
 
   const canExportPdf =
     user?.role === 'principal' ||
@@ -286,14 +292,17 @@ export default function StudentDetailScreen({ route, navigation }) {
   };
 
   const startEditing = () => {
-    if (!isAdmin) {
-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
+    if (!canEdit) {
+      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
       return;
     }
     setEditName(student.full_name || '');
     setEditArm(student.arm || '');
     setEditGuardian(student.guardian_name || '');
     setEditPhone(student.guardian_phone || '');
+    setEditAdmissionNo(student.admission_no || '');
+    setEditDob(isoToDob(student.date_of_birth));
+    setEditGender(student.gender || '');
     setEditing(true);
   };
 
@@ -306,8 +315,8 @@ export default function StudentDetailScreen({ route, navigation }) {
   };
 
   const handleSaveEdit = async () => {
-    if (!isAdmin) {
-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
+    if (!canEdit) {
+      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
       return;
     }
     if (!editName.trim()) {
@@ -320,29 +329,58 @@ export default function StudentDetailScreen({ route, navigation }) {
       return;
     }
 
+    const dobIso = dobToIso(editDob);
+    if (dobIso === null) {
+      Alert.alert('Date of birth', 'Use the format DD/MM/YYYY.');
+      return;
+    }
+    const needsArmNow = armRequiredFor(student.class_level);
+    const check = checkRegistration({
+      admissionNo: editAdmissionNo,
+      fullName: editName,
+      division: student.division,
+      classLevel: student.class_level,
+      arm: needsArmNow ? editArm : student.arm,
+      gender: editGender,
+      guardianName: editGuardian,
+      guardianPhone: editPhone,
+      dateOfBirth: dobIso,
+    });
+    if (!check.ok) {
+      Alert.alert('Check the details', formatErrors(check.errors).map((e) => e.message).join('\n'));
+      return;
+    }
+
     setSaving(true);
     try {
       const db = await getDb();
       const now = new Date().toISOString();
       const basedOnVersion = student.sync_version;
-
-      const changes = {
-        full_name: editName.trim(),
-        guardian_name: editGuardian.trim() || null,
-        guardian_phone: editPhone.trim() || null,
-      };
-      if (needsArm) changes.arm = editArm;
+      const v = check.value;
 
       const nextArm = needsArm ? editArm : student.arm;
+      const changes = {
+        admission_no: v.admissionNo,
+        full_name: v.fullName,
+        gender: v.gender || null,
+        date_of_birth: v.dateOfBirth || null,
+        guardian_name: v.guardianName || null,
+        guardian_phone: v.guardianPhone || null,
+        arm: nextArm,
+      };
 
       await db.runAsync(
         `UPDATE students
-         SET full_name = ?, arm = ?, guardian_name = ?, guardian_phone = ?,
+         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?,
+             arm = ?, guardian_name = ?, guardian_phone = ?,
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
         [
+          changes.admission_no,
           changes.full_name,
-          nextArm,
+          changes.gender,
+          changes.date_of_birth,
+          changes.arm,
           changes.guardian_name,
           changes.guardian_phone,
           now,
@@ -552,7 +590,7 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
-      {isAdmin && !editing && (
+      {canEdit && !editing && (
         <View style={styles.adminBar}>
           <Pressable style={styles.adminBtn} onPress={startEditing}>
             <Text style={styles.adminBtnText}>Edit</Text>
@@ -569,12 +607,33 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
-      {isAdmin && editing && (
+      {canEdit && editing && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>EDIT RECORD</Text>
           <View style={styles.infoCard}>
             <Text style={styles.fieldLabel}>Full name *</Text>
             <TextInput style={styles.fieldInput} value={editName} onChangeText={setEditName} placeholder="Student full name" placeholderTextColor="#98A2B3" />
+
+            <Text style={styles.fieldLabel}>Registration number *</Text>
+            <TextInput style={styles.fieldInput} value={editAdmissionNo} onChangeText={(t) => setEditAdmissionNo(t.toUpperCase())} placeholder="YMS/2024/03/033" placeholderTextColor="#98A2B3" autoCapitalize="characters" autoCorrect={false} />
+
+            <Text style={styles.fieldLabel}>Date of birth *</Text>
+            <TextInput style={styles.fieldInput} value={editDob} onChangeText={(t) => setEditDob(formatDobInput(t))} placeholder="DD/MM/YYYY" placeholderTextColor="#98A2B3" keyboardType="number-pad" maxLength={10} />
+
+            <Text style={styles.fieldLabel}>Gender</Text>
+            <View style={styles.chipRowInline}>
+              {['M', 'F'].map((g) => (
+                <Pressable
+                  key={g}
+                  style={[styles.chipInline, editGender === g && styles.chipInlineActive]}
+                  onPress={() => setEditGender(editGender === g ? '' : g)}
+                >
+                  <Text style={[styles.chipInlineText, editGender === g && styles.chipInlineTextActive]}>
+                    {g === 'M' ? 'Male' : 'Female'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <Text style={styles.fieldLabel}>Class</Text>
             <Text style={styles.classReadOnly}>{student.class_level || '-'}</Text>
@@ -772,6 +831,11 @@ const styles = StyleSheet.create({
   photoPlaceholderText: { fontSize: 11, color: '#98A2B3', marginTop: 4 },
   name: { fontSize: 20, fontWeight: '700', color: '#0E1A2B', textAlign: 'center' },
   admissionNo: { fontSize: 13, color: '#667085', marginTop: 4 },
+  chipRowInline: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  chipInline: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#D0D5DD', backgroundColor: '#FFFFFF' },
+  chipInlineActive: { backgroundColor: '#1F6FEB', borderColor: '#1F6FEB' },
+  chipInlineText: { color: '#344054', fontWeight: '600' },
+  chipInlineTextActive: { color: '#FFFFFF' },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', marginTop: 10,
     backgroundColor: '#E7F6EF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,

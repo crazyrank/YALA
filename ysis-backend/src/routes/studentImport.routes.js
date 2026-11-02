@@ -4,6 +4,7 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
+const { getScopeForUser, isWithinScope } = require('../services/studentScopeService');
 const {
   HEADER,
   MAX_ROWS,
@@ -20,6 +21,8 @@ function conflict(code, message) {
 }
 
 const ADMIN_ROLES = ['principal', 'director'];
+// Head teachers may import, but only rows inside their own division or classes.
+const IMPORT_ROLES = ['principal', 'director', 'head_teacher'];
 const ALLOWED_KEYS = new Set(HEADER);
 
 function checkValidation(req) {
@@ -96,7 +99,7 @@ function batchResponse(batch) {
 router.post(
   '/',
   requireAuth,
-  requireRole(...ADMIN_ROLES),
+  requireRole(...IMPORT_ROLES),
   [
     body('importKey').isUUID(),
     body('rows').isArray({ min: 1, max: MAX_ROWS }),
@@ -143,7 +146,28 @@ router.post(
         throw err;
       }
 
-      const { valid, rejected } = analyzeRecords(records);
+      const { valid: allValid, rejected } = analyzeRecords(records);
+      let valid = allValid;
+
+      // Head teachers may import only into their own division or classes.
+      // Rows outside that scope are reported and never inserted.
+      if (req.auth.role === 'head_teacher') {
+        const scope = await getScopeForUser(req.auth);
+        const inScope = [];
+        for (const item of allValid) {
+          const v = item.value;
+          if (isWithinScope(scope, { division: v.division, classLevel: v.classLevel, arm: v.arm || null })) {
+            inScope.push(item);
+          } else {
+            rejected.push({
+              row: item.sourceRow,
+              column: 'division',
+              reason: 'outside your assigned division or classes (not imported)',
+            });
+          }
+        }
+        valid = inScope;
+      }
 
       // Skip admission numbers that already exist. Existing records are never changed.
       const keys = [...new Set(valid.map((v) => v.value.admissionNo.toLowerCase()))];
@@ -248,7 +272,7 @@ router.post(
 router.get(
   '/:importKey',
   requireAuth,
-  requireRole(...ADMIN_ROLES),
+  requireRole(...IMPORT_ROLES),
   [param('importKey').isUUID()],
   async (req, res, next) => {
     try {

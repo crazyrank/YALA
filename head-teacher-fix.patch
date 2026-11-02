@@ -1,0 +1,517 @@
+diff --git a/README.md b/README.md
+index f6659f9..53142df 100644
+--- a/README.md
++++ b/README.md
+@@ -117,7 +117,7 @@ This branch is the clean working copy of the project as handed over.
+ **Roles**
+ - Director: creates principal accounts, manages devices and the directory.
+ - Principal: creates head teacher accounts and chooses each head teacher's division (Primary or Secondary). Registers, promotes, and edits students.
+-- Head teacher: sees only their division. Can edit a student's name, gender, and guardian details. Cannot register, promote, or change class, arm, or status.
++- Head teacher: sees only their assigned division or classes. Can register students, import students into their own division or classes only, and edit all profile fields (registration number, name, date of birth, gender, arm, guardian details) within that scope. Can view results and the school website. Cannot promote, archive, restore, or replace photos.
+ 
+ **Setup**
+ 1. Run database migrations: `cd ysis-backend && npm run migrate:up` (check package.json for the exact command).
+@@ -131,4 +131,4 @@ This branch is the clean working copy of the project as handed over.
+ **Before go-live**
+ - Change the director password.
+ - Test one principal, one primary head teacher, and one secondary head teacher.
+-- Confirm the Register Student button on the Students screen is hidden for head teachers.
++- Confirm head teachers can register, edit, and import students in their own division, and cannot see Conflicts, Merge Queue, Trusted Devices, or Manage Staff.
+diff --git a/ysis-backend/docs/ROLE-MATRIX.md b/ysis-backend/docs/ROLE-MATRIX.md
+index 1dea586..0f0ae71 100644
+--- a/ysis-backend/docs/ROLE-MATRIX.md
++++ b/ysis-backend/docs/ROLE-MATRIX.md
+@@ -11,21 +11,24 @@ Compiled from the route checks in the code. Confirm with the Director before rel
+ | Disable or enable Head Teacher accounts | Principals (own) | Yes (own) | No |
+ | Approve or revoke devices | Yes | Yes | No |
+ | View all devices | Yes | Yes | No (own only) |
+-| Register students | Yes | Yes | No |
++| Register students | Yes | Yes | Yes (own scope) |
+ | Promote students | Yes | Yes | No |
+-| Edit student name, gender, guardian details | Yes | Yes | Yes (own level only) |
+-| Edit student class, arm, status | Yes | Yes | No |
+-| Archive students | Yes | Yes | No |
+-| Import students | Yes | Yes | No |
++| Edit student profile fields (name, registration no., date of birth, gender, arm, guardian) | Yes | Yes | Yes (own scope) |
++| Change student class or division (promotion only) | Yes | Yes | No |
++| Archive or restore students | Yes | Yes | No |
++| Replace passport photo | No | Yes (reason required) | No |
++| Import students | Yes | Yes | Yes (own division or classes only; other rows are reported and skipped) |
+ | Resolve conflicts and merge queue | Yes | Yes | No |
+-| Replace an existing passport photo | No | Yes (reason required) | No |
+ | Export student PDF | Yes | Yes | Yes |
++| View results portal and school website | Yes | Yes | Yes |
+ | Delegate permissions | No | Yes (reason required) | No |
+ | Revoke delegated permissions | Yes | Own grants only | No |
+ | Board of Directors directory entries | Yes | No | No |
+ | Management directory entries | Yes | Yes | No |
+ | Class teacher directory entries | Yes | Yes | Yes |
+ 
++Head teacher scope is their assigned division or classes. Head teachers cannot change class, division, or status, and cannot replace photos.
++
+ "Own" means the account was created by the person acting. A deleted account is marked inactive, cannot sign in, and is hidden from staff lists.
+ 
+ Review this every term and whenever staff leave.
+diff --git a/ysis-backend/src/routes/studentImport.routes.js b/ysis-backend/src/routes/studentImport.routes.js
+index 3f6409a..b12970c 100644
+--- a/ysis-backend/src/routes/studentImport.routes.js
++++ b/ysis-backend/src/routes/studentImport.routes.js
+@@ -4,6 +4,7 @@ const db = require('../db');
+ const { requireAuth, requireRole } = require('../middleware/auth');
+ const { writeAudit } = require('../middleware/audit');
+ const { Errors } = require('../utils/errors');
++const { getScopeForUser, isWithinScope } = require('../services/studentScopeService');
+ const {
+   HEADER,
+   MAX_ROWS,
+@@ -20,6 +21,8 @@ function conflict(code, message) {
+ }
+ 
+ const ADMIN_ROLES = ['principal', 'director'];
++// Head teachers may import, but only rows inside their own division or classes.
++const IMPORT_ROLES = ['principal', 'director', 'head_teacher'];
+ const ALLOWED_KEYS = new Set(HEADER);
+ 
+ function checkValidation(req) {
+@@ -96,7 +99,7 @@ function batchResponse(batch) {
+ router.post(
+   '/',
+   requireAuth,
+-  requireRole(...ADMIN_ROLES),
++  requireRole(...IMPORT_ROLES),
+   [
+     body('importKey').isUUID(),
+     body('rows').isArray({ min: 1, max: MAX_ROWS }),
+@@ -143,7 +146,28 @@ router.post(
+         throw err;
+       }
+ 
+-      const { valid, rejected } = analyzeRecords(records);
++      const { valid: allValid, rejected } = analyzeRecords(records);
++      let valid = allValid;
++
++      // Head teachers may import only into their own division or classes.
++      // Rows outside that scope are reported and never inserted.
++      if (req.auth.role === 'head_teacher') {
++        const scope = await getScopeForUser(req.auth);
++        const inScope = [];
++        for (const item of allValid) {
++          const v = item.value;
++          if (isWithinScope(scope, { division: v.division, classLevel: v.classLevel, arm: v.arm || null })) {
++            inScope.push(item);
++          } else {
++            rejected.push({
++              row: item.sourceRow,
++              column: 'division',
++              reason: 'outside your assigned division or classes (not imported)',
++            });
++          }
++        }
++        valid = inScope;
++      }
+ 
+       // Skip admission numbers that already exist. Existing records are never changed.
+       const keys = [...new Set(valid.map((v) => v.value.admissionNo.toLowerCase()))];
+@@ -248,7 +272,7 @@ router.post(
+ router.get(
+   '/:importKey',
+   requireAuth,
+-  requireRole(...ADMIN_ROLES),
++  requireRole(...IMPORT_ROLES),
+   [param('importKey').isUUID()],
+   async (req, res, next) => {
+     try {
+diff --git a/ysis-backend/src/routes/students.routes.js b/ysis-backend/src/routes/students.routes.js
+index ba3cafd..6ac032d 100644
+--- a/ysis-backend/src/routes/students.routes.js
++++ b/ysis-backend/src/routes/students.routes.js
+@@ -184,7 +184,7 @@ router.get(
+ router.post(
+   '/',
+   requireAuth,
+-  requireRole('principal', 'director'),
++  requireRole('principal', 'director', 'head_teacher'),
+   [
+     body('id').isUUID(),
+     body('admissionNo').isString().notEmpty(),
+@@ -419,12 +419,10 @@ router.patch(
+         );
+       }
+ 
+-      if (req.auth.role === 'head_teacher') {
+-        const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
+-        const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
+-        if (blocked.length > 0) {
+-          throw Errors.forbidden('Head teachers can only edit name, gender and guardian details.');
+-        }
++      // Head teachers may edit every profile field inside their own scope.
++      // Archive and restore stay with the Principal and Director.
++      if (req.auth.role === 'head_teacher' && 'status' in changes) {
++        throw Errors.forbidden('Head teachers cannot archive or restore students.');
+       }
+ 
+       const touchesClassFields = [
+diff --git a/ysis-backend/src/services/studentService.js b/ysis-backend/src/services/studentService.js
+index f0ad812..74477a8 100644
+--- a/ysis-backend/src/services/studentService.js
++++ b/ysis-backend/src/services/studentService.js
+@@ -3,6 +3,7 @@ const db = require('../db');
+ const EDITABLE_FIELDS = [
+   'full_name', 'gender', 'division', 'class_level',
+   'arm', 'guardian_name', 'guardian_phone', 'status',
++  'admission_no', 'date_of_birth',
+ ];
+ 
+ /**
+diff --git a/ysis-backend/src/services/syncService.js b/ysis-backend/src/services/syncService.js
+index 89905e4..eddee2c 100644
+--- a/ysis-backend/src/services/syncService.js
++++ b/ysis-backend/src/services/syncService.js
+@@ -81,7 +81,8 @@ async function processOperation({
+     if (
+       (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
+       userRole !== 'principal' &&
+-      userRole !== 'director'
++      userRole !== 'director' &&
++      !(opType === 'create_student' && userRole === 'head_teacher')
+     ) {
+       await markOpStatus(syncOpRowId, 'failed', 'Only the principal or director can do this.');
+       return { operationId, status: 'failed', error: 'FORBIDDEN' };
+@@ -156,13 +157,9 @@ async function processOperation({
+       if (opType === 'edit_student') {
+         const changes = payload.changes || {};
+ 
+-        if (userRole === 'head_teacher') {
+-          const HT_EDITABLE = ['full_name', 'gender', 'guardian_name', 'guardian_phone'];
+-          const blocked = Object.keys(changes).filter((k) => !HT_EDITABLE.includes(k));
+-          if (blocked.length > 0) {
+-            await markOpStatus(syncOpRowId, 'failed', 'Head teachers can only edit name, gender and guardian details.');
+-            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+-          }
++        if (userRole === 'head_teacher' && 'status' in changes) {
++          await markOpStatus(syncOpRowId, 'failed', 'Head teachers cannot archive or restore students.');
++          return { operationId, status: 'failed', error: 'FORBIDDEN' };
+         }
+ 
+         const touchesClassFields = [
+@@ -392,6 +389,15 @@ async function processOperation({
+         dateOfBirth,
+       } = norm.value);
+ 
++      // Head teachers may register only inside their own assigned scope.
++      if (userRole === 'head_teacher') {
++        const createScope = await getScopeForUser({ role: userRole, userId });
++        if (!isWithinScope(createScope, { division, classLevel, arm: arm || null })) {
++          await markOpStatus(syncOpRowId, 'failed', 'You do not have permission to register students in this class.');
++          return { operationId, status: 'failed', error: 'FORBIDDEN' };
++        }
++      }
++
+       // The session the student was admitted. Older app builds send none, so
+       // those fall back to the registration date.
+       let sessionValue = null;
+diff --git a/ysis-backend/src/utils/studentChangeRules.js b/ysis-backend/src/utils/studentChangeRules.js
+index d65e9cb..06509ef 100644
+--- a/ysis-backend/src/utils/studentChangeRules.js
++++ b/ysis-backend/src/utils/studentChangeRules.js
+@@ -20,12 +20,13 @@ const DB_TO_API = {
+   gender: 'gender',
+   guardian_name: 'guardianName',
+   guardian_phone: 'guardianPhone',
++  date_of_birth: 'dateOfBirth',
+ };
+ const API_TO_DB = Object.fromEntries(Object.entries(DB_TO_API).map(([k, v]) => [v, k]));
+ 
+ // Profile fields a normal edit may change. Division and class are never edited
+ // directly; they change only through promotion.
+-const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'guardianName', 'guardianPhone'];
++const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone'];
+ 
+ // Status may be changed by edit only to these two values (archive and restore).
+ // Promotion sets 'promoted' through planPromotion, never through edit.
+@@ -187,7 +188,12 @@ function validateEdit(currentRow, changes) {
+   }
+ 
+   const merged = {};
+-  for (const [db, api] of Object.entries(DB_TO_API)) merged[api] = currentRow[db];
++  for (const [db, api] of Object.entries(DB_TO_API)) {
++    let value = currentRow[db];
++    // pg returns DATE columns as Date objects; the rules expect YYYY-MM-DD.
++    if (value instanceof Date) value = value.toISOString().slice(0, 10);
++    merged[api] = value;
++  }
+   for (const key of profileKeys) merged[DB_TO_API[key]] = changes[key];
+ 
+   const check = normalizeStudent(merged);
+diff --git a/ysis-mobile/src/navigation/MainTabs.js b/ysis-mobile/src/navigation/MainTabs.js
+index 6e5b807..bcbc66d 100644
+--- a/ysis-mobile/src/navigation/MainTabs.js
++++ b/ysis-mobile/src/navigation/MainTabs.js
+@@ -100,6 +100,7 @@ export default function MainTabs() {
+   const { colors } = useTheme();
+   const { user } = useAuth();
+   const isAdmin = user?.role === 'principal' || user?.role === 'director';
++  const canRegister = isAdmin || user?.role === 'head_teacher';
+   const openConflictCount = useOpenConflictCount(isAdmin);
+ 
+   return (
+@@ -211,7 +212,7 @@ export default function MainTabs() {
+         />
+       )}
+ 
+-      {isAdmin && (
++      {canRegister && (
+       <Tab.Screen
+         name="RegisterTab"
+         component={RegisterStudentScreen}
+diff --git a/ysis-mobile/src/screens/ImportStudentsScreen.js b/ysis-mobile/src/screens/ImportStudentsScreen.js
+index 87514fd..5d22e4e 100644
+--- a/ysis-mobile/src/screens/ImportStudentsScreen.js
++++ b/ysis-mobile/src/screens/ImportStudentsScreen.js
+@@ -65,7 +65,8 @@ function messageFor(outcome) {
+ export default function ImportStudentsScreen() {
+   const { colors } = useTheme();
+   const { user } = useAuth();
+-  const isAdmin = user?.role === 'principal' || user?.role === 'director';
++  // Head teachers may import, but the server accepts only rows in their own scope.
++  const canImport = user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher';
+ 
+   const [preview, setPreview] = useState(null);
+   const [fileName, setFileName] = useState('');
+@@ -86,7 +87,7 @@ export default function ImportStudentsScreen() {
+   // Sends anything still waiting, then shows the current list.
+   useFocusEffect(
+     useCallback(() => {
+-      if (!isAdmin) return undefined;
++      if (!canImport) return undefined;
+       let cancelled = false;
+       (async () => {
+         setBusy(true);
+@@ -102,7 +103,7 @@ export default function ImportStudentsScreen() {
+         }
+       })();
+       return () => { cancelled = true; };
+-    }, [isAdmin, refresh])
++    }, [canImport, refresh])
+   );
+ 
+   const pickFile = async () => {
+@@ -212,11 +213,11 @@ export default function ImportStudentsScreen() {
+     );
+   };
+ 
+-  if (!isAdmin) {
++  if (!canImport) {
+     return (
+       <View style={[styles.center, { backgroundColor: colors.background }]}>
+         <Text style={[styles.body, { color: colors.textMuted }]}>
+-          Only a Principal or Director can import students.
++          Only a Principal, Director, or Head Teacher can import students.
+         </Text>
+       </View>
+     );
+diff --git a/ysis-mobile/src/screens/MoreScreen.js b/ysis-mobile/src/screens/MoreScreen.js
+index 8834a5c..53d61ff 100644
+--- a/ysis-mobile/src/screens/MoreScreen.js
++++ b/ysis-mobile/src/screens/MoreScreen.js
+@@ -169,6 +169,7 @@ export default function MoreScreen({ navigation }) {
+   const { colors, preference, setPreference } = useTheme();
+   const insets = useSafeAreaInsets();
+   const isAdmin = user?.role === 'principal' || user?.role === 'director';
++  const canImport = isAdmin || user?.role === 'head_teacher';
+   const [uploading, setUploading] = useState(false);
+   const [viewerOpen, setViewerOpen] = useState(false);
+   const [searchOpen, setSearchOpen] = useState(false);
+@@ -491,7 +492,7 @@ export default function MoreScreen({ navigation }) {
+           />
+         )}
+ 
+-        {isAdmin && (
++        {canImport && (
+           <MenuRow
+             icon="cloud-upload"
+             label="Import Students"
+diff --git a/ysis-mobile/src/screens/StudentDetailScreen.js b/ysis-mobile/src/screens/StudentDetailScreen.js
+index c530c3f..b861529 100644
+--- a/ysis-mobile/src/screens/StudentDetailScreen.js
++++ b/ysis-mobile/src/screens/StudentDetailScreen.js
+@@ -17,6 +17,8 @@ import { queueOperation } from '../services/syncEngine';
+ import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
+ import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
+ import { exportStudentToPdf } from '../services/studentPdfExport';
++import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
++import { checkRegistration, formatErrors } from '../services/registrationGuard';
+ 
+ // Arms exist only for SS2 and SS3. Must match the server rules exactly.
+ const ARMS = ['Science', 'Arts', 'Commercial'];
+@@ -48,11 +50,15 @@ export default function StudentDetailScreen({ route, navigation }) {
+   const [editName, setEditName] = useState('');
+   const [editArm, setEditArm] = useState('');
+   const [editGuardian, setEditGuardian] = useState('');
++  const [editAdmissionNo, setEditAdmissionNo] = useState('');
++  const [editDob, setEditDob] = useState('');
++  const [editGender, setEditGender] = useState('');
+   const [editPhone, setEditPhone] = useState('');
+   const [exportingPdf, setExportingPdf] = useState(false);
+ 
+   const isAdmin =
+     user?.role === 'principal' || user?.role === 'director';
++  const canEdit = isAdmin || user?.role === 'head_teacher';
+ 
+   const canExportPdf =
+     user?.role === 'principal' ||
+@@ -286,14 +292,17 @@ export default function StudentDetailScreen({ route, navigation }) {
+   };
+ 
+   const startEditing = () => {
+-    if (!isAdmin) {
+-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
++    if (!canEdit) {
++      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
+       return;
+     }
+     setEditName(student.full_name || '');
+     setEditArm(student.arm || '');
+     setEditGuardian(student.guardian_name || '');
+     setEditPhone(student.guardian_phone || '');
++    setEditAdmissionNo(student.admission_no || '');
++    setEditDob(isoToDob(student.date_of_birth));
++    setEditGender(student.gender || '');
+     setEditing(true);
+   };
+ 
+@@ -306,8 +315,8 @@ export default function StudentDetailScreen({ route, navigation }) {
+   };
+ 
+   const handleSaveEdit = async () => {
+-    if (!isAdmin) {
+-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
++    if (!canEdit) {
++      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
+       return;
+     }
+     if (!editName.trim()) {
+@@ -320,29 +329,58 @@ export default function StudentDetailScreen({ route, navigation }) {
+       return;
+     }
+ 
++    const dobIso = dobToIso(editDob);
++    if (dobIso === null) {
++      Alert.alert('Date of birth', 'Use the format DD/MM/YYYY.');
++      return;
++    }
++    const needsArmNow = armRequiredFor(student.class_level);
++    const check = checkRegistration({
++      admissionNo: editAdmissionNo,
++      fullName: editName,
++      division: student.division,
++      classLevel: student.class_level,
++      arm: needsArmNow ? editArm : student.arm,
++      gender: editGender,
++      guardianName: editGuardian,
++      guardianPhone: editPhone,
++      dateOfBirth: dobIso,
++    });
++    if (!check.ok) {
++      Alert.alert('Check the details', formatErrors(check.errors).map((e) => e.message).join('\n'));
++      return;
++    }
++
+     setSaving(true);
+     try {
+       const db = await getDb();
+       const now = new Date().toISOString();
+       const basedOnVersion = student.sync_version;
++      const v = check.value;
+ 
++      const nextArm = needsArm ? editArm : student.arm;
+       const changes = {
+-        full_name: editName.trim(),
+-        guardian_name: editGuardian.trim() || null,
+-        guardian_phone: editPhone.trim() || null,
++        admission_no: v.admissionNo,
++        full_name: v.fullName,
++        gender: v.gender || null,
++        date_of_birth: v.dateOfBirth || null,
++        guardian_name: v.guardianName || null,
++        guardian_phone: v.guardianPhone || null,
++        arm: nextArm,
+       };
+-      if (needsArm) changes.arm = editArm;
+-
+-      const nextArm = needsArm ? editArm : student.arm;
+ 
+       await db.runAsync(
+         `UPDATE students
+-         SET full_name = ?, arm = ?, guardian_name = ?, guardian_phone = ?,
++         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?,
++             arm = ?, guardian_name = ?, guardian_phone = ?,
+              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
+          WHERE id = ?`,
+         [
++          changes.admission_no,
+           changes.full_name,
+-          nextArm,
++          changes.gender,
++          changes.date_of_birth,
++          changes.arm,
+           changes.guardian_name,
+           changes.guardian_phone,
+           now,
+@@ -552,7 +590,7 @@ export default function StudentDetailScreen({ route, navigation }) {
+         </View>
+       )}
+ 
+-      {isAdmin && !editing && (
++      {canEdit && !editing && (
+         <View style={styles.adminBar}>
+           <Pressable style={styles.adminBtn} onPress={startEditing}>
+             <Text style={styles.adminBtnText}>Edit</Text>
+@@ -569,13 +607,34 @@ export default function StudentDetailScreen({ route, navigation }) {
+         </View>
+       )}
+ 
+-      {isAdmin && editing && (
++      {canEdit && editing && (
+         <View style={styles.section}>
+           <Text style={styles.sectionEyebrow}>EDIT RECORD</Text>
+           <View style={styles.infoCard}>
+             <Text style={styles.fieldLabel}>Full name *</Text>
+             <TextInput style={styles.fieldInput} value={editName} onChangeText={setEditName} placeholder="Student full name" placeholderTextColor="#98A2B3" />
+ 
++            <Text style={styles.fieldLabel}>Registration number *</Text>
++            <TextInput style={styles.fieldInput} value={editAdmissionNo} onChangeText={(t) => setEditAdmissionNo(t.toUpperCase())} placeholder="YMS/2024/03/033" placeholderTextColor="#98A2B3" autoCapitalize="characters" autoCorrect={false} />
++
++            <Text style={styles.fieldLabel}>Date of birth *</Text>
++            <TextInput style={styles.fieldInput} value={editDob} onChangeText={(t) => setEditDob(formatDobInput(t))} placeholder="DD/MM/YYYY" placeholderTextColor="#98A2B3" keyboardType="number-pad" maxLength={10} />
++
++            <Text style={styles.fieldLabel}>Gender</Text>
++            <View style={styles.chipRowInline}>
++              {['M', 'F'].map((g) => (
++                <Pressable
++                  key={g}
++                  style={[styles.chipInline, editGender === g && styles.chipInlineActive]}
++                  onPress={() => setEditGender(editGender === g ? '' : g)}
++                >
++                  <Text style={[styles.chipInlineText, editGender === g && styles.chipInlineTextActive]}>
++                    {g === 'M' ? 'Male' : 'Female'}
++                  </Text>
++                </Pressable>
++              ))}
++            </View>
++
+             <Text style={styles.fieldLabel}>Class</Text>
+             <Text style={styles.classReadOnly}>{student.class_level || '-'}</Text>
+             <Text style={styles.editNote}>Class changes only through promotion.</Text>
+@@ -772,6 +831,11 @@ const styles = StyleSheet.create({
+   photoPlaceholderText: { fontSize: 11, color: '#98A2B3', marginTop: 4 },
+   name: { fontSize: 20, fontWeight: '700', color: '#0E1A2B', textAlign: 'center' },
+   admissionNo: { fontSize: 13, color: '#667085', marginTop: 4 },
++  chipRowInline: { flexDirection: 'row', gap: 8, marginBottom: 12 },
++  chipInline: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#D0D5DD', backgroundColor: '#FFFFFF' },
++  chipInlineActive: { backgroundColor: '#1F6FEB', borderColor: '#1F6FEB' },
++  chipInlineText: { color: '#344054', fontWeight: '600' },
++  chipInlineTextActive: { color: '#FFFFFF' },
+   statusBadge: {
+     flexDirection: 'row', alignItems: 'center', marginTop: 10,
+     backgroundColor: '#E7F6EF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,

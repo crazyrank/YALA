@@ -169,6 +169,7 @@ export default function MoreScreen({ navigation }) {
   const { colors, preference, setPreference } = useTheme();
   const insets = useSafeAreaInsets();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const canImport = isAdmin || user?.role === 'head_teacher';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -491,7 +492,7 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
-        {isAdmin && (
+        {canImport && (
           <MenuRow
             icon="cloud-upload"
             label="Import Students"
