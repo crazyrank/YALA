@@ -5,6 +5,8 @@ import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import MoreStack from './MoreStack';
+import ResultPortalScreen from '../screens/ResultPortalScreen';
+import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
 import StudentsStack from './StudentsStack';
 import ClassesStack from './ClassesStack';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
@@ -29,6 +31,7 @@ function withAlpha(hex, alpha, fallback) {
 // Soft pill behind the active tab icon (WhatsApp / Telegram style).
 function PillIcon(props) {
   const { colors } = useTheme();
+  const activeTint = props.guest ? colors.brand : colors.gold;
   return (
     <View
       style={{
@@ -38,7 +41,7 @@ function PillIcon(props) {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: props.focused
-          ? withAlpha(colors.gold, 0.18, colors.border)
+          ? withAlpha(activeTint, 0.18, colors.border)
           : 'transparent',
       }}
     >
@@ -101,7 +104,9 @@ export default function MainTabs() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
   const canRegister = isAdmin || user?.role === 'head_teacher';
+  const isGuest = user?.role === 'guest';
   const openConflictCount = useOpenConflictCount(isAdmin);
+  const activeTint = isGuest ? colors.brand : colors.gold;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background ?? colors.inkSoft }} testID="footerBgWrap">
@@ -111,7 +116,7 @@ export default function MainTabs() {
         headerTintColor: '#FFFFFF',
         headerTitleStyle: { fontFamily: fontFamily.heading, fontSize: 17 },
         tabBarBackground: () => <FooterBorder />,
-        tabBarActiveTintColor: colors.gold,
+        tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.surface,
@@ -152,7 +157,7 @@ export default function MainTabs() {
               focused={focused}
               activeName="people"
               inactiveName="people-outline"
-              activeColor={colors.gold}
+              activeColor={activeTint} guest={isGuest}
               inactiveColor={colors.textMuted}
               size={24}
             />
@@ -160,7 +165,7 @@ export default function MainTabs() {
         }}
       />
 
-      <Tab.Screen
+      {!isGuest && <Tab.Screen
         name="ClassesTab"
         component={ClassesStack}
         options={{
@@ -172,13 +177,33 @@ export default function MainTabs() {
               focused={focused}
               activeName="school"
               inactiveName="school-outline"
-              activeColor={colors.gold}
+              activeColor={activeTint} guest={isGuest}
               inactiveColor={colors.textMuted}
               size={24}
             />
           ),
         }}
-      />
+      />}
+
+      {isGuest && (
+        <Tab.Screen
+          name="ResultsTab"
+          component={ResultPortalScreen}
+          options={{ headerShown: false, title: 'Results', tabBarLabel: 'Results', tabBarIcon: ({ focused }) => (
+            <PillIcon focused={focused} activeName="stats-chart" inactiveName="stats-chart-outline" activeColor={activeTint} guest={isGuest} inactiveColor={colors.textMuted} size={23} />
+          ) }}
+        />
+      )}
+
+      {isGuest && (
+        <Tab.Screen
+          name="WebsiteTab"
+          component={SchoolWebsiteScreen}
+          options={{ headerShown: false, title: 'Website', tabBarLabel: 'Website', tabBarIcon: ({ focused }) => (
+            <PillIcon focused={focused} activeName="globe" inactiveName="globe-outline" activeColor={activeTint} guest={isGuest} inactiveColor={colors.textMuted} size={23} />
+          ) }}
+        />
+      )}
 
       {isAdmin && (
         <Tab.Screen
@@ -257,7 +282,7 @@ export default function MainTabs() {
               focused={focused}
               activeName="grid"
               inactiveName="grid-outline"
-              activeColor={colors.gold}
+              activeColor={activeTint} guest={isGuest}
               inactiveColor={colors.textMuted}
               size={22}
             />

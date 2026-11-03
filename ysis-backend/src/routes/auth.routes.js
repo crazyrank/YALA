@@ -59,6 +59,18 @@ async function storeRefreshHash(deviceId, refreshToken) {
   );
 }
 
+
+router.get('/session', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, full_name, role, must_change_password, guest_expires_at
+         FROM users WHERE id = $1`, [req.auth.userId]
+    );
+    const user = rows[0];
+    return res.json({ user: { id: user.id, fullName: user.full_name, role: user.role, mustChangePassword: user.must_change_password, guestExpiresAt: user.role === 'guest' ? user.guest_expires_at : null } });
+  } catch (err) { return next(err); }
+});
+
 router.post(
   '/login',
   authLimiter,
@@ -105,6 +117,11 @@ router.post(
         throw Errors.forbidden('This account is not active. Contact your administrator.');
       }
 
+      if (user.role === 'guest' && (!user.guest_expires_at || new Date(user.guest_expires_at) <= new Date())) {
+        await writeAudit({ userId: user.id, action: 'GUEST_LOGIN_EXPIRED', result: 'failure' });
+        throw Errors.unauthorized('Guest access has expired. Contact the Principal or Director who approved your account.');
+      }
+
       let device;
       const existingDevice = await db.query(
         'SELECT * FROM devices WHERE user_id = $1 AND device_fingerprint = $2',
@@ -142,7 +159,7 @@ router.post(
           [user.id, 'revoked']
         );
         const isFirstDevice = (countRows[0]?.c || 0) === 0;
-        const initialStatus = isFirstDevice ? 'trusted' : 'pending_verification';
+        const initialStatus = isFirstDevice && user.role !== 'guest' ? 'trusted' : 'pending_verification';
 
         const created = await db.query(
           `INSERT INTO devices (user_id, device_name, device_fingerprint, status, last_seen_at)
@@ -186,7 +203,7 @@ router.post(
       await writeAudit({
         userId: user.id,
         deviceId: device.id,
-        action: 'LOGIN',
+        action: user.role === 'guest' ? 'GUEST_LOGIN' : 'LOGIN',
         result: 'success',
       });
 
@@ -200,6 +217,7 @@ router.post(
           fullName: user.full_name,
           role: user.role,
           mustChangePassword: user.must_change_password,
+          guestExpiresAt: user.role === 'guest' ? user.guest_expires_at : null,
         },
       });
     } catch (err) {
@@ -225,7 +243,7 @@ router.post('/refresh', async (req, res, next) => {
     }
 
     const { rows } = await db.query(
-      `SELECT u.role, u.session_version, u.status, d.status AS device_status, d.last_seen_at AS device_last_seen, d.refresh_token_hash
+      `SELECT u.role, u.session_version, u.status, u.guest_expires_at, d.status AS device_status, d.last_seen_at AS device_last_seen, d.refresh_token_hash
        FROM users u
        JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
@@ -234,6 +252,9 @@ router.post('/refresh', async (req, res, next) => {
     const record = rows[0];
     if (!record || record.status !== 'active') {
       throw Errors.unauthorized('Session expired. Please sign in again.');
+    }
+    if (record.role === 'guest' && (!record.guest_expires_at || new Date(record.guest_expires_at) <= new Date())) {
+      throw Errors.unauthorized('Guest access has expired. Contact the Principal or Director who approved your account.');
     }
     if (record.session_version !== payload.sessionVersion) {
       throw Errors.unauthorized('Session expired. Please sign in again.');

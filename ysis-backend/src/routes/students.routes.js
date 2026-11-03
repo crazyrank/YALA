@@ -166,8 +166,29 @@ router.get(
         params
       );
 
+      const visibleStudents = req.auth.role === 'guest'
+        ? rows.map((student) => ({
+            id: student.id,
+            admission_no: student.admission_no,
+            full_name: student.full_name,
+            class_level: student.class_level,
+            status: 'active',
+          }))
+        : rows;
+
+      if (req.auth.role === 'guest') {
+        await writeAudit({
+          userId: req.auth.userId,
+          deviceId: req.auth.deviceId,
+          action: 'GUEST_STUDENT_LIST_VIEWED',
+          entityType: 'student_collection',
+          result: 'success',
+          metadata: { returned: rows.length, total, page },
+        });
+      }
+
       return res.json({
-        students: rows,
+        students: visibleStudents,
         page,
         pageSize,
         total,

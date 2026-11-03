@@ -1,6 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import StudentsListScreen from '../screens/StudentsListScreen';
+import GuestDashboardScreen from '../screens/GuestDashboardScreen';
+import GuestStudentDetailScreen from '../screens/GuestStudentDetailScreen';
+import { useAuth } from '../context/AuthContext';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import ClassStudentsScreen from '../screens/ClassStudentsScreen';
 import RegisterStudentScreen from '../screens/RegisterStudentScreen';
@@ -22,39 +25,43 @@ const ParkedOperationsWrapped = withScreenHeader(ParkedOperationsScreen, 'Change
  */
 export default function StudentsStack() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const isGuest = user?.role === 'guest';
 
   return (
     <Stack.Navigator screenOptions={stackHeaderOptions(colors)}>
       <Stack.Screen
         name="StudentsHome"
-        component={StudentsListScreen}
+        component={isGuest ? GuestDashboardScreen : StudentsListScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen
+      {isGuest && <Stack.Screen name="GuestStudents" component={StudentsListScreen} options={{ headerShown: false }} />}
+      {isGuest && <Stack.Screen name="StudentDetail" component={GuestStudentDetailScreen} options={{ title: 'Student', headerShown: true }} />}
+      {!isGuest && <Stack.Screen
         name="StudentDetail"
         component={StudentDetailWrapped}
         options={{ title: 'Student', headerShown: false }}
-      />
-      <Stack.Screen
+      />}
+      {!isGuest && <Stack.Screen
         name="ClassStudents"
         component={ClassStudentsScreen}
         options={{ headerShown: false }}
-      />
-      <Stack.Screen
+      />}
+      {!isGuest && <Stack.Screen
         name="RegisterStudent"
         component={RegisterStudentScreen}
         options={{ title: 'Register Student', headerShown: false }}
-      />
-      <Stack.Screen
+      />}
+      {!isGuest && <Stack.Screen
         name="PromoteClass"
         component={PromoteClassWrapped}
         options={{ title: 'Promote a class', headerShown: false }}
-      />
-      <Stack.Screen
+      />}
+      {!isGuest && <Stack.Screen
         name="ParkedOperations"
         component={ParkedOperationsWrapped}
         options={{ title: 'Changes not saved', headerShown: false }}
-      />
+      />}
     </Stack.Navigator>
   );
 }

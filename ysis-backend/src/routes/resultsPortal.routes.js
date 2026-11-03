@@ -13,13 +13,13 @@ const EVENT_ACTION = {
 
 /**
  * POST /results-portal/access
- * Logs each time a staff member opens the external results portal, and each
+ * Logs each time an authorised user opens the external results portal, and each
  * time a saved login is sent. The entry records the account and the device.
  */
 router.post(
   '/access',
   requireAuth,
-  requireRole('director', 'principal', 'head_teacher'),
+  requireRole('director', 'principal', 'head_teacher', 'guest'),
   [body('event').isIn(Object.keys(EVENT_ACTION))],
   async (req, res, next) => {
     try {

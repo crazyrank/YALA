@@ -83,7 +83,14 @@ router.get(
       const page = hasMore ? rows.slice(0, limit) : rows;
       const last = page[page.length - 1];
 
-      const students = page.map(({ cursor_ts, ...student }) => student);
+      const students = page.map(({ cursor_ts, ...student }) => {
+        if (req.auth.role === 'guest') {
+          // Guest cache receives only the fields the Guest role is permitted to see.
+          const { date_of_birth, gender, arm, ...safeStudent } = student;
+          return { ...safeStudent, status: 'active' };
+        }
+        return student;
+      });
 
       return res.json({
         students,

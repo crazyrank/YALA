@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4, validate: isUuid } = require('uuid');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 const { processBatch } = require('../services/syncService');
 const { Errors } = require('../utils/errors');
 
@@ -27,7 +27,7 @@ function validateOperation(op) {
   return null;
 }
 
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requireAuth, requireRole('director', 'principal', 'head_teacher'), async (req, res, next) => {
   try {
     const operations = req.body?.operations;
 

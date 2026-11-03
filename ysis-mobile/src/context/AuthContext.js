@@ -2,7 +2,7 @@ import { registerInBackground } from '../services/pushNotifications';
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { clearPortalLogins } from '../services/portalAccess';
-import { setSessionEndedHandler } from '../api/client';
+import { setSessionEndedHandler, api } from '../api/client';
 import {
   loginOnline,
   hasCompletedFirstLogin,
@@ -43,6 +43,7 @@ export function AuthProvider({ children }) {
       const current = userRef.current;
       if (!current) return;
       await clearPortalLogins(current.id);
+      if (current.role === 'guest') await logoutService(current.id);
       setUser(null);
       setStatus('needsFirstLogin');
     });
@@ -106,9 +107,22 @@ export function AuthProvider({ children }) {
         return { unlocked: false, reason: 'NO_SESSION' };
       }
 
-      const enriched = await withLocalPhoto(cachedUser);
+      let currentUser = cachedUser;
+      if (cachedUser.role === 'guest') {
+        try {
+          const session = await api.get('/auth/session');
+          currentUser = session.user || cachedUser;
+          await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(currentUser));
+        } catch (error) {
+          // Guest access is never allowed to continue from an offline cached session.
+          await setUser(null);
+          setStatus('needsFirstLogin');
+          return { unlocked: false, reason: 'GUEST_SESSION_REVALIDATION_REQUIRED' };
+        }
+      }
+      const enriched = await withLocalPhoto(currentUser);
       setUser(enriched);
-      setStatus(cachedUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+      setStatus(currentUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
       if (!cachedUser.mustChangePassword) registerInBackground();
     }
 

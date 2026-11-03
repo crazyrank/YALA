@@ -170,6 +170,7 @@ export default function MoreScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
   const canImport = isAdmin || user?.role === 'head_teacher';
+  const isGuest = user?.role === 'guest';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -319,17 +320,17 @@ export default function MoreScreen({ navigation }) {
     <>
       <View style={[styles.settingsHeader, { paddingTop: insets.top, backgroundColor: colors.background }]}>
         <Text style={[styles.settingsTitle, { color: colors.textPrimary }]}>Settings</Text>
-        <Pressable
+        {!isGuest && <Pressable
           onPress={toggleSearch}
           hitSlop={12}
           style={styles.searchBtn}
           accessibilityLabel={searchOpen ? 'Close search' : 'Search'}
         >
           <Ionicons name={searchOpen ? 'close' : 'search'} size={22} color={colors.textPrimary} />
-        </Pressable>
+        </Pressable>}
       </View>
 
-      {searchOpen && (
+      {!isGuest && searchOpen && (
         <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Ionicons name="search" size={16} color={colors.textMuted} />
           <TextInput
@@ -347,7 +348,7 @@ export default function MoreScreen({ navigation }) {
         </View>
       )}
 
-      {searchOpen ? (
+      {!isGuest && searchOpen ? (
         <SearchResults query={query} rows={results} navigation={navigation} colors={colors} />
       ) : (
       <ScrollView
@@ -377,7 +378,7 @@ export default function MoreScreen({ navigation }) {
             ) : (
               <View style={[styles.avatar, { backgroundColor: colors.ink }]}>
                 <Text style={styles.avatarText}>
-                  {getInitials(user?.full_name || user?.email || 'U')}
+                  {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                 </Text>
               </View>
             )}
@@ -402,7 +403,7 @@ export default function MoreScreen({ navigation }) {
               style={[styles.name, { color: colors.textPrimary }]}
               numberOfLines={1}
             >
-              {user?.full_name || 'Staff'}
+              {user?.fullName || user?.fullName || user?.full_name || 'Guest'}
             </Text>
             <Text style={[styles.role, { color: colors.goldDark }]}>
               {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
@@ -440,6 +441,16 @@ export default function MoreScreen({ navigation }) {
 
         {isAdmin && (
           <MenuRow
+            icon="person-circle"
+            label="Guest Accounts"
+            subtitle="Approve, renew and manage Guest access"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('GuestAccounts')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
             icon="phone-portrait"
             label="Trusted Devices"
             subtitle="Approve, review and revoke devices"
@@ -456,21 +467,21 @@ export default function MoreScreen({ navigation }) {
           onPress={() => navigation.navigate('Intro', { replay: true })}
         />
 
-        <MenuRow
+        {!isGuest && <MenuRow
           icon="notifications"
           label="Notifications"
           subtitle="Alerts for your account"
           color={colors.textPrimary}
           onPress={() => navigation.navigate('Notifications')}
-        />
+        />}
 
-        <MenuRow
+        {!isGuest && <MenuRow
           icon="albums"
           label="Staff Directory"
           subtitle="Board, management & class teachers"
           color={colors.goldDark}
           onPress={() => navigation.navigate('StaffDirectory')}
-        />
+        />}
 
         {isAdmin && (
           <MenuRow
@@ -502,13 +513,13 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
-        <MenuRow
+        {!isGuest && <MenuRow
           icon="person-add"
           label="Register Student"
           subtitle="Add a new student record"
           color={colors.textPrimary}
           onPress={() => navigation.navigate('RegisterTab')}
-        />
+        />}
 
         <Text
           style={[styles.section, { color: colors.textMuted, marginTop: 18 }]}

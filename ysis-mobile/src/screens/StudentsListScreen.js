@@ -144,6 +144,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { user, logout } = useAuth();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const canRegister = isAdmin || user?.role === 'head_teacher';
   const [pendingDevices, setPendingDevices] = useState(0);
 
   // Only Principals and Directors ask. The server refuses everyone else anyway.
@@ -203,7 +204,7 @@ export default function StudentsListScreen({ navigation, route }) {
     loadStats();
 
     // Nothing to show until the user searches or a class is open.
-    if (!classLevel && !hasText) {
+    if (!classLevel && !hasText && user?.role !== 'guest') {
       if (seq !== searchSeq.current) return;
       setResults([]);
       setMatchCount(0);
@@ -244,7 +245,7 @@ export default function StudentsListScreen({ navigation, route }) {
     setPage(safePage);
     setResults(rows);
     setInitialLoading(false);
-  }, [classLevel, loadStats]);
+  }, [classLevel, loadStats, user?.role]);
 
   const refreshFromServer = useCallback(async (force = false) => {
     try {
@@ -392,7 +393,7 @@ export default function StudentsListScreen({ navigation, route }) {
             ) : (
               <View style={styles.profileAvatar}>
                 <Text style={styles.profileAvatarText}>
-                  {getInitials(user?.full_name || user?.email || 'U')}
+                  {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                 </Text>
               </View>
             )}
@@ -418,13 +419,13 @@ export default function StudentsListScreen({ navigation, route }) {
               ) : (
                 <View style={styles.menuAvatar}>
                   <Text style={styles.menuAvatarText}>
-                    {getInitials(user?.full_name || user?.email || 'U')}
+                    {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                   </Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuName} numberOfLines={1}>
-                  {user?.full_name || 'Staff'}
+                  {user?.fullName || user?.full_name || 'Guest'}
                 </Text>
                 <Text style={styles.menuRole}>
                   {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
@@ -512,7 +513,7 @@ export default function StudentsListScreen({ navigation, route }) {
                       <SkeletonStatCard />
                       <SkeletonStatCard />
                     </View>
-                  ) : (
+                  ) : user?.role === 'guest' ? null : (
                     <View style={styles.statsGrid}>
                       <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.textPrimary} bg={colors.surface} delay={0} />
                       <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
@@ -523,37 +524,37 @@ export default function StudentsListScreen({ navigation, route }) {
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.secondaryRow}>
-                    {isAdmin && (
+                    {canRegister && (
                     <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
                       <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
                     </Squish>
                     )}
-                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
+                    {user?.role !== 'guest' && <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
                         <Ionicons name="download-outline" size={22} color={colors.goldDark} />
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
-                    </Squish>
-                    {['director', 'principal', 'head_teacher'].includes(user?.role) && (
+                    </Squish>}
+                    {['director', 'principal', 'head_teacher', 'guest'].includes(user?.role) && (
                       <Squish
                         style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
-                        onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
+                        onPress={() => user?.role === 'guest' ? navigation.getParent()?.navigate('ResultsTab') : navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
                         <Ionicons name="document-text-outline" size={22} color={colors.pinkDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
                       </Squish>
                     )}
-                    <Squish
+                    {user?.role !== 'guest' && <Squish
                       style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
                       onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
                     >
                       <Ionicons name="globe-outline" size={22} color={colors.pinkDark} />
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
-                    </Squish>
-                    {isAdmin && (
+                    </Squish>}
+                    {canRegister && (
                       <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
                         <Ionicons name="cloud-upload-outline" size={22} color={colors.textPrimary} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
@@ -670,7 +671,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   ? 'No matching student was found in the local records. Try a name or admission number.'
                   : 'Student records assigned to your account will appear here.'}
               </Text>
-              {isAdmin && (query.length > 0 ? (
+              {canRegister && (query.length > 0 ? (
                 <Squish
                   style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                   onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}

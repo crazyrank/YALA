@@ -12,6 +12,7 @@ import ResultPortalScreen from '../screens/ResultPortalScreen';
 import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
 import WebPageScreen from '../screens/WebPageScreen';
 import CreateAccountScreen from '../screens/CreateAccountScreen';
+import GuestAccountsScreen from '../screens/GuestAccountsScreen';
 import PromoteClassScreen from '../screens/PromoteClassScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import { useTheme } from '../theme/ThemeContext';
@@ -28,6 +29,7 @@ const ImportStudentsWrapped = withScreenHeader(ImportStudentsScreen, 'Import Stu
 const DeviceReviewWrapped = withScreenHeader(DeviceReviewScreen, 'Trusted Devices');
 const NotificationsWrapped = withScreenHeader(NotificationsScreen, 'Notifications');
 const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Account');
+const GuestAccountsWrapped = withScreenHeader(GuestAccountsScreen, 'Guest Accounts');
 const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 
@@ -45,6 +47,11 @@ export default function MoreStack() {
         name="ManageStaff"
         component={ManageStaffWrapped}
         options={{ title: 'Manage Staff' }}
+      />
+      <Stack.Screen
+        name="GuestAccounts"
+        component={GuestAccountsWrapped}
+        options={{ title: 'Guest Accounts' }}
       />
       <Stack.Screen
         name="CreateAccount"

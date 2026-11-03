@@ -556,11 +556,9 @@ export default function StudentDetailScreen({ route, navigation }) {
             {status.toUpperCase()}
           </Text>
         </View>
-        {photoUri && (
+        {photoUri && isAdmin && (
           <Pressable style={styles.photoAction} onPress={handleCapturePhoto}>
-            <Text style={styles.photoActionText}>
-              {isAdmin ? 'Replace passport photo' : 'Photo on file'}
-            </Text>
+            <Text style={styles.photoActionText}>Replace passport photo</Text>
           </Pressable>
         )}
       </View>
@@ -595,7 +593,7 @@ export default function StudentDetailScreen({ route, navigation }) {
           <Pressable style={styles.adminBtn} onPress={startEditing}>
             <Text style={styles.adminBtnText}>Edit</Text>
           </Pressable>
-          {isArchived ? (
+          {isAdmin && (isArchived ? (
             <Pressable style={[styles.adminBtn, styles.adminBtnRestore]} onPress={handleRestore}>
               <Text style={[styles.adminBtnText, styles.adminBtnTextDark]}>Restore</Text>
             </Pressable>
@@ -603,7 +601,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             <Pressable style={[styles.adminBtn, styles.adminBtnDanger]} onPress={handleArchive}>
               <Text style={styles.adminBtnText}>Archive</Text>
             </Pressable>
-          )}
+          ))}
         </View>
       )}
 
@@ -614,7 +612,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             <Text style={styles.fieldLabel}>Full name *</Text>
             <TextInput style={styles.fieldInput} value={editName} onChangeText={setEditName} placeholder="Student full name" placeholderTextColor="#98A2B3" />
 
-            <Text style={styles.fieldLabel}>Registration number *</Text>
+            <Text style={styles.fieldLabel}>Admission number *</Text>
             <TextInput style={styles.fieldInput} value={editAdmissionNo} onChangeText={(t) => setEditAdmissionNo(t.toUpperCase())} placeholder="YMS/2024/03/033" placeholderTextColor="#98A2B3" autoCapitalize="characters" autoCorrect={false} />
 
             <Text style={styles.fieldLabel}>Date of birth *</Text>
