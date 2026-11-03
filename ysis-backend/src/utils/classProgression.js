@@ -9,6 +9,7 @@
  * Labels must exactly match what's stored in `students.class_level`.
  */
 const CLASS_ORDER = [
+  'Creche',
   'KG1',
   'KG2',
   'Primary 1',
@@ -16,7 +17,6 @@ const CLASS_ORDER = [
   'Primary 3',
   'Primary 4',
   'Primary 5',
-  'Primary 6',
   'JSS1',
   'JSS2',
   'JSS3',
