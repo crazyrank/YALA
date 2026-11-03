@@ -29,7 +29,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.crazyrank.ysismobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon-adaptive.png",
