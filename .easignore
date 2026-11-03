@@ -1,0 +1,17 @@
+# Other projects / backups (not needed for the mobile build)
+YALA-clean-test/
+ysis-backend/
+*.tar.gz
+rollback-safety-*/
+dashboard-stats-backup-*/
+.yala-patch-backup-*/
+
+# Standard ignores (replaces .gitignore for EAS, so keep these)
+node_modules/
+dist/
+.expo/
+.git/
+
+# Local native folder: must not be uploaded, EAS regenerates it from app.json
+ysis-mobile/android/
+ysis-mobile/ios/
