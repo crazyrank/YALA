@@ -12,7 +12,7 @@ const RESULTS_PAGE = {
   allowedHosts: ['yalav1.yalamatrixschools.com'],
 };
 
-const ALLOWED_ROLES = new Set(['director', 'principal', 'head_teacher', 'guest']);
+const ALLOWED_ROLES = new Set(['director', 'principal', 'head_teacher']);
 
 export function canAccessResultPortal(role) {
   return ALLOWED_ROLES.has(role);

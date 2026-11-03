@@ -538,10 +538,10 @@ export default function StudentsListScreen({ navigation, route }) {
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>}
-                    {['director', 'principal', 'head_teacher', 'guest'].includes(user?.role) && (
+                    {['director', 'principal', 'head_teacher'].includes(user?.role) && (
                       <Squish
                         style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
-                        onPress={() => user?.role === 'guest' ? navigation.getParent()?.navigate('ResultsTab') : navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
+                        onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
                       >
                         <Ionicons name="document-text-outline" size={22} color={colors.pinkDark} />
                         <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>

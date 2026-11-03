@@ -62,7 +62,6 @@ export default function GuestDashboardScreen({ navigation }) {
     </View>
     <View style={styles.menuList}>
       <MenuCard icon="people" title="Students" subtitle="View your assigned students and their details." colors={colors} onPress={() => navigation.navigate('GuestStudents')} />
-      <MenuCard icon="stats-chart" title="Results" subtitle="Open the Student Results portal." colors={colors} onPress={() => navigation.getParent()?.navigate('ResultsTab')} />
       <MenuCard icon="globe-outline" title="Website" subtitle="Open the official Yalamatrix Schools website." colors={colors} onPress={() => navigation.getParent()?.navigate('WebsiteTab')} />
       <MenuCard icon="grid" title="More" subtitle="Profile, help and account options." colors={colors} onPress={() => navigation.getParent()?.navigate('MoreTab')} />
     </View>

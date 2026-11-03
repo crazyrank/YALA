@@ -8,6 +8,7 @@
  * (free text, entered at registration — see RegisterStudentScreen).
  */
 export const CLASS_ORDER = [
+  'Creche',
   'KG1',
   'KG2',
   'Primary 1',
@@ -15,7 +16,6 @@ export const CLASS_ORDER = [
   'Primary 3',
   'Primary 4',
   'Primary 5',
-  'Primary 6',
   'JSS1',
   'JSS2',
   'JSS3',

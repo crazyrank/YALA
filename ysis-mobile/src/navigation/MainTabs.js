@@ -5,7 +5,6 @@ import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import MoreStack from './MoreStack';
-import ResultPortalScreen from '../screens/ResultPortalScreen';
 import SchoolWebsiteScreen from '../screens/SchoolWebsiteScreen';
 import StudentsStack from './StudentsStack';
 import ClassesStack from './ClassesStack';
@@ -185,15 +184,6 @@ export default function MainTabs() {
         }}
       />}
 
-      {isGuest && (
-        <Tab.Screen
-          name="ResultsTab"
-          component={ResultPortalScreen}
-          options={{ headerShown: false, title: 'Results', tabBarLabel: 'Results', tabBarIcon: ({ focused }) => (
-            <PillIcon focused={focused} activeName="stats-chart" inactiveName="stats-chart-outline" activeColor={activeTint} guest={isGuest} inactiveColor={colors.textMuted} size={23} />
-          ) }}
-        />
-      )}
 
       {isGuest && (
         <Tab.Screen

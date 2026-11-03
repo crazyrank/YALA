@@ -116,12 +116,12 @@ function canonicalClass(raw) {
 
 /** Which division a canonical class belongs to. */
 function divisionOfClass(classLevel) {
-  return /^(KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+  return /^(Creche|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
 }
 
 /**
  * Arm rule by class (confirmed by the school):
- *   KG1 to Primary 6: no arm
+ *   Creche to Primary 5: no arm
  *   JSS1 to SS1:      no arm
  *   SS2 and SS3:      required, Science / Arts / Commercial
  * JSS sections (A, B) are out of scope and are not recorded.
