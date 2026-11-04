@@ -1,6 +1,6 @@
 /**
  * Canonical, ordered list of every class the school uses, low to high
- * (Build Spec Section 2: Primary = KG stages + Primary 1-6, Secondary =
+ * (Build Spec Section 2: Primary = Creche, KG stages + Primary 1-5, Secondary =
  * JSS1-3 + SS1-3). This is the authoritative server-side copy — the
  * client's copy (src/utils/classProgression.js) is for instant local UI
  * only; the server is what actually enforces the SS3 cap, since a
