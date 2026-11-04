@@ -7,6 +7,7 @@
  */
 
 const { getNextClass, isAtMaxClass, getPreviousClass } = require('./classProgression');
+const { hasLeft } = require('./leaveRules');
 const { normalizeStudent, cleanText, canonicalClass, divisionOfClass, armRuleFor } = require('./studentRules');
 const { nextSession, previousSession, sessionIsAfter } = require('./academicSession');
 
@@ -43,6 +44,11 @@ const STATUS_EDIT_VALUES = ['active', 'archived'];
 function planPromotion(currentRow, { newClassLevel, arm }) {
   if (isAtMaxClass(currentRow.class_level)) {
     return { ok: false, code: 'ALREADY_AT_MAX_CLASS', message: 'This student is already at SS3. They should be graduated, not promoted.' };
+  }
+
+  // A student who has left cannot be promoted.
+  if (hasLeft(currentRow.status)) {
+    return { ok: false, code: 'STUDENT_HAS_LEFT', message: 'This student has left the school and cannot be promoted.' };
   }
 
   // Primary 5 pupils move to JSS1 only if admitted. A missing outcome means

@@ -3,6 +3,7 @@ const { query, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { Errors } = require('../utils/errors');
+const { guestStatusFor } = require('../utils/leaveRules');
 const {
   getScopeForUser,
   scopeToSqlClause,
@@ -88,7 +89,7 @@ router.get(
         if (req.auth.role === 'guest') {
           // Guest cache receives only the fields the Guest role is permitted to see.
           const { date_of_birth, gender, arm, entrance_outcome, ...safeStudent } = student;
-          return { ...safeStudent, status: 'active' };
+          return { ...safeStudent, status: guestStatusFor(student.status) };
         }
         return student;
       });

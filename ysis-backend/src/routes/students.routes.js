@@ -19,6 +19,7 @@ const {
 } = require('../services/studentScopeService');
 const { uploadStudentPhoto, signedStudentPhotoUrl } = require('../services/photoService');
 const { isAtMaxClass, getNextClass, CLASS_ORDER } = require('../utils/classProgression');
+const { planLeave, guestStatusFor } = require('../utils/leaveRules');
 
 const router = express.Router();
 
@@ -172,7 +173,7 @@ router.get(
             admission_no: student.admission_no,
             full_name: student.full_name,
             class_level: student.class_level,
-            status: 'active',
+            status: guestStatusFor(student.status),
           }))
         : rows;
 
@@ -626,6 +627,99 @@ router.post(
       return res.json({
         student: result.student,
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * POST /students/:id/leave
+ * Records that a student has left (graduated, transferred, withdrawn, expelled,
+ * deceased or not admitted). Only the Principal and Director may record a leave.
+ * The status change and the leave record are saved together or not at all.
+ */
+router.post(
+  '/:id/leave',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [
+    param('id').isUUID(),
+    body('leaveType').isString().notEmpty(),
+    body('reason').optional({ nullable: true }).isString().isLength({ max: 500 }),
+    body('basedOnVersion').isInt({ min: 1 }),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const currentStudent = await getCurrentServerState(req.params.id);
+      if (!currentStudent) {
+        throw Errors.notFound('That student could not be found.');
+      }
+
+      const scope = await getScopeForUser(req.auth);
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden('You do not have permission to update this student.');
+      }
+
+      const plan = planLeave(currentStudent, {
+        leaveType: req.body.leaveType,
+        reason: req.body.reason,
+      });
+      if (!plan.ok) {
+        throw Errors.badRequest(plan.code, plan.message);
+      }
+
+      const saved = await db.withTransaction(async (client) => {
+        const updated = await client.query(
+          `UPDATE students
+              SET status = $3,
+                  sync_version = sync_version + 1,
+                  updated_at = now()
+            WHERE id = $1 AND sync_version = $2
+            RETURNING *`,
+          [req.params.id, req.body.basedOnVersion, plan.changes.status]
+        );
+        if (updated.rows.length === 0) return null;
+
+        const leave = await client.query(
+          `INSERT INTO student_leaves (student_id, leave_type, leave_session, reason, recorded_by)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, leave_type, leave_session, reason, recorded_at`,
+          [req.params.id, plan.record.leave_type, plan.record.leave_session, plan.record.reason, req.auth.userId]
+        );
+        return { student: updated.rows[0], leave: leave.rows[0] };
+      });
+
+      if (!saved) {
+        throw Errors.conflict(
+          'CONFLICT_VERSION_MISMATCH',
+          'This record changed before the leave could be saved. Refresh and try again.'
+        );
+      }
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'STUDENT_LEAVE_RECORDED',
+        entityType: 'student',
+        entityId: req.params.id,
+        result: 'success',
+        metadata: {
+          leaveType: plan.record.leave_type,
+          session: plan.record.leave_session,
+          previousStatus: currentStudent.status,
+        },
+      });
+
+      return res.json(saved);
     } catch (err) {
       return next(err);
     }
