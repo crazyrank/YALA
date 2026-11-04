@@ -172,6 +172,7 @@ export default function MoreScreen({ navigation }) {
   const canImport = isAdmin || user?.role === 'head_teacher';
   const isGuest = user?.role === 'guest';
   const canStaffReports = isAdmin || user?.role === 'head_teacher';
+  const canLeavers = isAdmin || user?.role === 'head_teacher';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -504,7 +505,7 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
-        {isAdmin && (
+        {canLeavers && (
           <MenuRow
             icon="exit"
             label="Leavers"

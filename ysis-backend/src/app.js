@@ -25,6 +25,7 @@ const resultsPortalRoutes = require('./routes/resultsPortal.routes');
 const logBookRoutes = require('./routes/logBook.routes');
 const staffReportsRoutes = require('./routes/staffReports.routes');
 const staffProfilesRoutes = require('./routes/staffProfiles.routes');
+const studentStatusRoutes = require('./routes/studentStatus.routes');
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/results-portal', resultsPortalRoutes);
 app.use('/log-entries', logBookRoutes);
 app.use('/staff-reports', staffReportsRoutes);
 app.use('/staff-profiles', staffProfilesRoutes);
+app.use('/student-status', studentStatusRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'That endpoint does not exist.' } });

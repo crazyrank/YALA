@@ -832,10 +832,10 @@ router.post(
         if (updated.rows.length === 0) return null;
 
         const leave = await client.query(
-          `INSERT INTO student_leaves (student_id, leave_type, leave_session, reason, recorded_by)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO student_leaves (student_id, leave_type, leave_session, reason, recorded_by, previous_status)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id, leave_type, leave_session, reason, recorded_at`,
-          [req.params.id, plan.record.leave_type, plan.record.leave_session, plan.record.reason, req.auth.userId]
+          [req.params.id, plan.record.leave_type, plan.record.leave_session, plan.record.reason, req.auth.userId, currentStudent.status]
         );
         return { student: updated.rows[0], leave: leave.rows[0] };
       });

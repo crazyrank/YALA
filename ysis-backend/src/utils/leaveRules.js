@@ -40,7 +40,7 @@ function planLeave(student, { leaveType, reason }) {
   }
 
   // Primary 5 pupils with no recorded entrance result cannot leave.
-  if (student.class_level === 'Primary 5' && !student.entrance_outcome) {
+  if (student.class_level === 'Primary 5' && !student.entrance_outcome && leaveType !== 'deceased') {
     return { ok: false, code: 'RESULT_PENDING', message: 'This pupil has no recorded entrance result yet. Record it before recording a leave.' };
   }
   if (leaveType === 'graduated' && student.class_level !== 'SS3') {

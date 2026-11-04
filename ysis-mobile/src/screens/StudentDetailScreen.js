@@ -296,6 +296,75 @@ export default function StudentDetailScreen({ route, navigation }) {
     );
   };
 
+  const [inactiveOpen, setInactiveOpen] = useState(false);
+  const [inactiveReason, setInactiveReason] = useState('');
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  // Applies a status change made on the server to this phone, the same way a recorded leave is applied.
+  const applyLocalStatus = async (status, version) => {
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        'UPDATE students SET status = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+        [status, version, new Date().toISOString(), studentId]
+      );
+    } catch {
+      // The server has saved it. The next sync brings the new status to this phone.
+    }
+  };
+
+  const runStatusChange = async (path, body, title) => {
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then try again.');
+      return;
+    }
+    setStatusBusy(true);
+    try {
+      const res = await api.post(`/student-status/${studentId}/${path}`, {
+        ...body,
+        basedOnVersion: student.sync_version,
+      });
+      await applyLocalStatus(res.student.status, res.student.sync_version);
+      setInactiveOpen(false);
+      setInactiveReason('');
+      await loadStudent();
+    } catch (err) {
+      Alert.alert(
+        title,
+        err?.code === 'CONFLICT_VERSION_MISMATCH'
+          ? 'This record changed. Sync and try again.'
+          : (err?.message || 'Check your connection and try again.')
+      );
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const submitInactive = () => {
+    if (inactiveReason.trim().length < 3) {
+      Alert.alert('Reason needed', 'Write why the student is not attending.');
+      return;
+    }
+    runStatusChange('inactive', { reason: inactiveReason.trim() }, 'Could not mark inactive');
+  };
+
+  const clearInactive = () => runStatusChange('clear-inactive', {}, 'Could not clear inactive');
+
+  const undoLeave = () => {
+    Alert.alert(
+      'Undo leave',
+      `Return ${student.full_name} to the roll? The leave stays in the history, marked as undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo leave',
+          style: 'destructive',
+          onPress: () => runStatusChange('undo-leave', {}, 'Could not undo leave'),
+        },
+      ]
+    );
+  };
+
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnText, setReturnText] = useState('');
@@ -849,6 +918,17 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
+      {isAdmin && !editing && LEAVER_STATUSES.includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LEAVE</Text>
+          <View style={styles.infoCard}>
+            <Pressable style={styles.leaveButton} onPress={undoLeave} disabled={statusBusy}>
+              <Text style={styles.leaveButtonText}>Undo leave</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {isAdmin && !editing && !isArchived && !LEAVER_STATUSES.includes(student.status) && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>PROMOTION</Text>
@@ -990,13 +1070,50 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
+      {isAdmin && !editing && !isArchived && ['registered', 'active', 'promoted'].includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>ATTENDANCE</Text>
+          <View style={styles.infoCard}>
+            {!inactiveOpen ? (
+              <Pressable style={styles.leaveButton} onPress={() => setInactiveOpen(true)}>
+                <Text style={styles.leaveButtonText}>Mark inactive</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <Text style={styles.fieldLabel}>Why is the student not attending?</Text>
+                <TextInput
+                  value={inactiveReason}
+                  onChangeText={setInactiveReason}
+                  style={styles.leaveInput}
+                  placeholder="Reason (required)"
+                  maxLength={300}
+                />
+                <Pressable style={styles.leaveButton} onPress={submitInactive} disabled={statusBusy}>
+                  <Text style={styles.leaveButtonText}>Save as inactive</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && student.status === 'inactive' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>ATTENDANCE</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.maxClassText}>Marked Inactive. The student stays on the roll.</Text>
+            <Pressable style={styles.leaveButton} onPress={clearInactive} disabled={statusBusy}>
+              <Text style={styles.leaveButtonText}>Clear inactive</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {isAdmin && !editing && !isArchived && LEAVABLE_STATUSES.includes(student.status) && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>LEAVING SCHOOL</Text>
           <View style={styles.infoCard}>
-            {student.class_level === 'Primary 5' && !student.entrance_outcome ? (
-              <Text style={styles.maxClassText}>Record the entrance result above before recording a leave.</Text>
-            ) : !leaveOpen ? (
+            {!leaveOpen ? (
               <Pressable style={styles.leaveButton} onPress={() => setLeaveOpen(true)}>
                 <Text style={styles.leaveButtonText}>Record leave</Text>
               </Pressable>

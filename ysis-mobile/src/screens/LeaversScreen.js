@@ -15,7 +15,7 @@ const SESSION_SQL = 'COALESCE(current_session, academic_session)';
 export default function LeaversScreen({ navigation }) {
   const { user } = useAuth();
   const { colors } = useTheme();
-  const allowed = ['principal', 'director'].includes(user?.role);
+  const allowed = ['principal', 'director', 'head_teacher'].includes(user?.role);
 
   const [sessions, setSessions] = useState([]);
   const [session, setSession] = useState(null);
