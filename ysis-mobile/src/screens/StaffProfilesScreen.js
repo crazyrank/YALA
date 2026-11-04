@@ -32,7 +32,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function StaffProfilesScreen() {
+export default function StaffProfilesScreen({ navigation }) {
   const { colors } = useTheme();
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -189,6 +189,17 @@ export default function StaffProfilesScreen() {
               </ScrollView>
             )}
 
+            {!!profile && profile.canEdit && (
+              <Pressable
+                onPress={() => {
+                  closeProfile();
+                  navigation.navigate('StaffProfileEdit', { profile });
+                }}
+                style={[styles.editBtn, { backgroundColor: colors.gold }]}
+              >
+                <Text style={styles.editText}>Edit details</Text>
+              </Pressable>
+            )}
             <Pressable onPress={closeProfile} style={styles.closeBtn}>
               <Text style={[styles.closeText, { color: colors.textMuted }]}>Close</Text>
             </Pressable>
@@ -244,5 +255,7 @@ const styles = StyleSheet.create({
   },
   value: { fontFamily: fontFamily.body, fontSize: 15, lineHeight: 22 },
   closeBtn: { alignItems: 'center', paddingVertical: 14 },
+  editBtn: { marginTop: 16, paddingVertical: 14, borderRadius: radius.md, alignItems: 'center' },
+  editText: { fontFamily: fontFamily.bodyBold, fontSize: 15, color: '#0E1A2B' },
   closeText: { fontFamily: fontFamily.bodySemibold, fontSize: 14 },
 });

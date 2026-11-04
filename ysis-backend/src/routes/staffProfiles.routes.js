@@ -1,11 +1,11 @@
 const express = require('express');
-const { param, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 const { getScopeForUser } = require('../services/studentScopeService');
-const { canViewStaff } = require('../utils/staffProfileRules');
+const { canViewStaff, validateProfileEdit } = require('../utils/staffProfileRules');
 
 const router = express.Router();
 
@@ -148,8 +148,92 @@ router.get(
           status: subject.status,
           createdAt: subject.created_at,
           assignments,
+          canEdit: req.auth.role !== 'head_teacher',
         },
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * PATCH /staff-profiles/:id   body { fullName, email, phone }
+ * Principal and Director only. Head Teachers cannot edit profiles.
+ * Role, status and class assignments are not changed here.
+ */
+router.patch(
+  '/:id',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [
+    param('id').isUUID(),
+    body('fullName').isString(),
+    body('email').isString(),
+    body('phone').optional({ nullable: true }).isString(),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const { rows } = await db.query(
+        `SELECT id, full_name, email, phone, role, status, created_by
+           FROM users
+          WHERE id = $1`,
+        [req.params.id]
+      );
+      const subject = rows[0];
+      if (!subject) throw Errors.notFound('That staff profile could not be found.');
+
+      if (!canViewStaff({
+        viewerRole: req.auth.role,
+        viewerId: req.auth.userId,
+        viewerDivisions: [],
+        subject,
+      })) {
+        throw Errors.forbidden('You are not able to edit this profile.');
+      }
+
+      const checked = validateProfileEdit({
+        fullName: req.body.fullName,
+        email: req.body.email,
+        phone: req.body.phone,
+      });
+      if (!checked.ok) throw Errors.badRequest(checked.code, checked.message);
+
+      const { rows: taken } = await db.query(
+        'SELECT id FROM users WHERE email = $1 AND id <> $2',
+        [checked.value.email, subject.id]
+      );
+      if (taken[0]) {
+        throw Errors.conflict('EMAIL_TAKEN', 'Another account already uses that email address.');
+      }
+
+      const changed = [];
+      if (checked.value.fullName !== subject.full_name) changed.push('name');
+      if (checked.value.email !== subject.email) changed.push('email');
+      if ((checked.value.phone || '') !== (subject.phone || '')) changed.push('phone');
+
+      await db.query(
+        `UPDATE users
+            SET full_name = $2, email = $3, phone = $4, updated_at = now()
+          WHERE id = $1`,
+        [subject.id, checked.value.fullName, checked.value.email, checked.value.phone]
+      );
+
+      if (changed.length > 0) {
+        await writeAudit({
+          userId: req.auth.userId,
+          deviceId: req.auth.deviceId,
+          action: 'STAFF_PROFILE_EDITED',
+          entityType: 'user',
+          entityId: subject.id,
+          result: 'success',
+          metadata: { fields: changed },
+        });
+      }
+
+      return res.json({ ok: true, changed });
     } catch (err) {
       return next(err);
     }
