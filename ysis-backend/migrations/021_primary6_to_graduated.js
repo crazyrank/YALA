@@ -4,7 +4,7 @@
 exports.shorthands = undefined;
 
 exports.up = (pgm) => {
-  pgm.sql(`UPDATE students SET status = 'graduated' WHERE class_level = 'Primary 6' AND status NOT IN ('graduated', 'transferred', 'withdrawn', 'expelled', 'archived');`);
+  pgm.sql(`UPDATE students SET status = 'graduated', sync_version = sync_version + 1, updated_at = now() WHERE class_level = 'Primary 6' AND status NOT IN ('graduated', 'transferred', 'withdrawn', 'expelled', 'archived');`);
 };
 
 exports.down = () => {
