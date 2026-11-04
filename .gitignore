@@ -78,3 +78,11 @@ node_modules/
 dist/
 .env
 .env.*
+
+# local backups and patches, not source
+.yala-patch-backup-*/
+dashboard-stats-backup-*/
+rollback-safety-*/
+promote-files/
+*.tar.gz
+head-teacher-fix.patch
