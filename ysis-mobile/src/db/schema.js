@@ -21,7 +21,7 @@ export const SCHEMA_STATEMENTS = [
     guardian_name   TEXT,
     guardian_phone  TEXT,
     status          TEXT NOT NULL DEFAULT 'registered'
-      CHECK (status IN ('registered','active','promoted','graduated','transferred','withdrawn','expelled','archived')),
+      CHECK (status IN ('registered','active','promoted','graduated','transferred','withdrawn','expelled','archived','inactive','deceased','not_admitted')),
     sync_version    INTEGER NOT NULL DEFAULT 1,
     registered_by   TEXT,
     created_at      TEXT NOT NULL,
