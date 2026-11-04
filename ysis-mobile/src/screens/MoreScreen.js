@@ -171,6 +171,7 @@ export default function MoreScreen({ navigation }) {
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
   const canImport = isAdmin || user?.role === 'head_teacher';
   const isGuest = user?.role === 'guest';
+  const canStaffReports = isAdmin || user?.role === 'head_teacher';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -540,6 +541,26 @@ export default function MoreScreen({ navigation }) {
             subtitle="Daily activity in each class"
             color={colors.textPrimary}
             onPress={() => navigation.navigate('LogBook')}
+          />
+        )}
+
+        {canStaffReports && (
+          <MenuRow
+            icon="star"
+            label="Staff Reports"
+            subtitle="Monthly score and comment for each staff member"
+            color={colors.goldDark}
+            onPress={() => navigation.navigate('StaffReports')}
+          />
+        )}
+
+        {canStaffReports && (
+          <MenuRow
+            icon="people"
+            label="Staff Profiles"
+            subtitle="Contact details, role and class or division"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('StaffProfiles')}
           />
         )}
 
