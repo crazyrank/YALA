@@ -31,7 +31,7 @@ router.post(
       const target = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
       if (
         target.rows[0]?.role === 'head_teacher' &&
-        ['PROMOTE_STUDENT', 'REGISTER_STUDENT'].includes(permissionCode)
+        permissionCode === 'REGISTER_STUDENT'
       ) {
         throw Errors.forbidden('Head teachers cannot be granted this permission.');
       }
@@ -89,6 +89,54 @@ router.delete(
       });
 
       return res.json({ ok: true });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * GET /permissions/delegate
+ * Active grants (not revoked, not expired). A Principal sees only the grants they issued.
+ * A Director sees all of them.
+ */
+router.get(
+  '/delegate',
+  requireAuth,
+  requireRole('principal', 'director'),
+  async (req, res, next) => {
+    try {
+      const params = [];
+      let issuerClause = '';
+      if (req.auth.role === 'principal') {
+        params.push(req.auth.userId);
+        issuerClause = 'AND up.granted_by = $1';
+      }
+
+      const { rows } = await db.query(
+        `SELECT up.id, up.user_id, up.reason, up.granted_at, up.expires_at,
+                p.code AS permission_code, u.full_name AS user_name
+           FROM user_permissions up
+           JOIN permissions p ON p.id = up.permission_id
+           JOIN users u ON u.id = up.user_id
+          WHERE up.revoked_at IS NULL
+            AND up.expires_at > now()
+            ${issuerClause}
+          ORDER BY up.granted_at DESC`,
+        params
+      );
+
+      return res.json({
+        grants: rows.map((g) => ({
+          id: g.id,
+          userId: g.user_id,
+          userName: g.user_name,
+          permissionCode: g.permission_code,
+          reason: g.reason,
+          grantedAt: g.granted_at,
+          expiresAt: g.expires_at,
+        })),
+      });
     } catch (err) {
       return next(err);
     }

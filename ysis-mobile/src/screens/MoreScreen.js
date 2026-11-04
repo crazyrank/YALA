@@ -564,6 +564,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {user?.role === 'principal' && (
+          <MenuRow
+            icon="key"
+            label="Permissions"
+            subtitle="One-week promotion rights for Head Teachers"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('PermissionDelegation')}
+          />
+        )}
+
         {canImport && (
           <MenuRow
             icon="cloud-upload"

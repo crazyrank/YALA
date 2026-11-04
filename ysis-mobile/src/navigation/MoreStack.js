@@ -22,6 +22,7 @@ import LogBookScreen from '../screens/LogBookScreen';
 import StaffReportsScreen from '../screens/StaffReportsScreen';
 import StaffProfilesScreen from '../screens/StaffProfilesScreen';
 import StaffProfileEditScreen from '../screens/StaffProfileEditScreen';
+import PermissionDelegationScreen from '../screens/PermissionDelegationScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { stackHeaderOptions } from '../theme/stackHeader';
 import withScreenHeader from '../components/withScreenHeader';
@@ -46,6 +47,7 @@ const LogBookWrapped = withScreenHeader(LogBookScreen, 'Log Book');
 const StaffReportsWrapped = withScreenHeader(StaffReportsScreen, 'Staff Reports');
 const StaffProfilesWrapped = withScreenHeader(StaffProfilesScreen, 'Staff Profiles');
 const StaffProfileEditWrapped = withScreenHeader(StaffProfileEditScreen, 'Edit Staff Profile');
+const PermissionDelegationWrapped = withScreenHeader(PermissionDelegationScreen, 'Permissions');
 
 export default function MoreStack() {
   const { colors } = useTheme();
@@ -136,6 +138,11 @@ export default function MoreStack() {
         name="StaffProfileEdit"
         component={StaffProfileEditWrapped}
         options={{ title: 'Edit Staff Profile' }}
+      />
+      <Stack.Screen
+        name="PermissionDelegation"
+        component={PermissionDelegationWrapped}
+        options={{ title: 'Permissions' }}
       />
       <Stack.Screen
         name="Leavers"
