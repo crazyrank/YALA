@@ -83,7 +83,7 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
   );
 }
 
-function StudentCard({ item, navigation, colors }) {
+function StudentCard({ item, navigation, colors, isGuest }) {
   const initials = getInitials(item.full_name);
   const isActive = item.status === 'active';
   return (
@@ -131,7 +131,7 @@ function StudentCard({ item, navigation, colors }) {
               { color: isActive ? colors.success : colors.warning },
             ]}
           >
-            {(item.status || 'ACTIVE').toUpperCase()}
+            {(isGuest && item.status === 'withdrawn' ? 'LEFT' : (item.status || 'ACTIVE')).toUpperCase()}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={{ marginTop: 8 }} />
@@ -215,6 +215,10 @@ export default function StudentsListScreen({ navigation, route }) {
 
     const conditions = [];
     const params = [];
+    // Students who have left are shown on the Leavers screen, not in the class lists.
+    if (user?.role !== 'guest') {
+      conditions.push("status NOT IN ('graduated','transferred','withdrawn','expelled','deceased','not_admitted')");
+    }
     if (classLevel) {
       conditions.push('class_level = ?');
       params.push(classLevel);
@@ -611,7 +615,7 @@ export default function StudentsListScreen({ navigation, route }) {
         }
         renderItem={({ item }) => (
           <View style={styles.listPad}>
-            <StudentCard item={item} navigation={navigation} colors={colors} />
+            <StudentCard item={item} navigation={navigation} colors={colors} isGuest={user?.role === 'guest'} />
           </View>
         )}
         ListFooterComponent={

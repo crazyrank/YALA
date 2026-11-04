@@ -503,6 +503,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {isAdmin && (
+          <MenuRow
+            icon="exit"
+            label="Leavers"
+            subtitle="Students who have left, by session"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('Leavers')}
+          />
+        )}
+
         {canImport && (
           <MenuRow
             icon="cloud-upload"

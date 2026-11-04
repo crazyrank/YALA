@@ -20,6 +20,7 @@ import { nextSession, previousSession, sessionIsAfter } from '../utils/academicS
 import { exportStudentToPdf } from '../services/studentPdfExport';
 import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
+import { LEAVER_STATUSES, LEAVABLE_STATUSES, LEAVE_LABELS, leaveOptionsFor } from '../utils/leaveStatuses';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -46,6 +47,10 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [showPromoteChoice, setShowPromoteChoice] = useState(false);
   const [promoteArm, setPromoteArm] = useState('');
   const [recordingOutcome, setRecordingOutcome] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [savingLeave, setSavingLeave] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -219,6 +224,67 @@ export default function StudentDetailScreen({ route, navigation }) {
               );
             } finally {
               setRecordingOutcome(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Record that this student has left. Online only: the server checks the role,
+  // the class rules and the record version, and saves the status and the leave
+  // record together.
+  const submitLeave = () => {
+    if (!isAdmin) {
+      Alert.alert('Not allowed', 'Only a Principal or Director can record a leave.');
+      return;
+    }
+    if (!leaveType) {
+      Alert.alert('Choose a type', 'Choose why this student is leaving.');
+      return;
+    }
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then record the leave.');
+      return;
+    }
+    Alert.alert(
+      'Record leave',
+      `Record ${student.full_name} as ${LEAVE_LABELS[leaveType]}? This cannot be undone from the app.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Record',
+          style: 'destructive',
+          onPress: async () => {
+            setSavingLeave(true);
+            try {
+              const res = await api.post(`/students/${studentId}/leave`, {
+                leaveType,
+                reason: leaveReason.trim() || undefined,
+                basedOnVersion: student.sync_version,
+              });
+              try {
+                const db = await getDb();
+                await db.runAsync(
+                  'UPDATE students SET status = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+                  [leaveType, res?.student?.sync_version ?? student.sync_version, new Date().toISOString(), studentId]
+                );
+              } catch {
+                // The server has saved it. The next sync brings the new status to this phone.
+              }
+              setLeaveOpen(false);
+              setLeaveType('');
+              setLeaveReason('');
+              await loadStudent();
+            } catch (err) {
+              Alert.alert(
+                'Could not record leave',
+                err?.code === 'CONFLICT_VERSION_MISMATCH'
+                  ? 'This record changed. Sync and try again.'
+                  : (err?.message || 'Check your connection and try again.')
+              );
+            } finally {
+              setSavingLeave(false);
             }
           },
         },
@@ -736,7 +802,7 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
-      {isAdmin && !editing && !isArchived && (
+      {isAdmin && !editing && !isArchived && !LEAVER_STATUSES.includes(student.status) && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>PROMOTION</Text>
           <View style={styles.infoCard}>
@@ -812,6 +878,63 @@ export default function StudentDetailScreen({ route, navigation }) {
                   </Pressable>
                 )}
               </>
+            )}
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && LEAVABLE_STATUSES.includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LEAVING SCHOOL</Text>
+          <View style={styles.infoCard}>
+            {student.class_level === 'Primary 5' && !student.entrance_outcome ? (
+              <Text style={styles.maxClassText}>Record the entrance result above before recording a leave.</Text>
+            ) : !leaveOpen ? (
+              <Pressable style={styles.leaveButton} onPress={() => setLeaveOpen(true)}>
+                <Text style={styles.leaveButtonText}>Record leave</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <Text style={styles.fieldLabel}>Why is this student leaving?</Text>
+                {leaveOptionsFor(student).map((t) => (
+                  <Pressable
+                    key={t}
+                    style={[styles.leaveOption, leaveType === t && styles.leaveOptionSelected]}
+                    onPress={() => setLeaveType(t)}
+                    disabled={savingLeave}
+                  >
+                    <Text style={[styles.leaveOptionText, leaveType === t && styles.leaveOptionTextSelected]}>
+                      {LEAVE_LABELS[t]}
+                    </Text>
+                  </Pressable>
+                ))}
+                <Text style={styles.fieldLabel}>Reason (optional)</Text>
+                <TextInput
+                  style={styles.leaveInput}
+                  value={leaveReason}
+                  onChangeText={setLeaveReason}
+                  placeholder="Short note for the record"
+                  multiline
+                  maxLength={500}
+                  editable={!savingLeave}
+                />
+                <View style={styles.editActions}>
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => { setLeaveOpen(false); setLeaveType(''); setLeaveReason(''); }}
+                    disabled={savingLeave}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.continueButton, !leaveType && styles.disabledButton]}
+                    onPress={submitLeave}
+                    disabled={savingLeave || !leaveType}
+                  >
+                    {savingLeave ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Record</Text>}
+                  </Pressable>
+                </View>
+              </View>
             )}
           </View>
         </View>
@@ -967,6 +1090,13 @@ const styles = StyleSheet.create({
   radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#17263B' },
   armOptionText: { fontSize: 15, color: '#0E1A2B', fontWeight: '600' },
   promoteChoice: { paddingVertical: 8 },
+  leaveButton: { backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#D0D5DD' },
+  leaveButtonText: { fontWeight: '700', color: '#B42318', fontSize: 14 },
+  leaveOption: { borderWidth: 1.5, borderColor: '#D0D5DD', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 8, backgroundColor: '#FFFFFF' },
+  leaveOptionSelected: { borderColor: '#0E1A2B', backgroundColor: '#F2F4F7' },
+  leaveOptionText: { fontSize: 14, color: '#344054' },
+  leaveOptionTextSelected: { fontWeight: '700', color: '#0E1A2B' },
+  leaveInput: { borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, padding: 12, minHeight: 64, textAlignVertical: 'top', fontSize: 14, color: '#101828', backgroundColor: '#FFFFFF' },
   editActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   correctionBox: {
     marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 16,

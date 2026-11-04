@@ -15,6 +15,7 @@ import CreateAccountScreen from '../screens/CreateAccountScreen';
 import GuestAccountsScreen from '../screens/GuestAccountsScreen';
 import PromoteClassScreen from '../screens/PromoteClassScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
+import LeaversScreen from '../screens/LeaversScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { stackHeaderOptions } from '../theme/stackHeader';
 import withScreenHeader from '../components/withScreenHeader';
@@ -32,6 +33,7 @@ const CreateAccountWrapped = withScreenHeader(CreateAccountScreen, 'Create Accou
 const GuestAccountsWrapped = withScreenHeader(GuestAccountsScreen, 'Guest Accounts');
 const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
+const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
 
 export default function MoreStack() {
   const { colors } = useTheme();
@@ -92,6 +94,11 @@ export default function MoreStack() {
         name="PromoteClass"
         component={PromoteClassWrapped}
         options={{ title: 'Promote a class' }}
+      />
+      <Stack.Screen
+        name="Leavers"
+        component={LeaversWrapped}
+        options={{ title: 'Leavers' }}
       />
       <Stack.Screen
         name="StudentDetail"
