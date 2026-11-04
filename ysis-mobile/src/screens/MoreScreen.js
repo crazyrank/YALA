@@ -515,6 +515,26 @@ export default function MoreScreen({ navigation }) {
 
         {canImport && (
           <MenuRow
+            icon="people"
+            label="Class Teachers"
+            subtitle="Each class teacher and their one class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('ClassTeachers')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
+            icon="person-add"
+            label="Add Class Teacher"
+            subtitle="Create an account and give them one class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('CreateClassTeacher')}
+          />
+        )}
+
+        {canImport && (
+          <MenuRow
             icon="cloud-upload"
             label="Import Students"
             subtitle="Upload a CSV from this phone"

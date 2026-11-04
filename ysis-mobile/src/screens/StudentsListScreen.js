@@ -131,7 +131,7 @@ function StudentCard({ item, navigation, colors, isGuest }) {
               { color: isActive ? colors.success : colors.warning },
             ]}
           >
-            {(isGuest && item.status === 'withdrawn' ? 'LEFT' : (item.status || 'ACTIVE')).toUpperCase()}
+            {item.approval_status === 'pending' ? 'PENDING' : item.approval_status === 'returned' ? 'RETURNED' : (isGuest && item.status === 'withdrawn' ? 'LEFT' : (item.status || 'ACTIVE')).toUpperCase()}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={{ marginTop: 8 }} />
@@ -237,7 +237,7 @@ export default function StudentsListScreen({ navigation, route }) {
     const safePage = Math.min(Math.max(0, pageIndex), lastPage);
 
     const rows = await db.getAllAsync(
-      `SELECT id, admission_no, full_name, class_level, arm, status
+      `SELECT id, admission_no, full_name, class_level, arm, status, approval_status, registered_by
        FROM students ${where}
        ORDER BY full_name ASC
        LIMIT ? OFFSET ?`,
@@ -542,7 +542,7 @@ export default function StudentsListScreen({ navigation, route }) {
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
                     </Squish>}
-                    {['director', 'principal', 'head_teacher'].includes(user?.role) && (
+                    {['director', 'principal', 'head_teacher', 'class_teacher'].includes(user?.role) && (
                       <Squish
                         style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
                         onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}

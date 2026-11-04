@@ -16,6 +16,8 @@ import GuestAccountsScreen from '../screens/GuestAccountsScreen';
 import PromoteClassScreen from '../screens/PromoteClassScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import LeaversScreen from '../screens/LeaversScreen';
+import ClassTeachersScreen from '../screens/ClassTeachersScreen';
+import CreateClassTeacherScreen from '../screens/CreateClassTeacherScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { stackHeaderOptions } from '../theme/stackHeader';
 import withScreenHeader from '../components/withScreenHeader';
@@ -34,6 +36,8 @@ const GuestAccountsWrapped = withScreenHeader(GuestAccountsScreen, 'Guest Accoun
 const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
+const ClassTeachersWrapped = withScreenHeader(ClassTeachersScreen, 'Class Teachers');
+const CreateClassTeacherWrapped = withScreenHeader(CreateClassTeacherScreen, 'Add Class Teacher');
 
 export default function MoreStack() {
   const { colors } = useTheme();
@@ -94,6 +98,16 @@ export default function MoreStack() {
         name="PromoteClass"
         component={PromoteClassWrapped}
         options={{ title: 'Promote a class' }}
+      />
+      <Stack.Screen
+        name="ClassTeachers"
+        component={ClassTeachersWrapped}
+        options={{ title: 'Class Teachers' }}
+      />
+      <Stack.Screen
+        name="CreateClassTeacher"
+        component={CreateClassTeacherWrapped}
+        options={{ title: 'Add Class Teacher' }}
       />
       <Stack.Screen
         name="Leavers"

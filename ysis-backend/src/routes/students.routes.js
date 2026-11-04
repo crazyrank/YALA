@@ -20,6 +20,7 @@ const {
 const { uploadStudentPhoto, signedStudentPhotoUrl } = require('../services/photoService');
 const { isAtMaxClass, getNextClass, CLASS_ORDER } = require('../utils/classProgression');
 const { planLeave, guestStatusFor } = require('../utils/leaveRules');
+const { approvalStatusForRegistration, planApproval, planReturn, planResubmit, classTeacherMayEdit } = require('../utils/approvalRules');
 
 const router = express.Router();
 
@@ -206,7 +207,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
-  requireRole('principal', 'director', 'head_teacher'),
+  requireRole('principal', 'director', 'head_teacher', 'class_teacher'),
   [
     body('id').isUUID(),
     body('admissionNo').isString().notEmpty(),
@@ -306,11 +307,12 @@ router.post(
                guardian_phone,
                registered_by,
                registered_device_id,
-               academic_session
+               academic_session,
+               approval_status
              )
            VALUES
              (
-               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
              )
            RETURNING *`,
           [
@@ -327,6 +329,7 @@ router.post(
             req.auth.userId,
             req.auth.deviceId,
             sessionValue,
+            approvalStatusForRegistration(req.auth.role),
           ]
         );
 
@@ -445,6 +448,17 @@ router.patch(
       // Archive and restore stay with the Principal and Director.
       if (req.auth.role === 'head_teacher' && 'status' in changes) {
         throw Errors.forbidden('Head teachers cannot archive or restore students.');
+      }
+
+      // Class teachers edit a record only while it is Pending or Returned, and
+      // never change its status. Approved records are for the Principal or Director.
+      if (req.auth.role === 'class_teacher') {
+        if ('status' in changes) {
+          throw Errors.forbidden('Class teachers cannot archive or restore students.');
+        }
+        if (!classTeacherMayEdit(currentStudent)) {
+          throw Errors.forbidden('Approved records can only be edited by the Principal or Director.');
+        }
       }
 
       const touchesClassFields = [
@@ -627,6 +641,134 @@ router.post(
       return res.json({
         student: result.student,
       });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * Registration approval. Pending registrations are approved or returned by the
+ * Head Teacher of that division (or the Principal or Director). A returned
+ * registration is fixed and resubmitted by the Class Teacher who made it.
+ * Each change checks the caller's scope and the record version, bumps the version
+ * so phones receive it, and is written to the audit log.
+ */
+async function changeApproval(req, { auditAction, buildPlan }) {
+  const current = await getCurrentServerState(req.params.id);
+  if (!current) {
+    throw Errors.notFound('That student could not be found.');
+  }
+
+  const scope = await getScopeForUser(req.auth);
+  if (
+    !isWithinScope(scope, {
+      division: current.division,
+      classLevel: current.class_level,
+      arm: current.arm,
+    })
+  ) {
+    throw Errors.forbidden('You do not have permission to update this student.');
+  }
+
+  const plan = buildPlan(current);
+  if (!plan.ok) {
+    throw Errors.badRequest(plan.code, plan.message);
+  }
+
+  const approving = plan.changes.approval_status === 'approved';
+  const { rows } = await db.query(
+    `UPDATE students
+        SET approval_status = $3,
+            return_reason = $4,
+            approved_by = ${approving ? '$5' : 'NULL'},
+            approved_at = ${approving ? 'now()' : 'NULL'},
+            sync_version = sync_version + 1,
+            updated_at = now()
+      WHERE id = $1 AND sync_version = $2
+      RETURNING *`,
+    approving
+      ? [req.params.id, req.body.basedOnVersion, plan.changes.approval_status, plan.changes.return_reason, req.auth.userId]
+      : [req.params.id, req.body.basedOnVersion, plan.changes.approval_status, plan.changes.return_reason]
+  );
+  if (rows.length === 0) {
+    throw Errors.conflict(
+      'CONFLICT_VERSION_MISMATCH',
+      'This record changed before your update could be saved. Refresh and try again.'
+    );
+  }
+
+  await writeAudit({
+    userId: req.auth.userId,
+    deviceId: req.auth.deviceId,
+    action: auditAction,
+    entityType: 'student',
+    entityId: req.params.id,
+    result: 'success',
+    metadata: { from: current.approval_status, to: plan.changes.approval_status },
+  });
+
+  return rows[0];
+}
+
+/** POST /students/:id/approve */
+router.post(
+  '/:id/approve',
+  requireAuth,
+  requireRole('head_teacher', 'principal', 'director'),
+  [param('id').isUUID(), body('basedOnVersion').isInt({ min: 1 })],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const student = await changeApproval(req, {
+        auditAction: 'STUDENT_REGISTRATION_APPROVED',
+        buildPlan: (current) => planApproval(current),
+      });
+      return res.json({ student });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /students/:id/return  body { reason } */
+router.post(
+  '/:id/return',
+  requireAuth,
+  requireRole('head_teacher', 'principal', 'director'),
+  [
+    param('id').isUUID(),
+    body('reason').isString().isLength({ min: 1, max: 500 }),
+    body('basedOnVersion').isInt({ min: 1 }),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const student = await changeApproval(req, {
+        auditAction: 'STUDENT_REGISTRATION_RETURNED',
+        buildPlan: (current) => planReturn(current, req.body.reason),
+      });
+      return res.json({ student });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /students/:id/resubmit  (the Class Teacher who registered it) */
+router.post(
+  '/:id/resubmit',
+  requireAuth,
+  requireRole('class_teacher'),
+  [param('id').isUUID(), body('basedOnVersion').isInt({ min: 1 })],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const student = await changeApproval(req, {
+        auditAction: 'STUDENT_REGISTRATION_RESUBMITTED',
+        buildPlan: (current) => planResubmit(current, req.auth.userId),
+      });
+      return res.json({ student });
     } catch (err) {
       return next(err);
     }

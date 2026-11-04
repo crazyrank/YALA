@@ -19,7 +19,7 @@ const EVENT_ACTION = {
 router.post(
   '/access',
   requireAuth,
-  requireRole('director', 'principal', 'head_teacher'),
+  requireRole('director', 'principal', 'head_teacher', 'class_teacher'),
   [body('event').isIn(Object.keys(EVENT_ACTION))],
   async (req, res, next) => {
     try {

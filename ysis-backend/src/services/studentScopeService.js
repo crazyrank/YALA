@@ -20,6 +20,14 @@ async function getScopeForUser(auth) {
     return { guestStudentIds: rows.map((row) => row.student_id) };
   }
 
+  if (auth.role === 'class_teacher') {
+    const { rows: classTeacherRows } = await db.query(
+      `SELECT division, class_level, arm FROM class_teacher_assignments WHERE user_id = $1`,
+      [auth.userId]
+    );
+    return classTeacherRows;
+  }
+
   const { rows } = await db.query(
     `SELECT division, class_level, arm
      FROM head_teacher_class_assignments

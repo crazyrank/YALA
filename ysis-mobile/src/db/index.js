@@ -66,6 +66,8 @@ async function runColumnMigrations(db) {
     `ALTER TABLE students ADD COLUMN academic_session TEXT`,
     `ALTER TABLE students ADD COLUMN current_session TEXT`,
     `ALTER TABLE students ADD COLUMN entrance_outcome TEXT`,
+    `ALTER TABLE students ADD COLUMN approval_status TEXT`,
+    `ALTER TABLE students ADD COLUMN return_reason TEXT`,
   ];
   for (const statement of columnMigrations) {
     try {

@@ -13,6 +13,7 @@ const {
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
+const { approvalStatusForRegistration, classTeacherMayEdit } = require('../utils/approvalRules');
 const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
@@ -82,7 +83,7 @@ async function processOperation({
       (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
       userRole !== 'principal' &&
       userRole !== 'director' &&
-      !(opType === 'create_student' && userRole === 'head_teacher')
+      !(opType === 'create_student' && (userRole === 'head_teacher' || userRole === 'class_teacher'))
     ) {
       await markOpStatus(syncOpRowId, 'failed', 'Only the principal or director can do this.');
       return { operationId, status: 'failed', error: 'FORBIDDEN' };
@@ -160,6 +161,17 @@ async function processOperation({
         if (userRole === 'head_teacher' && 'status' in changes) {
           await markOpStatus(syncOpRowId, 'failed', 'Head teachers cannot archive or restore students.');
           return { operationId, status: 'failed', error: 'FORBIDDEN' };
+        }
+
+        if (userRole === 'class_teacher') {
+          if ('status' in changes) {
+            await markOpStatus(syncOpRowId, 'failed', 'Class teachers cannot archive or restore students.');
+            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+          }
+          if (!classTeacherMayEdit(currentStudent)) {
+            await markOpStatus(syncOpRowId, 'failed', 'Approved records can only be edited by the Principal or Director.');
+            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+          }
         }
 
         const touchesClassFields = [
@@ -389,8 +401,8 @@ async function processOperation({
         dateOfBirth,
       } = norm.value);
 
-      // Head teachers may register only inside their own assigned scope.
-      if (userRole === 'head_teacher') {
+      // Head teachers and class teachers may register only inside their own assigned scope.
+      if (userRole === 'head_teacher' || userRole === 'class_teacher') {
         const createScope = await getScopeForUser({ role: userRole, userId });
         if (!isWithinScope(createScope, { division, classLevel, arm: arm || null })) {
           await markOpStatus(syncOpRowId, 'failed', 'You do not have permission to register students in this class.');
@@ -461,10 +473,11 @@ async function processOperation({
                registered_device_id,
                academic_session,
                current_session,
-               created_at
+               created_at,
+               approval_status
              )
            VALUES
-             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             id,
             admissionNo,
@@ -481,6 +494,7 @@ async function processOperation({
             sessionValue,
             sessionValue,
             createdAtClient,
+            approvalStatusForRegistration(userRole),
           ]
         );
 

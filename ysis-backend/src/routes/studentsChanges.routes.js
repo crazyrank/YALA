@@ -71,6 +71,8 @@ router.get(
                 created_at,
                 status,
                 entrance_outcome,
+                approval_status,
+                return_reason,
                 sync_version,
                 to_char(updated_at AT TIME ZONE 'UTC',
                         'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_ts
@@ -88,7 +90,7 @@ router.get(
       const students = page.map(({ cursor_ts, ...student }) => {
         if (req.auth.role === 'guest') {
           // Guest cache receives only the fields the Guest role is permitted to see.
-          const { date_of_birth, gender, arm, entrance_outcome, ...safeStudent } = student;
+          const { date_of_birth, gender, arm, entrance_outcome, approval_status, return_reason, ...safeStudent } = student;
           return { ...safeStudent, status: guestStatusFor(student.status) };
         }
         return student;

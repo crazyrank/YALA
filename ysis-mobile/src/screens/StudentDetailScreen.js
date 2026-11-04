@@ -21,6 +21,7 @@ import { exportStudentToPdf } from '../services/studentPdfExport';
 import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
 import { LEAVER_STATUSES, LEAVABLE_STATUSES, LEAVE_LABELS, leaveOptionsFor } from '../utils/leaveStatuses';
+import { approvalOf, approvalNotice, canApproveRecords } from '../utils/approvalStatus';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -65,7 +66,10 @@ export default function StudentDetailScreen({ route, navigation }) {
 
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
-  const canEdit = isAdmin || user?.role === 'head_teacher';
+  const canEdit =
+    isAdmin ||
+    user?.role === 'head_teacher' ||
+    (user?.role === 'class_teacher' && approvalOf(student) !== 'approved');
 
   const canExportPdf =
     user?.role === 'principal' ||
@@ -290,6 +294,49 @@ export default function StudentDetailScreen({ route, navigation }) {
         },
       ]
     );
+  };
+
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnText, setReturnText] = useState('');
+
+  // Registration approval. Online only: the server checks the scope and the record version,
+  // bumps the version so the change reaches every phone, and writes the audit log.
+  const approvalAction = async (kind, body = {}) => {
+    setApprovalBusy(true);
+    try {
+      const res = await api.post(`/students/${studentId}/${kind}`, {
+        ...body,
+        basedOnVersion: student.sync_version,
+      });
+      try {
+        const db = await getDb();
+        await db.runAsync(
+          'UPDATE students SET approval_status = ?, return_reason = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+          [
+            res?.student?.approval_status || 'approved',
+            res?.student?.return_reason ?? null,
+            res?.student?.sync_version ?? student.sync_version,
+            new Date().toISOString(),
+            studentId,
+          ]
+        );
+      } catch {
+        // The server has saved it. The next sync brings the new state to this phone.
+      }
+      setReturnOpen(false);
+      setReturnText('');
+      await loadStudent();
+    } catch (err) {
+      Alert.alert(
+        'Could not save',
+        err?.code === 'CONFLICT_VERSION_MISMATCH'
+          ? 'This record changed. Sync and try again.'
+          : (err?.message || 'Check your connection and try again.')
+      );
+    } finally {
+      setApprovalBusy(false);
+    }
   };
 
   const handlePromote = () => {
@@ -879,6 +926,66 @@ export default function StudentDetailScreen({ route, navigation }) {
                 )}
               </>
             )}
+          </View>
+        </View>
+      )}
+
+      {student && approvalOf(student) !== 'approved' && !editing && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>REGISTRATION</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.maxClassText}>{approvalNotice(student)}</Text>
+            {approvalOf(student) === 'returned' && student.return_reason ? (
+              <Text style={styles.maxClassText}>Reason: {student.return_reason}</Text>
+            ) : null}
+
+            {canApproveRecords(user?.role) && student.approval_status === 'pending' && !returnOpen ? (
+              <View style={styles.editActions}>
+                <Pressable style={styles.continueButton} onPress={() => approvalAction('approve')} disabled={approvalBusy}>
+                  {approvalBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Approve</Text>}
+                </Pressable>
+                <Pressable style={styles.leaveButton} onPress={() => setReturnOpen(true)} disabled={approvalBusy}>
+                  <Text style={styles.leaveButtonText}>Return</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {canApproveRecords(user?.role) && returnOpen ? (
+              <View>
+                <Text style={styles.fieldLabel}>What should the class teacher fix?</Text>
+                <TextInput
+                  style={styles.leaveInput}
+                  value={returnText}
+                  onChangeText={setReturnText}
+                  placeholder="Short reason"
+                  multiline
+                  maxLength={500}
+                  editable={!approvalBusy}
+                />
+                <View style={styles.editActions}>
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => { setReturnOpen(false); setReturnText(''); }}
+                    disabled={approvalBusy}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.continueButton, !returnText.trim() && styles.disabledButton]}
+                    onPress={() => approvalAction('return', { reason: returnText.trim() })}
+                    disabled={approvalBusy || !returnText.trim()}
+                  >
+                    <Text style={styles.continueText}>Send back</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {user?.role === 'class_teacher' && student.approval_status === 'returned' && student.registered_by === (user?.id ?? user?.userId) ? (
+              <Pressable style={styles.continueButton} onPress={() => approvalAction('resubmit')} disabled={approvalBusy}>
+                {approvalBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Resubmit for approval</Text>}
+              </Pressable>
+            ) : null}
           </View>
         </View>
       )}

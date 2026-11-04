@@ -390,9 +390,22 @@ router.post(
       if (!target) throw Errors.notFound('That account could not be found.');
 
       const callerRole = req.auth.role;
-      const validPair =
+      let validPair =
         (callerRole === 'principal' && target.role === 'head_teacher') ||
-        (callerRole === 'director' && target.role === 'principal');
+        (callerRole === 'director' && target.role === 'principal') ||
+        ((callerRole === 'principal' || callerRole === 'director') && target.role === 'class_teacher');
+      if (!validPair && callerRole === 'head_teacher' && target.role === 'class_teacher') {
+        // A Head Teacher resets only a Class Teacher whose class is inside their own scope.
+        const { rows: inScope } = await db.query(
+          `SELECT 1 FROM class_teacher_assignments c
+            WHERE c.user_id = $1 AND EXISTS (
+              SELECT 1 FROM head_teacher_class_assignments h
+               WHERE h.user_id = $2 AND h.division = c.division
+                 AND (h.class_level IS NULL OR h.class_level = c.class_level))`,
+          [target.id, req.auth.userId]
+        );
+        validPair = inScope.length > 0;
+      }
       if (!validPair) throw Errors.forbidden('You are not able to reset this account.');
 
       await db.query(

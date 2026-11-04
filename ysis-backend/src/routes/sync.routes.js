@@ -27,7 +27,7 @@ function validateOperation(op) {
   return null;
 }
 
-router.post('/', requireAuth, requireRole('director', 'principal', 'head_teacher'), async (req, res, next) => {
+router.post('/', requireAuth, requireRole('director', 'principal', 'head_teacher', 'class_teacher'), async (req, res, next) => {
   try {
     const operations = req.body?.operations;
 

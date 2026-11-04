@@ -102,7 +102,7 @@ export default function MainTabs() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
-  const canRegister = isAdmin || user?.role === 'head_teacher';
+  const canRegister = isAdmin || user?.role === 'head_teacher' || user?.role === 'class_teacher';
   const isGuest = user?.role === 'guest';
   const openConflictCount = useOpenConflictCount(isAdmin);
   const activeTint = isGuest ? colors.brand : colors.gold;
