@@ -56,7 +56,7 @@ export default function PromoteClassScreen({ navigation }) {
       const db = await getDb();
       const rows = await db.getAllAsync(
         `SELECT id, full_name, admission_no, class_level, arm, status, sync_version,
-                current_session, academic_session, local_dirty
+                current_session, academic_session, local_dirty, entrance_outcome
          FROM students WHERE class_level = ? ORDER BY full_name`,
         [cls]
       );
@@ -105,6 +105,10 @@ export default function PromoteClassScreen({ navigation }) {
       if (sess !== session) { otherSession += 1; return; }
       if (!PROMOTABLE.includes(s.status)) { leftOut.push({ s, why: 'Status is ' + s.status }); return; }
       if (s.local_dirty) { leftOut.push({ s, why: 'Has changes that have not synced yet' }); return; }
+      if (classLevel === 'Primary 5') {
+        if (s.entrance_outcome === 'not_admitted') { leftOut.push({ s, why: 'Not admitted to JSS1' }); return; }
+        if (s.entrance_outcome !== 'admitted') { leftOut.push({ s, why: 'Result Pending. The Principal or Director must record the entrance result.' }); return; }
+      }
 
       let arm = null;
       if (rule.required) {

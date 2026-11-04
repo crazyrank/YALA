@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
+import { api } from '../api/client';
 import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
 import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
 import { exportStudentToPdf } from '../services/studentPdfExport';
@@ -29,7 +30,7 @@ function armRequiredFor(classLevel) {
 }
 
 function divisionOfClass(classLevel) {
-  return /^(KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+  return /^(Creche|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
 }
 
 export default function StudentDetailScreen({ route, navigation }) {
@@ -44,6 +45,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [promoting, setPromoting] = useState(false);
   const [showPromoteChoice, setShowPromoteChoice] = useState(false);
   const [promoteArm, setPromoteArm] = useState('');
+  const [recordingOutcome, setRecordingOutcome] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -176,6 +178,54 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
   };
 
+  // Entrance result for Primary 5 pupils. Entered by hand, online only: the server
+  // is the source of truth and checks the role, the class and the record version.
+  const recordOutcome = (outcome) => {
+    if (!isAdmin) {
+      Alert.alert('Not allowed', 'Only a Principal or Director can record an entrance result.');
+      return;
+    }
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then record the result.');
+      return;
+    }
+    const label = outcome === 'admitted' ? 'Admitted' : 'Not Admitted';
+    Alert.alert(
+      'Record entrance result',
+      `Record ${student.full_name} as ${label}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Record',
+          onPress: async () => {
+            setRecordingOutcome(true);
+            try {
+              const res = await api.post(`/students/${studentId}/entrance-outcome`, {
+                outcome,
+                basedOnVersion: student.sync_version,
+              });
+              const db = await getDb();
+              await db.runAsync(
+                'UPDATE students SET entrance_outcome = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+                [outcome, res?.student?.sync_version ?? student.sync_version, new Date().toISOString(), studentId]
+              );
+              await loadStudent();
+            } catch (err) {
+              Alert.alert(
+                'Could not record result',
+                err?.code === 'CONFLICT_VERSION_MISMATCH'
+                  ? 'This record changed. Sync and try again.'
+                  : (err?.message || 'Check your connection and try again.')
+              );
+            } finally {
+              setRecordingOutcome(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handlePromote = () => {
     if (!isAdmin) {
       Alert.alert('Not allowed', 'Only a Principal or Director can promote students.');
@@ -183,6 +233,15 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     const nextClass = getNextClass(student.class_level);
     if (!nextClass) return;
+    if (student.class_level === 'Primary 5' && student.entrance_outcome !== 'admitted') {
+      Alert.alert(
+        student.entrance_outcome === 'not_admitted' ? 'Not admitted' : 'Result Pending',
+        student.entrance_outcome === 'not_admitted'
+          ? 'This pupil was not admitted to JSS1 and cannot be promoted.'
+          : 'Record the entrance result before promoting this pupil.'
+      );
+      return;
+    }
 
     if (armRequiredFor(nextClass)) {
       setPromoteArm('');
@@ -528,6 +587,8 @@ export default function StudentDetailScreen({ route, navigation }) {
   const status = student.status || 'active';
   const isArchived = status === 'archived';
   const nextClass = getNextClass(student.class_level);
+  const promoteBlocked = student.class_level === 'Primary 5' && student.entrance_outcome !== 'admitted';
+  const outcomeLabel = student.entrance_outcome === 'admitted' ? 'Admitted' : student.entrance_outcome === 'not_admitted' ? 'Not Admitted' : 'Result Pending';
   const editNeedsArm = armRequiredFor(student.class_level);
 
   return (
@@ -718,7 +779,20 @@ export default function StudentDetailScreen({ route, navigation }) {
               </View>
             ) : (
               <>
-                <Pressable style={styles.promoteButton} onPress={handlePromote} disabled={promoting}>
+                {student.class_level === 'Primary 5' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={styles.fieldLabel}>Entrance result: {outcomeLabel}</Text>
+                    <View style={styles.editActions}>
+                      <Pressable style={styles.continueButton} onPress={() => recordOutcome('admitted')} disabled={recordingOutcome}>
+                        {recordingOutcome ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Admitted</Text>}
+                      </Pressable>
+                      <Pressable style={styles.cancelButton} onPress={() => recordOutcome('not_admitted')} disabled={recordingOutcome}>
+                        <Text style={styles.cancelText}>Not Admitted</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+                <Pressable style={[styles.promoteButton, promoteBlocked && styles.disabledButton]} onPress={handlePromote} disabled={promoting || promoteBlocked}>
                   <Text style={styles.promoteButtonText}>
                     {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
                   </Text>

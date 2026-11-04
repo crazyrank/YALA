@@ -45,6 +45,17 @@ function planPromotion(currentRow, { newClassLevel, arm }) {
     return { ok: false, code: 'ALREADY_AT_MAX_CLASS', message: 'This student is already at SS3. They should be graduated, not promoted.' };
   }
 
+  // Primary 5 pupils move to JSS1 only if admitted. A missing outcome means
+  // Result Pending. Both cases are refused here, so REST and sync share the rule.
+  if (currentRow.class_level === 'Primary 5') {
+    if (currentRow.entrance_outcome === 'not_admitted') {
+      return { ok: false, code: 'NOT_ADMITTED', message: 'This pupil was not admitted to JSS1 and cannot be promoted.' };
+    }
+    if (currentRow.entrance_outcome !== 'admitted') {
+      return { ok: false, code: 'RESULT_PENDING', message: 'This pupil has no recorded entrance result yet. The Principal or Director must record it first.' };
+    }
+  }
+
   const expected = getNextClass(currentRow.class_level);
   if (canonicalClass(newClassLevel) !== expected) {
     return { ok: false, code: 'INVALID_CLASS_PROGRESSION', message: `This student can only be promoted to ${expected}.` };

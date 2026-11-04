@@ -633,6 +633,85 @@ router.post(
 );
 
 /**
+ * POST /students/:id/entrance-outcome
+ * Records the common entrance outcome for a Primary 5 pupil. Entered by hand.
+ * Only the Principal and Director may record it. The outcome gates promotion
+ * to JSS1 (see planPromotion).
+ */
+router.post(
+  '/:id/entrance-outcome',
+  requireAuth,
+  requireRole('principal', 'director'),
+  [
+    param('id').isUUID(),
+    body('outcome').isIn(['admitted', 'not_admitted']),
+    body('basedOnVersion').isInt({ min: 1 }),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+
+      const currentStudent = await getCurrentServerState(req.params.id);
+      if (!currentStudent) {
+        throw Errors.notFound('That student could not be found.');
+      }
+
+      if (currentStudent.class_level !== 'Primary 5') {
+        throw Errors.badRequest(
+          'NOT_PRIMARY_5',
+          'An entrance outcome can only be recorded for a Primary 5 pupil.'
+        );
+      }
+
+      const scope = await getScopeForUser(req.auth);
+      if (
+        !isWithinScope(scope, {
+          division: currentStudent.division,
+          classLevel: currentStudent.class_level,
+          arm: currentStudent.arm,
+        })
+      ) {
+        throw Errors.forbidden('You do not have permission to update this student.');
+      }
+
+      const { rows } = await db.query(
+        `UPDATE students
+            SET entrance_outcome = $3,
+                sync_version = sync_version + 1,
+                updated_at = now()
+          WHERE id = $1 AND sync_version = $2 AND class_level = 'Primary 5'
+          RETURNING *`,
+        [req.params.id, req.body.basedOnVersion, req.body.outcome]
+      );
+
+      if (rows.length === 0) {
+        throw Errors.conflict(
+          'CONFLICT_VERSION_MISMATCH',
+          'This record changed before the result could be saved. Refresh and try again.'
+        );
+      }
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'STUDENT_ENTRANCE_OUTCOME_RECORDED',
+        entityType: 'student',
+        entityId: req.params.id,
+        result: 'success',
+        metadata: {
+          outcome: req.body.outcome,
+          previous: currentStudent.entrance_outcome || null,
+        },
+      });
+
+      return res.json({ student: rows[0] });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
  * GET /students/:id/photo
  * Returns a signed link to the student's current photo. Only staff whose scope
  * covers the student get a link. Student photos are private, so this is the
