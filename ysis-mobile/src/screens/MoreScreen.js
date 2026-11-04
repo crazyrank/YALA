@@ -533,6 +533,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {!isGuest && (
+          <MenuRow
+            icon="book"
+            label="Log Book"
+            subtitle="Daily activity in each class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('LogBook')}
+          />
+        )}
+
         {canImport && (
           <MenuRow
             icon="cloud-upload"

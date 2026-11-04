@@ -18,6 +18,7 @@ import StudentDetailScreen from '../screens/StudentDetailScreen';
 import LeaversScreen from '../screens/LeaversScreen';
 import ClassTeachersScreen from '../screens/ClassTeachersScreen';
 import CreateClassTeacherScreen from '../screens/CreateClassTeacherScreen';
+import LogBookScreen from '../screens/LogBookScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { stackHeaderOptions } from '../theme/stackHeader';
 import withScreenHeader from '../components/withScreenHeader';
@@ -38,6 +39,7 @@ const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
 const ClassTeachersWrapped = withScreenHeader(ClassTeachersScreen, 'Class Teachers');
 const CreateClassTeacherWrapped = withScreenHeader(CreateClassTeacherScreen, 'Add Class Teacher');
+const LogBookWrapped = withScreenHeader(LogBookScreen, 'Log Book');
 
 export default function MoreStack() {
   const { colors } = useTheme();
@@ -108,6 +110,11 @@ export default function MoreStack() {
         name="CreateClassTeacher"
         component={CreateClassTeacherWrapped}
         options={{ title: 'Add Class Teacher' }}
+      />
+      <Stack.Screen
+        name="LogBook"
+        component={LogBookWrapped}
+        options={{ title: 'Log Book' }}
       />
       <Stack.Screen
         name="Leavers"
