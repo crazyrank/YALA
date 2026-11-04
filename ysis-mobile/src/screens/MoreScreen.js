@@ -575,6 +575,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {isAdmin && (
+          <MenuRow
+            icon="document-text"
+            label="Audit Log"
+            subtitle="Who did what, filtered by person and date"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('AuditLog')}
+          />
+        )}
+
         {canImport && (
           <MenuRow
             icon="cloud-upload"
