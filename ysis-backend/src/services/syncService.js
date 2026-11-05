@@ -18,6 +18,7 @@ const { academicSessionFor, normalizeSession } = require('../utils/academicSessi
 const { handleBiodataOperation } = require('./biodataService');
 const { handleLogBookOperation } = require('./logBookService');
 const { handleStudentActionOperation } = require('./studentActionService');
+const { handleDirectoryOperation } = require('./directoryService');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -82,6 +83,11 @@ async function processOperation({
   }
 
   try {
+    if (opType === 'directory_create' || opType === 'directory_update' || opType === 'directory_delete') {
+      return await handleDirectoryOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
     if (opType === 'student_leave' || opType === 'entrance_outcome' || opType === 'student_status_change') {
       return await handleStudentActionOperation({
         operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,

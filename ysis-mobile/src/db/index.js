@@ -116,6 +116,7 @@ export async function wipeLocalData() {
   await database.runAsync('DELETE FROM sync_state').catch(() => {});
   await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'biodata_%'");
   await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'log_%'");
+  await database.runAsync('DELETE FROM directory_local').catch(() => {});
 }
 
 export { DEVICE_META_KEYS };

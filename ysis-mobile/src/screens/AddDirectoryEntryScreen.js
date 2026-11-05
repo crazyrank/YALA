@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { createDirectoryEntry, updateDirectoryEntry, deleteDirectoryEntry } from '../services/directoryLocal';
 import {
   View,
   Text,
@@ -77,17 +78,18 @@ export default function AddDirectoryEntryScreen({ route, navigation }) {
     setSaving(true);
     try {
       if (isEditing) {
-        await api.patch(`/directory/${entry.id}`, {
+        await updateDirectoryEntry({
+          id: entry.id,
           fullName: fullName.trim(),
           title: title.trim(),
-          ...(photoBase64 ? { photoBase64 } : {}),
+          photoBase64,
         });
       } else {
-        await api.post('/directory', {
+        await createDirectoryEntry({
           section,
           fullName: fullName.trim(),
           title: title.trim(),
-          ...(photoBase64 ? { photoBase64 } : {}),
+          photoBase64,
         });
       }
       navigation.goBack();
@@ -107,7 +109,7 @@ export default function AddDirectoryEntryScreen({ route, navigation }) {
         onPress: async () => {
           setSaving(true);
           try {
-            await api.delete(`/directory/${entry.id}`);
+            await deleteDirectoryEntry({ id: entry.id });
             navigation.goBack();
           } catch (err) {
             Alert.alert('Could not remove', err.message || 'Something went wrong.');
