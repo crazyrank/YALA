@@ -5,7 +5,8 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 const { getScopeForUser } = require('../services/studentScopeService');
-const { canViewStaff, validateProfileEdit } = require('../utils/staffProfileRules');
+const { canViewStaff } = require('../utils/staffProfileRules');
+const { applyStaffProfileUpdate } = require('../services/staffProfileService');
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ router.get(
       checkValidation(req);
 
       const { rows } = await db.query(
-        `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.created_by, u.created_at,
+        `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.created_by, u.created_at, u.updated_at, u.profile_version,
                 cta.division, cta.class_level, cta.arm
            FROM users u
            LEFT JOIN class_teacher_assignments cta ON cta.user_id = u.id
@@ -147,6 +148,8 @@ router.get(
           role: subject.role,
           status: subject.status,
           createdAt: subject.created_at,
+          updatedAt: subject.updated_at,
+          version: Number(subject.profile_version || 1),
           assignments,
           canEdit: req.auth.role !== 'head_teacher',
         },
@@ -166,74 +169,22 @@ router.patch(
   '/:id',
   requireAuth,
   requireRole('principal', 'director'),
-  [
-    param('id').isUUID(),
-    body('fullName').isString(),
-    body('email').isString(),
-    body('phone').optional({ nullable: true }).isString(),
-  ],
+  [param('id').isUUID()],
   async (req, res, next) => {
     try {
       checkValidation(req);
-
-      const { rows } = await db.query(
-        `SELECT id, full_name, email, phone, role, status, created_by
-           FROM users
-          WHERE id = $1`,
-        [req.params.id]
-      );
-      const subject = rows[0];
-      if (!subject) throw Errors.notFound('That staff profile could not be found.');
-
-      if (!canViewStaff({
-        viewerRole: req.auth.role,
-        viewerId: req.auth.userId,
-        viewerDivisions: [],
-        subject,
-      })) {
-        throw Errors.forbidden('You are not able to edit this profile.');
-      }
-
-      const checked = validateProfileEdit({
-        fullName: req.body.fullName,
-        email: req.body.email,
-        phone: req.body.phone,
+      const result = await applyStaffProfileUpdate({
+        subjectId: req.params.id,
+        payload: req.body,
+        auth: req.auth,
       });
-      if (!checked.ok) throw Errors.badRequest(checked.code, checked.message);
-
-      const { rows: taken } = await db.query(
-        'SELECT id FROM users WHERE email = $1 AND id <> $2',
-        [checked.value.email, subject.id]
-      );
-      if (taken[0]) {
-        throw Errors.conflict('EMAIL_TAKEN', 'Another account already uses that email address.');
+      if (!result.ok) {
+        if (result.conflict) throw Errors.conflict(result.code, result.message);
+        if (result.code === 'NOT_FOUND') throw Errors.notFound(result.message);
+        if (result.code === 'FORBIDDEN') throw Errors.forbidden(result.message);
+        throw Errors.badRequest(result.code, result.message);
       }
-
-      const changed = [];
-      if (checked.value.fullName !== subject.full_name) changed.push('name');
-      if (checked.value.email !== subject.email) changed.push('email');
-      if ((checked.value.phone || '') !== (subject.phone || '')) changed.push('phone');
-
-      await db.query(
-        `UPDATE users
-            SET full_name = $2, email = $3, phone = $4, updated_at = now()
-          WHERE id = $1`,
-        [subject.id, checked.value.fullName, checked.value.email, checked.value.phone]
-      );
-
-      if (changed.length > 0) {
-        await writeAudit({
-          userId: req.auth.userId,
-          deviceId: req.auth.deviceId,
-          action: 'STAFF_PROFILE_EDITED',
-          entityType: 'user',
-          entityId: subject.id,
-          result: 'success',
-          metadata: { fields: changed },
-        });
-      }
-
-      return res.json({ ok: true, changed });
+      return res.json({ ok: true, changed: result.changed, version: result.profileVersion });
     } catch (err) {
       return next(err);
     }

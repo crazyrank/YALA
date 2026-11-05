@@ -7,6 +7,7 @@ import { SYNC_BATCH_SIZE } from '../config';
 import { pullBiodataChanges } from './biodataSync';
 import { pullLogEntries } from './logBookSync';
 import { pullDirectory } from './directoryLocal';
+import { pullStaffProfiles } from './staffProfilesLocal';
 
 // Keep each request well under the backend body limit (2mb).
 const MAX_BATCH_BYTES = 700 * 1024;
@@ -250,6 +251,11 @@ export async function triggerSync() {
     }
     try {
       await pullDirectory();
+    } catch (err) {
+      // offline or server busy
+    }
+    try {
+      await pullStaffProfiles();
     } catch (err) {
       // offline or server busy
     }

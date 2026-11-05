@@ -53,10 +53,19 @@ const LOG_ENTRIES_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS log_entries_local (
     local_dirty  INTEGER NOT NULL DEFAULT 0
   )`;
 
+const STAFF_PROFILES_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS staff_profiles_local (
+    id            TEXT PRIMARY KEY,
+    data_json     TEXT NOT NULL,
+    version       INTEGER NOT NULL DEFAULT 1,
+    local_dirty   INTEGER NOT NULL DEFAULT 0,
+    cached_at     TEXT NOT NULL
+  )`;
+
 export async function applySlice1Migrations(db) {
   await rebuildSyncOperationsIfNeeded(db);
   await db.execAsync(BIODATA_LOCAL_CREATE);
   await db.execAsync(LOG_ENTRIES_LOCAL_CREATE);
+  await db.execAsync(STAFF_PROFILES_LOCAL_CREATE);
 }
 
 async function rebuildSyncOperationsIfNeeded(db) {
@@ -81,4 +90,4 @@ async function rebuildSyncOperationsIfNeeded(db) {
 }
 
 // Exported so the tests can run the exact same SQL.
-export const _test = { SYNC_OPS_CREATE, SYNC_OPS_COLUMN_LIST, BIODATA_LOCAL_CREATE, LOG_ENTRIES_LOCAL_CREATE };
+export const _test = { SYNC_OPS_CREATE, SYNC_OPS_COLUMN_LIST, BIODATA_LOCAL_CREATE, LOG_ENTRIES_LOCAL_CREATE, STAFF_PROFILES_LOCAL_CREATE };

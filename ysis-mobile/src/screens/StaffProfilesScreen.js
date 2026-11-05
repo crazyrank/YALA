@@ -12,7 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius } from '../theme/spacing';
-import { api } from '../api/client';
+import { getCachedStaffProfiles, getCachedStaffProfile, pullStaffProfiles } from '../services/staffProfilesLocal';
 
 const ROLE_LABELS = {
   principal: 'Principal',
@@ -46,8 +46,14 @@ export default function StaffProfilesScreen({ navigation }) {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/staff-profiles');
-      setStaff(res.staff || []);
+      const cached = await getCachedStaffProfiles();
+      if (cached.length) setStaff(cached);
+      try {
+        const fresh = await pullStaffProfiles();
+        setStaff(fresh);
+      } catch (networkError) {
+        if (!cached.length) throw networkError;
+      }
     } catch (e) {
       setError(e.message || 'Could not load staff.');
     } finally {
@@ -67,8 +73,12 @@ export default function StaffProfilesScreen({ navigation }) {
     setProfileError('');
     setProfileLoading(true);
     try {
-      const res = await api.get(`/staff-profiles/${row.id}`);
-      setProfile(res.profile);
+      const cached = await getCachedStaffProfile(row.id);
+      if (cached) {
+        setProfile(cached);
+      } else {
+        setProfileError('This profile is not available offline yet. Connect to the internet and refresh the staff list.');
+      }
     } catch (e) {
       setProfileError(e.message || 'Could not open this profile.');
     } finally {

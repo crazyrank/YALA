@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius } from '../theme/spacing';
-import { api } from '../api/client';
+import { saveStaffProfileOffline } from '../services/staffProfilesLocal';
 
 export default function StaffProfileEditScreen({ navigation, route }) {
   const { colors } = useTheme();
@@ -25,7 +25,7 @@ export default function StaffProfileEditScreen({ navigation, route }) {
   const save = async () => {
     setSaving(true);
     try {
-      await api.patch(`/staff-profiles/${profile.id}`, { fullName, email, phone });
+      await saveStaffProfileOffline(profile, { fullName, email, phone });
       navigation.goBack();
     } catch (e) {
       setSaving(false);
@@ -60,7 +60,7 @@ export default function StaffProfileEditScreen({ navigation, route }) {
       contentContainerStyle={styles.content}
     >
       <Text style={[styles.note, { color: colors.textMuted }]}>
-        Correct the name, email or phone number. Role, status and class assignments are changed elsewhere.
+        Changes save on this phone first and sync when a connection is available. Only the name, email and phone can be changed here.
       </Text>
 
       {field('FULL NAME', fullName, setFullName)}

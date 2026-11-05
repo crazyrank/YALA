@@ -19,6 +19,7 @@ const { handleBiodataOperation } = require('./biodataService');
 const { handleLogBookOperation } = require('./logBookService');
 const { handleStudentActionOperation } = require('./studentActionService');
 const { handleDirectoryOperation } = require('./directoryService');
+const { handleStaffProfileOperation } = require('./staffProfileService');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -83,6 +84,11 @@ async function processOperation({
   }
 
   try {
+    if (opType === 'staff_profile_update') {
+      return await handleStaffProfileOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
     if (opType === 'directory_create' || opType === 'directory_update' || opType === 'directory_delete') {
       return await handleDirectoryOperation({
         operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
