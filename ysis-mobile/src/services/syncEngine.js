@@ -8,6 +8,7 @@ import { pullBiodataChanges } from './biodataSync';
 import { pullLogEntries } from './logBookSync';
 import { pullDirectory } from './directoryLocal';
 import { pullStaffProfiles } from './staffProfilesLocal';
+import { pullStaffReports } from './staffReportsLocal';
 
 // Keep each request well under the backend body limit (2mb).
 const MAX_BATCH_BYTES = 700 * 1024;
@@ -164,6 +165,33 @@ async function sendBatch(db, batch) {
 
     if (result.status === 'synced') {
       await clearLocalDirtyFlag(db, row.entity_id);
+      if (row.op_type === 'black_book_save') {
+        await db.runAsync('UPDATE black_book_local SET local_dirty = 0 WHERE id = ?', [row.entity_id]);
+      }
+      if (row.op_type === 'alumni_save') {
+        await db.runAsync('UPDATE alumni_local SET local_dirty = 0 WHERE id = ?', [row.entity_id]);
+      }
+      if (row.op_type === 'staff_report_save') {
+        const reportPayload = JSON.parse(row.payload || '{}');
+
+        if (reportPayload.subjectId && reportPayload.reportMonth) {
+          if (
+            reportPayload.action === 'create' &&
+            result.reportMonth &&
+            result.reportMonth !== reportPayload.reportMonth
+          ) {
+            await db.runAsync(
+              'DELETE FROM staff_reports_local WHERE subject_id = ? AND report_month = ?',
+              [reportPayload.subjectId, reportPayload.reportMonth]
+            );
+          } else {
+            await db.runAsync(
+              'UPDATE staff_reports_local SET local_dirty = 0 WHERE subject_id = ? AND report_month = ?',
+              [reportPayload.subjectId, reportPayload.reportMonth]
+            );
+          }
+        }
+      }
     } else if (result.status === 'failed' || result.status === 'conflicted') {
       attention.push(attentionItem(row, result.status, result.error));
     }
@@ -256,6 +284,11 @@ export async function triggerSync() {
     }
     try {
       await pullStaffProfiles();
+    } catch (err) {
+      // offline or server busy
+    }
+    try {
+      await pullStaffReports();
     } catch (err) {
       // offline or server busy
     }

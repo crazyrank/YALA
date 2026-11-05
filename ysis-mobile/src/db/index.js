@@ -108,7 +108,7 @@ export async function getNextSequenceNo() {
 // Called on logout. Clears staged student rows along with everything else.
 export async function wipeLocalData() {
   const database = await getDb();
-  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache', 'staged_imports', 'biodata_local', 'log_entries_local'];
+  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache', 'staged_imports', 'biodata_local', 'log_entries_local', 'staff_reports_local'];
   for (const table of tables) {
     // eslint-disable-next-line no-await-in-loop
     await database.runAsync(`DELETE FROM ${table}`);
@@ -116,6 +116,7 @@ export async function wipeLocalData() {
   await database.runAsync('DELETE FROM sync_state').catch(() => {});
   await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'biodata_%'");
   await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'log_%'");
+  await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'staff_reports_%'");
   await database.runAsync('DELETE FROM directory_local').catch(() => {});
   await database.runAsync('DELETE FROM staff_profiles_local').catch(() => {});
 }

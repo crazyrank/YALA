@@ -19,6 +19,8 @@ import LeaversScreen from '../screens/LeaversScreen';
 import ClassTeachersScreen from '../screens/ClassTeachersScreen';
 import CreateClassTeacherScreen from '../screens/CreateClassTeacherScreen';
 import LogBookScreen from '../screens/LogBookScreen';
+import BlackBookScreen from '../screens/BlackBookScreen';
+import AlumniScreen from '../screens/AlumniScreen';
 import StaffReportsScreen from '../screens/StaffReportsScreen';
 import StaffProfilesScreen from '../screens/StaffProfilesScreen';
 import StaffProfileEditScreen from '../screens/StaffProfileEditScreen';
@@ -45,6 +47,8 @@ const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
 const ClassTeachersWrapped = withScreenHeader(ClassTeachersScreen, 'Class Teachers');
 const CreateClassTeacherWrapped = withScreenHeader(CreateClassTeacherScreen, 'Add Class Teacher');
 const LogBookWrapped = withScreenHeader(LogBookScreen, 'Log Book');
+const BlackBookWrapped = withScreenHeader(BlackBookScreen, 'Black Book');
+const AlumniWrapped = withScreenHeader(AlumniScreen, 'Alumni');
 const StaffReportsWrapped = withScreenHeader(StaffReportsScreen, 'Staff Reports');
 const StaffProfilesWrapped = withScreenHeader(StaffProfilesScreen, 'Staff Profiles');
 const StaffProfileEditWrapped = withScreenHeader(StaffProfileEditScreen, 'Edit Staff Profile');
@@ -120,6 +124,16 @@ export default function MoreStack() {
         name="CreateClassTeacher"
         component={CreateClassTeacherWrapped}
         options={{ title: 'Add Class Teacher' }}
+      />
+      <Stack.Screen
+        name="BlackBook"
+        component={BlackBookWrapped}
+        options={{ title: 'Black Book' }}
+      />
+      <Stack.Screen
+        name="Alumni"
+        component={AlumniWrapped}
+        options={{ title: 'Alumni' }}
       />
       <Stack.Screen
         name="LogBook"

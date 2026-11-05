@@ -86,3 +86,22 @@ rollback-safety-*/
 promote-files/
 *.tar.gz
 head-teacher-fix.patch
+
+# Secrets and local files
+.env
+.env.*
+*.env
+
+# Backups and temporary work
+*.bak
+*.backup
+*.before-*
+*.tar.gz
+*.zip
+.yala-patch-backup-*/
+rollback-safety-*/
+dashboard-stats-backup-*/
+YALA-clean-test/
+.slice-2f-backup/
+board-photos/
+node_modules/

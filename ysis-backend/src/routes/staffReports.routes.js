@@ -246,7 +246,7 @@ router.patch(
       checkValidation(req);
 
       const { rows: found } = await db.query(
-        `SELECT id, written_by,
+        `SELECT id, subject_id, written_by,
                 (now() - written_at) <= make_interval(hours => ${EDIT_WINDOW_HOURS}) AS within_window
            FROM staff_reports
           WHERE id = $1`,
@@ -259,6 +259,12 @@ router.patch(
       }
       if (!report.within_window) {
         throw Errors.forbidden(`Reports can be corrected only within ${EDIT_WINDOW_HOURS} hours of being written.`);
+      }
+
+      const subject = await loadSubject(report.subject_id);
+      const divisions = await divisionsFor(req.auth);
+      if (!subject || !canWriteAbout({ writerRole: req.auth.role, writerId: req.auth.userId, writerDivisions: divisions, subject })) {
+        throw Errors.forbidden("You can no longer correct reports for this staff member.");
       }
 
       const checked = validateReport({

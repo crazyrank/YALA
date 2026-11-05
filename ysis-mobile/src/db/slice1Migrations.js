@@ -61,11 +61,51 @@ const STAFF_PROFILES_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS staff_profiles_l
     cached_at     TEXT NOT NULL
   )`;
 
+const STAFF_REPORTS_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS staff_reports_local (
+    subject_id  TEXT NOT NULL,
+    report_month TEXT NOT NULL,
+    full_name   TEXT NOT NULL DEFAULT '',
+    data_json   TEXT NOT NULL,
+    local_dirty INTEGER NOT NULL DEFAULT 0,
+    cached_at   TEXT NOT NULL,
+    PRIMARY KEY (subject_id, report_month)
+  )`;
+
+const BLACK_BOOK_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS black_book_local (
+    id                TEXT PRIMARY KEY,
+    entry_date        TEXT NOT NULL,
+    body              TEXT NOT NULL,
+    original_body     TEXT,
+    written_by        TEXT NOT NULL,
+    written_at        TEXT NOT NULL,
+    corrected_at      TEXT,
+    correction_count  INTEGER NOT NULL DEFAULT 0,
+    local_dirty       INTEGER NOT NULL DEFAULT 0
+  )`;
+
+const ALUMNI_LOCAL_CREATE = `CREATE TABLE IF NOT EXISTS alumni_local (
+    id                 TEXT PRIMARY KEY,
+    full_name          TEXT NOT NULL,
+    division           TEXT,
+    graduation_session TEXT,
+    last_class_level   TEXT,
+    phone              TEXT,
+    email              TEXT,
+    address            TEXT,
+    notes              TEXT,
+    contact_status     TEXT NOT NULL DEFAULT 'contactable',
+    updated_at         TEXT,
+    local_dirty        INTEGER NOT NULL DEFAULT 0
+  )`;
+
 export async function applySlice1Migrations(db) {
   await rebuildSyncOperationsIfNeeded(db);
   await db.execAsync(BIODATA_LOCAL_CREATE);
   await db.execAsync(LOG_ENTRIES_LOCAL_CREATE);
   await db.execAsync(STAFF_PROFILES_LOCAL_CREATE);
+  await db.execAsync(STAFF_REPORTS_LOCAL_CREATE);
+  await db.execAsync(BLACK_BOOK_LOCAL_CREATE);
+  await db.execAsync(ALUMNI_LOCAL_CREATE);
 }
 
 async function rebuildSyncOperationsIfNeeded(db) {

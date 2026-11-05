@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius } from '../theme/spacing';
-import { api } from '../api/client';
+import { getStaffReports, saveStaffReportOffline } from '../services/staffReportsLocal';
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const RECOGNITION_OPTIONS = [
@@ -56,7 +56,7 @@ export default function StaffReportsScreen() {
     setLoading(true);
     setError('');
     try {
-      const res = await api.get('/staff-reports');
+      const res = await getStaffReports();
       setData(res);
     } catch (e) {
       setError(e.message || 'Could not load staff reports.');
@@ -98,11 +98,7 @@ export default function StaffReportsScreen() {
     setSaving(true);
     try {
       const payload = { score, comment: comment.trim(), recognition };
-      if (active.report) {
-        await api.patch(`/staff-reports/${active.report.id}`, payload);
-      } else {
-        await api.post('/staff-reports', { subjectId: active.id, ...payload });
-      }
+      await saveStaffReportOffline(data, active, payload);
       closeSheet();
       await load();
     } catch (e) {
@@ -125,7 +121,7 @@ export default function StaffReportsScreen() {
         {!!data && (
           <Text style={[styles.note, { color: colors.textMuted }]}>
             {data.canWrite
-              ? 'Write one report per person this month. You can correct your own report for 24 hours after writing it. Reports work only while online.'
+              ? 'Write one report per person this month. Reports save on this phone and sync when connected. You can correct your own report within 24 hours of writing it.'
               : 'Read only. You can see the reports for your scope.'}
           </Text>
         )}

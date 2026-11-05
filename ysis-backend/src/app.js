@@ -28,6 +28,8 @@ const staffProfilesRoutes = require('./routes/staffProfiles.routes');
 const studentStatusRoutes = require('./routes/studentStatus.routes');
 const auditLogRoutes = require('./routes/auditLogs.routes');
 const studentBiodataRoutes = require('./routes/studentBiodata.routes');
+const blackBookRoutes = require('./routes/blackBook.routes');
+const alumniRoutes = require('./routes/alumni.routes');
 
 const app = express();
 
@@ -89,6 +91,8 @@ app.use('/staff-profiles', staffProfilesRoutes);
 app.use('/student-status', studentStatusRoutes);
 app.use('/audit-logs', auditLogRoutes);
 app.use('/student-biodata', studentBiodataRoutes);
+app.use('/black-book', blackBookRoutes);
+app.use('/alumni', alumniRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'That endpoint does not exist.' } });

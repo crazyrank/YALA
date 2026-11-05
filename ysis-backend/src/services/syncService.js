@@ -20,6 +20,8 @@ const { handleLogBookOperation } = require('./logBookService');
 const { handleStudentActionOperation } = require('./studentActionService');
 const { handleDirectoryOperation } = require('./directoryService');
 const { handleStaffProfileOperation } = require('./staffProfileService');
+const { handleStaffReportOperation } = require('./staffReportSyncService');
+const { handleBlackBookOperation, handleAlumniOperation } = require('./adminRecordSyncService');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -86,6 +88,21 @@ async function processOperation({
   try {
     if (opType === 'staff_profile_update') {
       return await handleStaffProfileOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'black_book_save') {
+      return await handleBlackBookOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'alumni_save') {
+      return await handleAlumniOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'staff_report_save') {
+      return await handleStaffReportOperation({
         operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
       });
     }

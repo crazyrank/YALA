@@ -39,6 +39,8 @@ export const SYNC_OP_TYPES = [
   'conflict_resolve',
   'merge_queue_resolve',
   'notification_read',
+  'black_book_save',
+  'alumni_save',
 ];
 
 /** SQL list literal, e.g. 'a','b','c', used in the CHECK constraint. */

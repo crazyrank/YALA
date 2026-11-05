@@ -545,6 +545,26 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {user?.role === 'principal' && (
+          <MenuRow
+            icon="lock-closed"
+            label="Black Book"
+            subtitle="Principal's private record"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('BlackBook')}
+          />
+        )}
+
+        {(user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher') && (
+          <MenuRow
+            icon="people"
+            label="Alumni"
+            subtitle="Former students and their contact details"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('Alumni')}
+          />
+        )}
+
         {canStaffReports && (
           <MenuRow
             icon="star"
