@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { api } from '../api/client';
 import { formatDobInput } from '../utils/dobFormat';
 import {
   BIODATA_ROLES,
@@ -18,51 +17,51 @@ import {
   buildPatch,
   displayValue,
 } from '../utils/biodataForm';
+import { APPROVER_ROLES } from '../utils/biodataApproval';
+import { readBiodata, saveBiodata, reviewBiodata } from '../services/biodataLocal';
 
 /**
- * Biodata for one student. Online only and staff only.
- * Nothing is fetched until a staff member taps "Open biodata", and the data is
- * dropped from memory again when the section is closed.
+ * Biodata for one student. Works offline: reads and writes the phone's copy,
+ * and the change is sent to the server when the phone next syncs.
  */
 export default function StudentBiodataSection({ studentId, role }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [data, setData] = useState(null);
+  const [record, setRecord] = useState(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({});
+  const [returning, setReturning] = useState(false);
+  const [reason, setReason] = useState('');
 
-  if (!BIODATA_ROLES.includes(role)) return null;
-
-  const messageFor = (err) =>
-    err && err.isNetworkError
-      ? 'Biodata needs an internet connection. Connect and try again.'
-      : (err && err.message) || 'Something went wrong. Try again.';
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
-      const res = await api.get(`/student-biodata/${studentId}`);
-      setData(res.biodata);
+      setRecord(await readBiodata(studentId));
     } catch (err) {
-      setError(messageFor(err));
+      Alert.alert('Could not open biodata', (err && err.message) || 'Try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [studentId]);
 
-  const openSection = () => {
-    setOpen(true);
-    load();
-  };
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  if (!BIODATA_ROLES.includes(role)) return null;
+
+  const isApprover = APPROVER_ROLES.includes(role);
+  const data = record ? record.data : {};
+  const status = record ? record.approvalStatus : null;
+  const canEdit = isApprover || status !== 'approved';
 
   const closeSection = () => {
     setOpen(false);
     setEditing(false);
-    setData(null);
-    setError('');
+    setReturning(false);
+    setReason('');
+    setRecord(null);
   };
 
   const startEdit = () => {
@@ -84,26 +83,58 @@ export default function StudentBiodataSection({ studentId, role }) {
     }
     setSaving(true);
     try {
-      const res = await api.patch(`/student-biodata/${studentId}`, result.patch);
-      setData(res.biodata);
+      const res = await saveBiodata({ studentId, role, patch: result.patch });
+      if (!res.ok) {
+        Alert.alert('Could not save', res.message);
+        return;
+      }
       setEditing(false);
+      await load();
     } catch (err) {
-      Alert.alert('Could not save', messageFor(err));
+      Alert.alert('Could not save', (err && err.message) || 'Try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const runReview = async (action, why) => {
+    setSaving(true);
+    try {
+      const res = await reviewBiodata({ studentId, role, action, reason: why });
+      if (!res.ok) {
+        Alert.alert('Could not update', res.message);
+        return;
+      }
+      setReturning(false);
+      setReason('');
+      await load();
+    } catch (err) {
+      Alert.alert('Could not update', (err && err.message) || 'Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendBack = () => {
+    if (!reason.trim()) {
+      Alert.alert('Give a reason', 'Tell the Class Teacher what to fix.');
+      return;
+    }
+    runReview('return', reason);
   };
 
   if (!open) {
     return (
       <View style={styles.section}>
         <Text style={styles.eyebrow}>BIODATA</Text>
-        <Pressable style={styles.openButton} onPress={openSection}>
+        <Pressable style={styles.openButton} onPress={() => setOpen(true)}>
           <Text style={styles.openButtonText}>Open biodata</Text>
         </Pressable>
       </View>
     );
   }
+
+  const banner = bannerFor(status, record, isApprover);
 
   return (
     <View style={styles.section}>
@@ -116,16 +147,17 @@ export default function StudentBiodataSection({ studentId, role }) {
 
       {loading && <ActivityIndicator style={styles.loader} color="#17263B" />}
 
-      {!loading && error !== '' && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={load}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
+      {!loading && record && banner && (
+        <View style={[styles.banner, banner.style]}>
+          <Text style={[styles.bannerText, banner.textStyle]}>{banner.text}</Text>
         </View>
       )}
 
-      {!loading && error === '' && data && !editing && (
+      {!loading && record && record.localDirty && (
+        <Text style={styles.syncNote}>Saved on this phone. Waiting to sync.</Text>
+      )}
+
+      {!loading && record && !editing && (
         <>
           {FIELD_GROUPS.map((group) => (
             <View key={group.title} style={styles.groupBlock}>
@@ -143,13 +175,69 @@ export default function StudentBiodataSection({ studentId, role }) {
               </View>
             </View>
           ))}
-          <Pressable style={styles.primaryButton} onPress={startEdit}>
-            <Text style={styles.primaryButtonText}>Edit biodata</Text>
-          </Pressable>
+
+          {canEdit && (
+            <Pressable style={styles.primaryButton} onPress={startEdit}>
+              <Text style={styles.primaryButtonText}>Edit biodata</Text>
+            </Pressable>
+          )}
+
+          {isApprover && status === 'pending' && !returning && (
+            <View style={styles.buttonRow}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setReturning(true)}
+                disabled={saving}
+              >
+                <Text style={styles.cancelText}>Send back</Text>
+              </Pressable>
+              <Pressable
+                style={styles.primaryButtonFlex}
+                onPress={() => runReview('approve', null)}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Approve</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+
+          {isApprover && status === 'pending' && returning && (
+            <View style={styles.returnBox}>
+              <Text style={styles.rowLabel}>Reason (the Class Teacher will see this)</Text>
+              <TextInput
+                style={[styles.input, styles.inputMulti]}
+                value={reason}
+                onChangeText={setReason}
+                maxLength={500}
+                multiline
+                editable={!saving}
+              />
+              <View style={styles.buttonRow}>
+                <Pressable
+                  style={styles.cancelButton}
+                  onPress={() => { setReturning(false); setReason(''); }}
+                  disabled={saving}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.primaryButtonFlex} onPress={sendBack} disabled={saving}>
+                  {saving ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Send back</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
         </>
       )}
 
-      {!loading && error === '' && data && editing && (
+      {!loading && record && editing && (
         <>
           {FIELD_GROUPS.map((group) => (
             <View key={group.title} style={styles.groupBlock}>
@@ -234,6 +322,32 @@ export default function StudentBiodataSection({ studentId, role }) {
   );
 }
 
+function bannerFor(status, record, isApprover) {
+  if (!record || !record.exists) return null;
+  if (status === 'pending') {
+    return {
+      text: isApprover ? 'Waiting for your approval.' : 'Waiting for Head Teacher approval.',
+      style: styles.bannerWait,
+      textStyle: styles.bannerWaitText,
+    };
+  }
+  if (status === 'returned') {
+    return {
+      text: `Returned for changes: ${record.returnReason || 'see the Head Teacher'}. Fix it and save to send it again.`,
+      style: styles.bannerBack,
+      textStyle: styles.bannerBackText,
+    };
+  }
+  if (status === 'approved') {
+    return {
+      text: 'Approved.',
+      style: styles.bannerOk,
+      textStyle: styles.bannerOkText,
+    };
+  }
+  return null;
+}
+
 const styles = StyleSheet.create({
   section: { marginTop: 18 },
   eyebrow: { fontSize: 11, fontWeight: '700', color: '#98A2B3', letterSpacing: 1, marginBottom: 8 },
@@ -245,10 +359,15 @@ const styles = StyleSheet.create({
   },
   openButtonText: { fontSize: 14, fontWeight: '700', color: '#17263B' },
   loader: { marginVertical: 20 },
-  errorBox: { backgroundColor: '#FEF3F2', borderRadius: 12, padding: 14 },
-  errorText: { fontSize: 13, color: '#B42318' },
-  retryButton: { marginTop: 10, alignSelf: 'flex-start' },
-  retryText: { fontSize: 13, fontWeight: '700', color: '#17263B' },
+  banner: { borderRadius: 12, padding: 12, marginBottom: 12 },
+  bannerText: { fontSize: 13, fontWeight: '600' },
+  bannerWait: { backgroundColor: '#FFFAEB' },
+  bannerWaitText: { color: '#B54708' },
+  bannerBack: { backgroundColor: '#FEF3F2' },
+  bannerBackText: { color: '#B42318' },
+  bannerOk: { backgroundColor: '#ECFDF3' },
+  bannerOkText: { color: '#067647' },
+  syncNote: { fontSize: 12, color: '#667085', marginBottom: 10 },
   groupBlock: { marginBottom: 14 },
   groupTitle: { fontSize: 11, fontWeight: '700', color: '#98A2B3', letterSpacing: 1, marginBottom: 6 },
   card: {
@@ -277,6 +396,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: '#344054', fontWeight: '600' },
   chipTextOn: { color: '#FFFFFF' },
   buttonRow: { flexDirection: 'row', marginTop: 4 },
+  returnBox: { marginTop: 10 },
   cancelButton: {
     flex: 1, borderRadius: 12, borderWidth: 1, borderColor: '#D0D5DD',
     paddingVertical: 12, alignItems: 'center', marginRight: 10,

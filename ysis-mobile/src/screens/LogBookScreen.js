@@ -3,10 +3,11 @@ import {
   View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { triggerSync } from '../services/syncEngine';
+import { listLogEntries, createLogEntry, correctLogEntry } from '../services/logBookLocal';
 
-// Online only. The server checks the role, the class, the date and the 24-hour window again.
+// Works offline. Entries are saved on the phone and sent on the next sync.
 const MAX_BODY = 4000;
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -32,7 +33,6 @@ export default function LogBookScreen() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [offline, setOffline] = useState(false);
 
   const [draft, setDraft] = useState('');
   const [draftDay, setDraftDay] = useState(0);
@@ -44,40 +44,39 @@ export default function LogBookScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get(`/log-entries?from=${dayAgo(14)}&to=${dayAgo(0)}&limit=200`);
-      setEntries(res?.entries || []);
-      setOffline(false);
+      setEntries(await listLogEntries(dayAgo(14), dayAgo(0)));
     } catch (err) {
-      if (err?.isNetworkError) {
-        setOffline(true);
-      } else {
-        Alert.alert('Could not load the Log Book', err?.message || 'Try again.');
-      }
+      Alert.alert('Could not load the Log Book', (err && err.message) || 'Try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    triggerSync();
+  }, [load]));
+
+  const refresh = () => {
+    setRefreshing(true);
+    triggerSync();
+    load();
+  };
 
   const save = async () => {
-    const text = draft.trim();
-    if (!text) {
-      Alert.alert('Write something', 'The entry cannot be empty.');
-      return;
-    }
     setSaving(true);
     try {
-      await api.post('/log-entries', { entryDate: dayAgo(draftDay), body: text });
+      const res = await createLogEntry({ userId, entryDate: dayAgo(draftDay), body: draft });
+      if (!res.ok) {
+        Alert.alert('Could not save the entry', res.message);
+        return;
+      }
       setDraft('');
       setDraftDay(0);
       await load();
     } catch (err) {
-      Alert.alert(
-        'Could not save the entry',
-        err?.isNetworkError ? 'The Log Book needs an internet connection.' : (err?.message || 'Try again.')
-      );
+      Alert.alert('Could not save the entry', (err && err.message) || 'Try again.');
     } finally {
       setSaving(false);
     }
@@ -88,28 +87,24 @@ export default function LogBookScreen() {
     Date.now() - new Date(entry.written_at).getTime() <= EDIT_WINDOW_MS;
 
   const saveEdit = async () => {
-    const text = editText.trim();
-    if (!text) {
-      Alert.alert('Write something', 'The entry cannot be empty.');
-      return;
-    }
     setSavingEdit(true);
     try {
-      await api.patch(`/log-entries/${editingId}`, { body: text });
+      const res = await correctLogEntry({ userId, id: editingId, body: editText });
+      if (!res.ok) {
+        Alert.alert('Could not save the correction', res.message);
+        return;
+      }
       setEditingId(null);
       setEditText('');
       await load();
     } catch (err) {
-      Alert.alert(
-        'Could not save the correction',
-        err?.isNetworkError ? 'The Log Book needs an internet connection.' : (err?.message || 'Try again.')
-      );
+      Alert.alert('Could not save the correction', (err && err.message) || 'Try again.');
     } finally {
       setSavingEdit(false);
     }
   };
 
-  // Group the entries by day, newest day first. The list is already sorted by the server.
+  // Group the entries by day, newest day first. The list is already sorted.
   const days = [];
   for (const entry of entries) {
     const last = days[days.length - 1];
@@ -124,16 +119,8 @@ export default function LogBookScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      {offline && (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>The Log Book needs an internet connection. Showing nothing until you are online.</Text>
-        </View>
-      )}
-
       {canWrite && (
         <View style={styles.card}>
           <Text style={styles.heading}>New entry for your class</Text>
@@ -168,7 +155,7 @@ export default function LogBookScreen() {
 
       {loading && <ActivityIndicator style={styles.spinner} />}
 
-      {!loading && !offline && days.length === 0 && (
+      {!loading && days.length === 0 && (
         <Text style={styles.body}>No entries in the last two weeks.</Text>
       )}
 
@@ -231,8 +218,6 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   spinner: { marginTop: 14 },
   body: { fontSize: 14, color: '#5B6472', marginTop: 8 },
-  notice: { backgroundColor: '#FEF0C7', borderRadius: 10, padding: 12, marginBottom: 12 },
-  noticeText: { fontSize: 13, color: '#7A4B00' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E2E6EC' },
   heading: { fontSize: 15, fontWeight: '700', color: '#101828', marginBottom: 10 },
   dayBlock: { marginTop: 6 },

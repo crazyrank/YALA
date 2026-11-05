@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, getNextSequenceNo } from '../db';
 import { api } from '../api/client';
 import { SYNC_BATCH_SIZE } from '../config';
+import { pullBiodataChanges } from './biodataSync';
+import { pullLogEntries } from './logBookSync';
 
 // Keep each request well under the backend body limit (2mb).
 const MAX_BATCH_BYTES = 700 * 1024;
@@ -231,6 +233,19 @@ export async function triggerSync() {
       const batch = buildBatch(candidates);
       attention.push(...(await sendWithIsolation(db, batch)));
       processedCount += batch.length;
+    }
+
+    // Pull biodata after pushing, so the phone shows the server's decisions.
+    // A failed pull never fails the sync; the next sync tries again.
+    try {
+      await pullBiodataChanges();
+    } catch (err) {
+      // offline or server busy
+    }
+    try {
+      await pullLogEntries();
+    } catch (err) {
+      // offline or server busy
     }
 
     if (attention.length > 0) {

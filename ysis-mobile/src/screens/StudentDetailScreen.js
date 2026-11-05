@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { queueStudentLeave, queueEntranceOutcome, queueStatusChange } from '../services/studentActionsLocal';
 import {
   View,
   Text,
@@ -210,7 +211,8 @@ export default function StudentDetailScreen({ route, navigation }) {
           onPress: async () => {
             setRecordingOutcome(true);
             try {
-              const res = await api.post(`/students/${studentId}/entrance-outcome`, {
+              const res = await queueEntranceOutcome({
+                studentId,
                 outcome,
                 basedOnVersion: student.sync_version,
               });
@@ -263,7 +265,8 @@ export default function StudentDetailScreen({ route, navigation }) {
           onPress: async () => {
             setSavingLeave(true);
             try {
-              const res = await api.post(`/students/${studentId}/leave`, {
+              const res = await queueStudentLeave({
+                studentId,
                 leaveType,
                 reason: leaveReason.trim() || undefined,
                 basedOnVersion: student.sync_version,
@@ -321,8 +324,10 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     setStatusBusy(true);
     try {
-      const res = await api.post(`/student-status/${studentId}/${path}`, {
-        ...body,
+      const res = await queueStatusChange({
+        studentId,
+        path,
+        body,
         basedOnVersion: student.sync_version,
       });
       await applyLocalStatus(res.student.status, res.student.sync_version);

@@ -15,6 +15,9 @@ const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
 const { approvalStatusForRegistration, classTeacherMayEdit } = require('../utils/approvalRules');
 const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
+const { handleBiodataOperation } = require('./biodataService');
+const { handleLogBookOperation } = require('./logBookService');
+const { handleStudentActionOperation } = require('./studentActionService');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -79,6 +82,21 @@ async function processOperation({
   }
 
   try {
+    if (opType === 'student_leave' || opType === 'entrance_outcome' || opType === 'student_status_change') {
+      return await handleStudentActionOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'log_entry_create' || opType === 'log_entry_edit') {
+      return await handleLogBookOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'biodata_save' || opType === 'biodata_review') {
+      return await handleBiodataOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
     if (
       (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
       userRole !== 'principal' &&

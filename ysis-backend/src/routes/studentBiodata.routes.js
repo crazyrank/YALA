@@ -1,42 +1,62 @@
 const express = require('express');
-const { param, validationResult } = require('express-validator');
+const { param, query, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
-const { getScopeForUser, isWithinScope } = require('../services/studentScopeService');
-const { FIELD_NAMES, validateBiodata } = require('../utils/biodataRules');
+const { STAFF_ROLES } = require('../utils/biodataApproval');
+const {
+  checkStudentInScope,
+  applyBiodataSave,
+  getBiodataChanges,
+  OUT_COLUMNS,
+} = require('../services/biodataService');
 
 const router = express.Router();
 
-// Staff only. Guests have no route to this table.
-const STAFF_ROLES = ['director', 'principal', 'head_teacher', 'class_teacher'];
-
-// Column list is built from the fixed field list, never from request input.
-const OUT_COLUMNS = FIELD_NAMES
-  .map((f) => (f === 'admission_date' ? "to_char(admission_date, 'YYYY-MM-DD') AS admission_date" : f))
-  .join(', ');
+const MAX_LIMIT = 200;
+const EPOCH = '1970-01-01T00:00:00.000Z';
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 function checkValidation(req) {
   const result = validationResult(req);
   if (!result.isEmpty()) throw Errors.badRequest('VALIDATION_ERROR', result.array()[0].msg);
 }
 
-// Loads the student and refuses anyone outside their class scope.
-async function loadStudentInScope(req) {
-  const { rows } = await db.query(
-    'SELECT id, division, class_level, arm FROM students WHERE id = $1',
-    [req.params.id]
-  );
-  const student = rows[0];
-  if (!student) throw Errors.notFound('That student could not be found.');
-
-  const scope = await getScopeForUser(req.auth);
-  if (!isWithinScope(scope, { division: student.division, classLevel: student.class_level, arm: student.arm })) {
-    throw Errors.forbidden('You do not have permission to open this student\'s biodata.');
-  }
-  return student;
+function throwFor(result) {
+  if (result.code === 'NOT_FOUND') throw Errors.notFound(result.message);
+  if (result.code === 'FORBIDDEN' || result.code === 'NOT_EDITABLE') throw Errors.forbidden(result.message);
+  throw Errors.badRequest(result.code, result.message);
 }
+
+/**
+ * GET /student-biodata/changes?since=<ISO>&afterId=<uuid>&limit=<n>
+ * Change feed for phones. Must be defined before GET /:id.
+ */
+router.get(
+  '/changes',
+  requireAuth,
+  requireRole(...STAFF_ROLES),
+  [
+    query('since').optional().isISO8601(),
+    query('afterId').optional().isUUID(),
+    query('limit').optional().isInt({ min: 1, max: MAX_LIMIT }),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const result = await getBiodataChanges({
+        auth: req.auth,
+        since: req.query.since || EPOCH,
+        afterId: req.query.afterId || ZERO_UUID,
+        limit: parseInt(req.query.limit || String(MAX_LIMIT), 10),
+      });
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 /** GET /student-biodata/:id */
 router.get(
@@ -47,7 +67,8 @@ router.get(
   async (req, res, next) => {
     try {
       checkValidation(req);
-      await loadStudentInScope(req);
+      const scoped = await checkStudentInScope(req.params.id, req.auth);
+      if (!scoped.ok) throwFor(scoped);
 
       const { rows } = await db.query(
         `SELECT ${OUT_COLUMNS}, updated_at FROM student_biodata WHERE student_id = $1`,
@@ -61,7 +82,7 @@ router.get(
 
       if (rows.length === 0) {
         const empty = {};
-        FIELD_NAMES.forEach((f) => { empty[f] = null; });
+        require('../utils/biodataRules').FIELD_NAMES.forEach((f) => { empty[f] = null; });
         empty.nationality = 'Nigerian';
         return res.json({ biodata: empty, exists: false });
       }
@@ -74,8 +95,7 @@ router.get(
 
 /**
  * PATCH /student-biodata/:id
- * Body: any of the biodata fields. Only the fields sent are changed.
- * A field sent as null or "" is cleared. The row is created on the first save.
+ * Same rules as the sync queue: a Class Teacher's save is Pending, an approver's is Approved.
  */
 router.patch(
   '/:id',
@@ -85,33 +105,20 @@ router.patch(
   async (req, res, next) => {
     try {
       checkValidation(req);
-      await loadStudentInScope(req);
+      const result = await applyBiodataSave({
+        studentId: req.params.id,
+        auth: req.auth,
+        fields: req.body,
+      });
+      if (!result.ok) throwFor(result);
 
-      const edit = validateBiodata(req.body);
-      if (!edit.ok) throw Errors.badRequest(edit.code, edit.message);
-
-      const cols = Object.keys(edit.changes);
-      const values = cols.map((c) => edit.changes[c]);
-      const placeholders = cols.map((_, i) => `$${i + 3}`).join(', ');
-      const updates = cols.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
-
-      const { rows } = await db.query(
-        `INSERT INTO student_biodata (student_id, updated_by, ${cols.join(', ')})
-         VALUES ($1, $2, ${placeholders})
-         ON CONFLICT (student_id) DO UPDATE
-           SET ${updates}, updated_by = EXCLUDED.updated_by, updated_at = now()
-         RETURNING ${OUT_COLUMNS}, updated_at`,
-        [req.params.id, req.auth.userId, ...values]
-      );
-
-      // Field names only. Health and contact values never go into the audit log.
       await writeAudit({
         userId: req.auth.userId, deviceId: req.auth.deviceId, action: 'STUDENT_BIODATA_UPDATED',
         entityType: 'student', entityId: req.params.id, result: 'success',
-        metadata: { fields: cols },
+        metadata: { fields: result.fields },
       });
 
-      return res.json({ biodata: rows[0], exists: true });
+      return res.json({ biodata: result.row, exists: true });
     } catch (err) {
       return next(err);
     }

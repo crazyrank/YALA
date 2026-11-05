@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { SCHEMA_STATEMENTS, DEVICE_META_KEYS } from './schema';
 import { studentsRebuildSql } from './studentsTableRebuild';
+import { applySlice1Migrations } from './slice1Migrations';
 
 // Staged student imports. Holds student rows until the server confirms them, then deletes them.
 const STAGED_IMPORTS_STATEMENT = `CREATE TABLE IF NOT EXISTS staged_imports (
@@ -38,6 +39,7 @@ async function initDb() {
   }
   await db.execAsync(STAGED_IMPORTS_STATEMENT);
   await runColumnMigrations(db);
+  await applySlice1Migrations(db);
   await rebuildStudentsTableIfNeeded(db);
   return db;
 }
@@ -106,12 +108,14 @@ export async function getNextSequenceNo() {
 // Called on logout. Clears staged student rows along with everything else.
 export async function wipeLocalData() {
   const database = await getDb();
-  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache', 'staged_imports'];
+  const tables = ['students', 'student_photos', 'sync_operations', 'notifications_cache', 'staged_imports', 'biodata_local', 'log_entries_local'];
   for (const table of tables) {
     // eslint-disable-next-line no-await-in-loop
     await database.runAsync(`DELETE FROM ${table}`);
   }
   await database.runAsync('DELETE FROM sync_state').catch(() => {});
+  await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'biodata_%'");
+  await database.runAsync("DELETE FROM device_meta WHERE key LIKE 'log_%'");
 }
 
 export { DEVICE_META_KEYS };

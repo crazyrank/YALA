@@ -202,4 +202,35 @@ router.get(
   }
 );
 
+const { getLogChanges } = require('../services/logBookService');
+
+/**
+ * GET /log-entries/changes?since=<ISO>&afterId=<uuid>&limit=<n>
+ * Phone sync feed. Staff only (guests cannot open the Log Book).
+ */
+router.get(
+  '/changes',
+  requireAuth,
+  requireRole('director', 'principal', 'head_teacher', 'class_teacher'),
+  [
+    query('since').optional().isISO8601(),
+    query('afterId').optional().isUUID(),
+    query('limit').optional().isInt({ min: 1, max: 200 }),
+  ],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const result = await getLogChanges({
+        auth: req.auth,
+        since: req.query.since || '1970-01-01T00:00:00.000Z',
+        afterId: req.query.afterId || '00000000-0000-0000-0000-000000000000',
+        limit: parseInt(req.query.limit || '200', 10),
+      });
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
 module.exports = router;
