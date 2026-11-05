@@ -44,7 +44,7 @@ function ensureAttemptsColumn(db) {
   return attemptsColumnReady;
 }
 
-export async function queueOperation({ opType, entityId, payload }) {
+export async function queueOperation({ opType, entityId, payload, deferSync = false }) {
   const db = await getDb();
   const sequenceNo = await getNextSequenceNo();
   const operationId = uuidv4();
@@ -57,7 +57,7 @@ export async function queueOperation({ opType, entityId, payload }) {
     [uuidv4(), operationId, opType, entityId, JSON.stringify(payload), sequenceNo, createdAtClient]
   );
 
-  triggerSync();
+  if (!deferSync) triggerSync();
   return operationId;
 }
 
