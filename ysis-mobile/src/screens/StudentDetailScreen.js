@@ -22,6 +22,7 @@ import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
 import { LEAVER_STATUSES, LEAVABLE_STATUSES, LEAVE_LABELS, leaveOptionsFor } from '../utils/leaveStatuses';
 import { approvalOf, approvalNotice, canApproveRecords } from '../utils/approvalStatus';
+import StudentBiodataSection from '../components/StudentBiodataSection';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -1179,6 +1180,8 @@ export default function StudentDetailScreen({ route, navigation }) {
           </Pressable>
         </View>
       )}
+
+      {!editing && <StudentBiodataSection studentId={studentId} role={user?.role} />}
 
       {!editing && (
         <View style={styles.section}>

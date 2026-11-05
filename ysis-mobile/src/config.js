@@ -1,4 +1,5 @@
-export const API_BASE_URL = "https://ysis-backend.onrender.com";
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL || "https://ysis-backend.onrender.com";
 
 export const PHOTO_TARGET_WIDTH = 400;
 export const PHOTO_TARGET_HEIGHT = 400;
