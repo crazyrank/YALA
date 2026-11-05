@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { queueStudentLeave, queueEntranceOutcome, queueStatusChange } from '../services/studentActionsLocal';
 import {
   View,
   Text,
@@ -14,8 +15,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
-import { getNextClass, isAtMaxClass } from '../utils/classProgression';
+import { api } from '../api/client';
+import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
+import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
 import { exportStudentToPdf } from '../services/studentPdfExport';
+import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
+import { checkRegistration, formatErrors } from '../services/registrationGuard';
+import { LEAVER_STATUSES, LEAVABLE_STATUSES, LEAVE_LABELS, leaveOptionsFor } from '../utils/leaveStatuses';
+import { approvalOf, approvalNotice, canApproveRecords } from '../utils/approvalStatus';
+import StudentBiodataSection from '../components/StudentBiodataSection';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
@@ -26,7 +34,7 @@ function armRequiredFor(classLevel) {
 }
 
 function divisionOfClass(classLevel) {
-  return /^(KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+  return /^(Creche|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
 }
 
 export default function StudentDetailScreen({ route, navigation }) {
@@ -41,17 +49,29 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [promoting, setPromoting] = useState(false);
   const [showPromoteChoice, setShowPromoteChoice] = useState(false);
   const [promoteArm, setPromoteArm] = useState('');
+  const [recordingOutcome, setRecordingOutcome] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveType, setLeaveType] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [savingLeave, setSavingLeave] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editName, setEditName] = useState('');
   const [editArm, setEditArm] = useState('');
   const [editGuardian, setEditGuardian] = useState('');
+  const [editAdmissionNo, setEditAdmissionNo] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [editGender, setEditGender] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const isAdmin =
     user?.role === 'principal' || user?.role === 'director';
+  const canEdit =
+    isAdmin ||
+    user?.role === 'head_teacher' ||
+    (user?.role === 'class_teacher' && approvalOf(student) !== 'approved');
 
   const canExportPdf =
     user?.role === 'principal' ||
@@ -132,6 +152,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   };
 
   // Promotion: the arm is chosen here when the next class needs one.
+  // Also advances current_session by one year (registered session stays fixed).
   const performPromotion = async (arm) => {
     const nextClass = getNextClass(student.class_level);
     setPromoting(true);
@@ -139,12 +160,15 @@ export default function StudentDetailScreen({ route, navigation }) {
       const db = await getDb();
       const now = new Date().toISOString();
       const basedOnVersion = student.sync_version;
+      const baseSession = student.current_session || student.academic_session || null;
+      const advancedSession = baseSession ? nextSession(baseSession) : null;
       await db.runAsync(
         `UPDATE students
          SET class_level = ?, division = ?, arm = ?, status = 'promoted',
+             current_session = COALESCE(?, current_session),
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
-        [nextClass, divisionOfClass(nextClass), arm, now, studentId]
+        [nextClass, divisionOfClass(nextClass), arm, advancedSession, now, studentId]
       );
       await queueOperation({
         opType: 'promote_student',
@@ -165,6 +189,231 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
   };
 
+  // Entrance result for Primary 5 pupils. Entered by hand, online only: the server
+  // is the source of truth and checks the role, the class and the record version.
+  const recordOutcome = (outcome) => {
+    if (!isAdmin) {
+      Alert.alert('Not allowed', 'Only a Principal or Director can record an entrance result.');
+      return;
+    }
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then record the result.');
+      return;
+    }
+    const label = outcome === 'admitted' ? 'Admitted' : 'Not Admitted';
+    Alert.alert(
+      'Record entrance result',
+      `Record ${student.full_name} as ${label}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Record',
+          onPress: async () => {
+            setRecordingOutcome(true);
+            try {
+              const res = await queueEntranceOutcome({
+                studentId,
+                outcome,
+                basedOnVersion: student.sync_version,
+              });
+              const db = await getDb();
+              await db.runAsync(
+                'UPDATE students SET entrance_outcome = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+                [outcome, res?.student?.sync_version ?? student.sync_version, new Date().toISOString(), studentId]
+              );
+              await loadStudent();
+            } catch (err) {
+              Alert.alert(
+                'Could not record result',
+                err?.code === 'CONFLICT_VERSION_MISMATCH'
+                  ? 'This record changed. Sync and try again.'
+                  : (err?.message || 'Check your connection and try again.')
+              );
+            } finally {
+              setRecordingOutcome(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Record that this student has left. Online only: the server checks the role,
+  // the class rules and the record version, and saves the status and the leave
+  // record together.
+  const submitLeave = () => {
+    if (!isAdmin) {
+      Alert.alert('Not allowed', 'Only a Principal or Director can record a leave.');
+      return;
+    }
+    if (!leaveType) {
+      Alert.alert('Choose a type', 'Choose why this student is leaving.');
+      return;
+    }
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then record the leave.');
+      return;
+    }
+    Alert.alert(
+      'Record leave',
+      `Record ${student.full_name} as ${LEAVE_LABELS[leaveType]}? This cannot be undone from the app.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Record',
+          style: 'destructive',
+          onPress: async () => {
+            setSavingLeave(true);
+            try {
+              const res = await queueStudentLeave({
+                studentId,
+                leaveType,
+                reason: leaveReason.trim() || undefined,
+                basedOnVersion: student.sync_version,
+              });
+              try {
+                const db = await getDb();
+                await db.runAsync(
+                  'UPDATE students SET status = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+                  [leaveType, res?.student?.sync_version ?? student.sync_version, new Date().toISOString(), studentId]
+                );
+              } catch {
+                // The server has saved it. The next sync brings the new status to this phone.
+              }
+              setLeaveOpen(false);
+              setLeaveType('');
+              setLeaveReason('');
+              await loadStudent();
+            } catch (err) {
+              Alert.alert(
+                'Could not record leave',
+                err?.code === 'CONFLICT_VERSION_MISMATCH'
+                  ? 'This record changed. Sync and try again.'
+                  : (err?.message || 'Check your connection and try again.')
+              );
+            } finally {
+              setSavingLeave(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const [inactiveOpen, setInactiveOpen] = useState(false);
+  const [inactiveReason, setInactiveReason] = useState('');
+  const [statusBusy, setStatusBusy] = useState(false);
+
+  // Applies a status change made on the server to this phone, the same way a recorded leave is applied.
+  const applyLocalStatus = async (status, version) => {
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        'UPDATE students SET status = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+        [status, version, new Date().toISOString(), studentId]
+      );
+    } catch {
+      // The server has saved it. The next sync brings the new status to this phone.
+    }
+  };
+
+  const runStatusChange = async (path, body, title) => {
+    if (student.local_dirty) {
+      Alert.alert('Sync first', 'This student has changes that have not synced yet. Sync, then try again.');
+      return;
+    }
+    setStatusBusy(true);
+    try {
+      const res = await queueStatusChange({
+        studentId,
+        path,
+        body,
+        basedOnVersion: student.sync_version,
+      });
+      await applyLocalStatus(res.student.status, res.student.sync_version);
+      setInactiveOpen(false);
+      setInactiveReason('');
+      await loadStudent();
+    } catch (err) {
+      Alert.alert(
+        title,
+        err?.code === 'CONFLICT_VERSION_MISMATCH'
+          ? 'This record changed. Sync and try again.'
+          : (err?.message || 'Check your connection and try again.')
+      );
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const submitInactive = () => {
+    if (inactiveReason.trim().length < 3) {
+      Alert.alert('Reason needed', 'Write why the student is not attending.');
+      return;
+    }
+    runStatusChange('inactive', { reason: inactiveReason.trim() }, 'Could not mark inactive');
+  };
+
+  const clearInactive = () => runStatusChange('clear-inactive', {}, 'Could not clear inactive');
+
+  const undoLeave = () => {
+    Alert.alert(
+      'Undo leave',
+      `Return ${student.full_name} to the roll? The leave stays in the history, marked as undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo leave',
+          style: 'destructive',
+          onPress: () => runStatusChange('undo-leave', {}, 'Could not undo leave'),
+        },
+      ]
+    );
+  };
+
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnText, setReturnText] = useState('');
+
+  // Registration approval. Online only: the server checks the scope and the record version,
+  // bumps the version so the change reaches every phone, and writes the audit log.
+  const approvalAction = async (kind, body = {}) => {
+    setApprovalBusy(true);
+    try {
+      const res = await api.post(`/students/${studentId}/${kind}`, {
+        ...body,
+        basedOnVersion: student.sync_version,
+      });
+      try {
+        const db = await getDb();
+        await db.runAsync(
+          'UPDATE students SET approval_status = ?, return_reason = ?, sync_version = ?, updated_at = ? WHERE id = ? AND local_dirty = 0',
+          [
+            res?.student?.approval_status || 'approved',
+            res?.student?.return_reason ?? null,
+            res?.student?.sync_version ?? student.sync_version,
+            new Date().toISOString(),
+            studentId,
+          ]
+        );
+      } catch {
+        // The server has saved it. The next sync brings the new state to this phone.
+      }
+      setReturnOpen(false);
+      setReturnText('');
+      await loadStudent();
+    } catch (err) {
+      Alert.alert(
+        'Could not save',
+        err?.code === 'CONFLICT_VERSION_MISMATCH'
+          ? 'This record changed. Sync and try again.'
+          : (err?.message || 'Check your connection and try again.')
+      );
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
   const handlePromote = () => {
     if (!isAdmin) {
       Alert.alert('Not allowed', 'Only a Principal or Director can promote students.');
@@ -172,6 +421,15 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     const nextClass = getNextClass(student.class_level);
     if (!nextClass) return;
+    if (student.class_level === 'Primary 5' && student.entrance_outcome !== 'admitted') {
+      Alert.alert(
+        student.entrance_outcome === 'not_admitted' ? 'Not admitted' : 'Result Pending',
+        student.entrance_outcome === 'not_admitted'
+          ? 'This pupil was not admitted to JSS1 and cannot be promoted.'
+          : 'Record the entrance result before promoting this pupil.'
+      );
+      return;
+    }
 
     if (armRequiredFor(nextClass)) {
       setPromoteArm('');
@@ -197,7 +455,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     }
     Alert.alert(
       'Promote student',
-      `Move ${student.full_name} from ${student.class_level} to \( {nextClass} ( \){promoteArm})?`,
+      `Move ${student.full_name} from ${student.class_level} to ${nextClass} (${promoteArm})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Promote', onPress: () => performPromotion(promoteArm) },
@@ -210,15 +468,88 @@ export default function StudentDetailScreen({ route, navigation }) {
     setPromoteArm('');
   };
 
-  const startEditing = () => {
+  // Undo last promote: reverse class and current_session one step.
+  // Only available when current_session is after the registered session.
+  const handleUndoPromote = () => {
     if (!isAdmin) {
-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
+      Alert.alert('Not allowed', 'Only a Principal or Director can undo a promotion.');
+      return;
+    }
+    const registered = student.academic_session || null;
+    const current = student.current_session || registered;
+    if (!sessionIsAfter(current, registered)) {
+      Alert.alert('Nothing to undo', 'This student has not been promoted beyond their registered session.');
+      return;
+    }
+    const prevClass = getPreviousClass(student.class_level);
+    if (!prevClass) {
+      Alert.alert('Nothing to undo', 'This student is already at the earliest class.');
+      return;
+    }
+    Alert.alert(
+      'Undo last promote',
+      `Move ${student.full_name} back from ${student.class_level} to ${prevClass} and roll the current session back one year?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Undo', style: 'destructive', onPress: () => performUndoPromotion() },
+      ]
+    );
+  };
+
+  const performUndoPromotion = async () => {
+    setPromoting(true);
+    try {
+      const db = await getDb();
+      const now = new Date().toISOString();
+      const basedOnVersion = student.sync_version;
+      const registered = student.academic_session || null;
+      const current = student.current_session || registered;
+      const prevClass = getPreviousClass(student.class_level);
+      let prevSession = current ? previousSession(current) : registered;
+      // Never go below registered session.
+      if (registered && prevSession && !sessionIsAfter(prevSession, registered) && prevSession !== registered) {
+        prevSession = registered;
+      }
+      const finalSession = prevSession || registered;
+      // Clear arm when previous class does not require one.
+      const needsArm = armRequiredFor(prevClass);
+      const prevArm = needsArm ? student.arm : null;
+
+      await db.runAsync(
+        `UPDATE students
+         SET class_level = ?, division = ?, arm = ?,
+             current_session = ?,
+             sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
+         WHERE id = ?`,
+        [prevClass, divisionOfClass(prevClass), prevArm, finalSession, now, studentId]
+      );
+      await queueOperation({
+        opType: 'undo_promote_student',
+        entityId: studentId,
+        payload: {
+          based_on_version: basedOnVersion,
+        },
+      });
+      await loadStudent();
+    } catch (error) {
+      Alert.alert('Could not undo', 'Something went wrong undoing this promotion.');
+    } finally {
+      setPromoting(false);
+    }
+  };
+
+  const startEditing = () => {
+    if (!canEdit) {
+      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
       return;
     }
     setEditName(student.full_name || '');
     setEditArm(student.arm || '');
     setEditGuardian(student.guardian_name || '');
     setEditPhone(student.guardian_phone || '');
+    setEditAdmissionNo(student.admission_no || '');
+    setEditDob(isoToDob(student.date_of_birth));
+    setEditGender(student.gender || '');
     setEditing(true);
   };
 
@@ -231,8 +562,8 @@ export default function StudentDetailScreen({ route, navigation }) {
   };
 
   const handleSaveEdit = async () => {
-    if (!isAdmin) {
-      Alert.alert('Not allowed', 'Only a Principal or Director can edit student records.');
+    if (!canEdit) {
+      Alert.alert('Not allowed', 'You do not have permission to edit student records.');
       return;
     }
     if (!editName.trim()) {
@@ -245,29 +576,58 @@ export default function StudentDetailScreen({ route, navigation }) {
       return;
     }
 
+    const dobIso = dobToIso(editDob);
+    if (dobIso === null) {
+      Alert.alert('Date of birth', 'Use the format DD/MM/YYYY.');
+      return;
+    }
+    const needsArmNow = armRequiredFor(student.class_level);
+    const check = checkRegistration({
+      admissionNo: editAdmissionNo,
+      fullName: editName,
+      division: student.division,
+      classLevel: student.class_level,
+      arm: needsArmNow ? editArm : student.arm,
+      gender: editGender,
+      guardianName: editGuardian,
+      guardianPhone: editPhone,
+      dateOfBirth: dobIso,
+    });
+    if (!check.ok) {
+      Alert.alert('Check the details', formatErrors(check.errors).map((e) => e.message).join('\n'));
+      return;
+    }
+
     setSaving(true);
     try {
       const db = await getDb();
       const now = new Date().toISOString();
       const basedOnVersion = student.sync_version;
-
-      const changes = {
-        full_name: editName.trim(),
-        guardian_name: editGuardian.trim() || null,
-        guardian_phone: editPhone.trim() || null,
-      };
-      if (needsArm) changes.arm = editArm;
+      const v = check.value;
 
       const nextArm = needsArm ? editArm : student.arm;
+      const changes = {
+        admission_no: v.admissionNo,
+        full_name: v.fullName,
+        gender: v.gender || null,
+        date_of_birth: v.dateOfBirth || null,
+        guardian_name: v.guardianName || null,
+        guardian_phone: v.guardianPhone || null,
+        arm: nextArm,
+      };
 
       await db.runAsync(
         `UPDATE students
-         SET full_name = ?, arm = ?, guardian_name = ?, guardian_phone = ?,
+         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?,
+             arm = ?, guardian_name = ?, guardian_phone = ?,
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
         [
+          changes.admission_no,
           changes.full_name,
-          nextArm,
+          changes.gender,
+          changes.date_of_birth,
+          changes.arm,
           changes.guardian_name,
           changes.guardian_phone,
           now,
@@ -415,6 +775,8 @@ export default function StudentDetailScreen({ route, navigation }) {
   const status = student.status || 'active';
   const isArchived = status === 'archived';
   const nextClass = getNextClass(student.class_level);
+  const promoteBlocked = student.class_level === 'Primary 5' && student.entrance_outcome !== 'admitted';
+  const outcomeLabel = student.entrance_outcome === 'admitted' ? 'Admitted' : student.entrance_outcome === 'not_admitted' ? 'Not Admitted' : 'Result Pending';
   const editNeedsArm = armRequiredFor(student.class_level);
 
   return (
@@ -443,11 +805,9 @@ export default function StudentDetailScreen({ route, navigation }) {
             {status.toUpperCase()}
           </Text>
         </View>
-        {photoUri && (
+        {photoUri && isAdmin && (
           <Pressable style={styles.photoAction} onPress={handleCapturePhoto}>
-            <Text style={styles.photoActionText}>
-              {isAdmin ? 'Replace passport photo' : 'Photo on file'}
-            </Text>
+            <Text style={styles.photoActionText}>Replace passport photo</Text>
           </Pressable>
         )}
       </View>
@@ -477,12 +837,12 @@ export default function StudentDetailScreen({ route, navigation }) {
         </View>
       )}
 
-      {isAdmin && !editing && (
+      {canEdit && !editing && (
         <View style={styles.adminBar}>
           <Pressable style={styles.adminBtn} onPress={startEditing}>
             <Text style={styles.adminBtnText}>Edit</Text>
           </Pressable>
-          {isArchived ? (
+          {isAdmin && (isArchived ? (
             <Pressable style={[styles.adminBtn, styles.adminBtnRestore]} onPress={handleRestore}>
               <Text style={[styles.adminBtnText, styles.adminBtnTextDark]}>Restore</Text>
             </Pressable>
@@ -490,16 +850,37 @@ export default function StudentDetailScreen({ route, navigation }) {
             <Pressable style={[styles.adminBtn, styles.adminBtnDanger]} onPress={handleArchive}>
               <Text style={styles.adminBtnText}>Archive</Text>
             </Pressable>
-          )}
+          ))}
         </View>
       )}
 
-      {isAdmin && editing && (
+      {canEdit && editing && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>EDIT RECORD</Text>
           <View style={styles.infoCard}>
             <Text style={styles.fieldLabel}>Full name *</Text>
             <TextInput style={styles.fieldInput} value={editName} onChangeText={setEditName} placeholder="Student full name" placeholderTextColor="#98A2B3" />
+
+            <Text style={styles.fieldLabel}>Admission number *</Text>
+            <TextInput style={styles.fieldInput} value={editAdmissionNo} onChangeText={(t) => setEditAdmissionNo(t.toUpperCase())} placeholder="YMS/2024/03/033" placeholderTextColor="#98A2B3" autoCapitalize="characters" autoCorrect={false} />
+
+            <Text style={styles.fieldLabel}>Date of birth *</Text>
+            <TextInput style={styles.fieldInput} value={editDob} onChangeText={(t) => setEditDob(formatDobInput(t))} placeholder="DD/MM/YYYY" placeholderTextColor="#98A2B3" keyboardType="number-pad" maxLength={10} />
+
+            <Text style={styles.fieldLabel}>Gender</Text>
+            <View style={styles.chipRowInline}>
+              {['M', 'F'].map((g) => (
+                <Pressable
+                  key={g}
+                  style={[styles.chipInline, editGender === g && styles.chipInlineActive]}
+                  onPress={() => setEditGender(editGender === g ? '' : g)}
+                >
+                  <Text style={[styles.chipInlineText, editGender === g && styles.chipInlineTextActive]}>
+                    {g === 'M' ? 'Male' : 'Female'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <Text style={styles.fieldLabel}>Class</Text>
             <Text style={styles.classReadOnly}>{student.class_level || '-'}</Text>
@@ -536,18 +917,45 @@ export default function StudentDetailScreen({ route, navigation }) {
           <View style={styles.infoCard}>
             <InfoRow label="Class" value={student.class_level || '-'} />
             <InfoRow label="Arm" value={student.arm || 'None'} />
-            <InfoRow label="Division" value={student.division || 'Secondary'} last />
+            <InfoRow label="Division" value={student.division || 'Secondary'} />
+            <InfoRow label="Registered session" value={student.academic_session || 'Not recorded'} />
+            <InfoRow label="Current session" value={student.current_session || student.academic_session || 'Not recorded'} last />
           </View>
         </View>
       )}
 
-      {isAdmin && !editing && !isArchived && (
+      {isAdmin && !editing && LEAVER_STATUSES.includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LEAVE</Text>
+          <View style={styles.infoCard}>
+            <Pressable style={styles.leaveButton} onPress={undoLeave} disabled={statusBusy}>
+              <Text style={styles.leaveButtonText}>Undo leave</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && !LEAVER_STATUSES.includes(student.status) && (
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>PROMOTION</Text>
           <View style={styles.infoCard}>
             {isAtMaxClass(student.class_level) ? (
               <View style={styles.promoteRow}>
                 <Text style={styles.maxClassText}>Highest class reached (SS3)</Text>
+                {sessionIsAfter(
+                  student.current_session || student.academic_session,
+                  student.academic_session
+                ) && (
+                  <Pressable
+                    style={styles.undoPromoteButton}
+                    onPress={handleUndoPromote}
+                    disabled={promoting}
+                  >
+                    <Text style={styles.undoPromoteButtonText}>
+                      {promoting ? 'Working…' : 'Undo last promote'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             ) : showPromoteChoice ? (
               <View style={styles.promoteChoice}>
@@ -569,11 +977,194 @@ export default function StudentDetailScreen({ route, navigation }) {
                 </View>
               </View>
             ) : (
-              <Pressable style={styles.promoteButton} onPress={handlePromote} disabled={promoting}>
-                <Text style={styles.promoteButtonText}>
-                  {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
-                </Text>
+              <>
+                {student.class_level === 'Primary 5' && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={styles.fieldLabel}>Entrance result: {outcomeLabel}</Text>
+                    <View style={styles.editActions}>
+                      <Pressable style={styles.continueButton} onPress={() => recordOutcome('admitted')} disabled={recordingOutcome}>
+                        {recordingOutcome ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Admitted</Text>}
+                      </Pressable>
+                      <Pressable style={styles.cancelButton} onPress={() => recordOutcome('not_admitted')} disabled={recordingOutcome}>
+                        <Text style={styles.cancelText}>Not Admitted</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+                <Pressable style={[styles.promoteButton, promoteBlocked && styles.disabledButton]} onPress={handlePromote} disabled={promoting || promoteBlocked}>
+                  <Text style={styles.promoteButtonText}>
+                    {promoting ? 'Promoting…' : `Promote to ${nextClass || 'next class'}`}
+                  </Text>
+                </Pressable>
+                {sessionIsAfter(
+                  student.current_session || student.academic_session,
+                  student.academic_session
+                ) && (
+                  <Pressable
+                    style={styles.undoPromoteButton}
+                    onPress={handleUndoPromote}
+                    disabled={promoting}
+                  >
+                    <Text style={styles.undoPromoteButtonText}>
+                      {promoting ? 'Working…' : 'Undo last promote'}
+                    </Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      )}
+
+      {student && approvalOf(student) !== 'approved' && !editing && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>REGISTRATION</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.maxClassText}>{approvalNotice(student)}</Text>
+            {approvalOf(student) === 'returned' && student.return_reason ? (
+              <Text style={styles.maxClassText}>Reason: {student.return_reason}</Text>
+            ) : null}
+
+            {canApproveRecords(user?.role) && student.approval_status === 'pending' && !returnOpen ? (
+              <View style={styles.editActions}>
+                <Pressable style={styles.continueButton} onPress={() => approvalAction('approve')} disabled={approvalBusy}>
+                  {approvalBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Approve</Text>}
+                </Pressable>
+                <Pressable style={styles.leaveButton} onPress={() => setReturnOpen(true)} disabled={approvalBusy}>
+                  <Text style={styles.leaveButtonText}>Return</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {canApproveRecords(user?.role) && returnOpen ? (
+              <View>
+                <Text style={styles.fieldLabel}>What should the class teacher fix?</Text>
+                <TextInput
+                  style={styles.leaveInput}
+                  value={returnText}
+                  onChangeText={setReturnText}
+                  placeholder="Short reason"
+                  multiline
+                  maxLength={500}
+                  editable={!approvalBusy}
+                />
+                <View style={styles.editActions}>
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => { setReturnOpen(false); setReturnText(''); }}
+                    disabled={approvalBusy}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.continueButton, !returnText.trim() && styles.disabledButton]}
+                    onPress={() => approvalAction('return', { reason: returnText.trim() })}
+                    disabled={approvalBusy || !returnText.trim()}
+                  >
+                    <Text style={styles.continueText}>Send back</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {user?.role === 'class_teacher' && student.approval_status === 'returned' && student.registered_by === (user?.id ?? user?.userId) ? (
+              <Pressable style={styles.continueButton} onPress={() => approvalAction('resubmit')} disabled={approvalBusy}>
+                {approvalBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Resubmit for approval</Text>}
               </Pressable>
+            ) : null}
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && ['registered', 'active', 'promoted'].includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>ATTENDANCE</Text>
+          <View style={styles.infoCard}>
+            {!inactiveOpen ? (
+              <Pressable style={styles.leaveButton} onPress={() => setInactiveOpen(true)}>
+                <Text style={styles.leaveButtonText}>Mark inactive</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <Text style={styles.fieldLabel}>Why is the student not attending?</Text>
+                <TextInput
+                  value={inactiveReason}
+                  onChangeText={setInactiveReason}
+                  style={styles.leaveInput}
+                  placeholder="Reason (required)"
+                  maxLength={300}
+                />
+                <Pressable style={styles.leaveButton} onPress={submitInactive} disabled={statusBusy}>
+                  <Text style={styles.leaveButtonText}>Save as inactive</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && student.status === 'inactive' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>ATTENDANCE</Text>
+          <View style={styles.infoCard}>
+            <Text style={styles.maxClassText}>Marked Inactive. The student stays on the roll.</Text>
+            <Pressable style={styles.leaveButton} onPress={clearInactive} disabled={statusBusy}>
+              <Text style={styles.leaveButtonText}>Clear inactive</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {isAdmin && !editing && !isArchived && LEAVABLE_STATUSES.includes(student.status) && (
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LEAVING SCHOOL</Text>
+          <View style={styles.infoCard}>
+            {!leaveOpen ? (
+              <Pressable style={styles.leaveButton} onPress={() => setLeaveOpen(true)}>
+                <Text style={styles.leaveButtonText}>Record leave</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <Text style={styles.fieldLabel}>Why is this student leaving?</Text>
+                {leaveOptionsFor(student).map((t) => (
+                  <Pressable
+                    key={t}
+                    style={[styles.leaveOption, leaveType === t && styles.leaveOptionSelected]}
+                    onPress={() => setLeaveType(t)}
+                    disabled={savingLeave}
+                  >
+                    <Text style={[styles.leaveOptionText, leaveType === t && styles.leaveOptionTextSelected]}>
+                      {LEAVE_LABELS[t]}
+                    </Text>
+                  </Pressable>
+                ))}
+                <Text style={styles.fieldLabel}>Reason (optional)</Text>
+                <TextInput
+                  style={styles.leaveInput}
+                  value={leaveReason}
+                  onChangeText={setLeaveReason}
+                  placeholder="Short note for the record"
+                  multiline
+                  maxLength={500}
+                  editable={!savingLeave}
+                />
+                <View style={styles.editActions}>
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => { setLeaveOpen(false); setLeaveType(''); setLeaveReason(''); }}
+                    disabled={savingLeave}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.continueButton, !leaveType && styles.disabledButton]}
+                    onPress={submitLeave}
+                    disabled={savingLeave || !leaveType}
+                  >
+                    {savingLeave ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.continueText}>Record</Text>}
+                  </Pressable>
+                </View>
+              </View>
             )}
           </View>
         </View>
@@ -587,13 +1178,15 @@ export default function StudentDetailScreen({ route, navigation }) {
             disabled={exportingPdf}
           >
             {exportingPdf ? (
-              <ActivityIndicator color="#0A1930" size="small" />
+              <ActivityIndicator color="#0E1A2B" size="small" />
             ) : (
               <Text style={styles.exportPdfButtonText}>Export to PDF for printing</Text>
             )}
           </Pressable>
         </View>
       )}
+
+      {!editing && <StudentBiodataSection studentId={studentId} role={user?.role} />}
 
       {!editing && (
         <View style={styles.section}>
@@ -663,8 +1256,13 @@ const styles = StyleSheet.create({
   },
   photoIcon: { fontSize: 28, color: '#98A2B3', fontWeight: '300' },
   photoPlaceholderText: { fontSize: 11, color: '#98A2B3', marginTop: 4 },
-  name: { fontSize: 20, fontWeight: '700', color: '#0A1930', textAlign: 'center' },
+  name: { fontSize: 20, fontWeight: '700', color: '#0E1A2B', textAlign: 'center' },
   admissionNo: { fontSize: 13, color: '#667085', marginTop: 4 },
+  chipRowInline: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  chipInline: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#D0D5DD', backgroundColor: '#FFFFFF' },
+  chipInlineActive: { backgroundColor: '#1F6FEB', borderColor: '#1F6FEB' },
+  chipInlineText: { color: '#344054', fontWeight: '600' },
+  chipInlineTextActive: { color: '#FFFFFF' },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', marginTop: 10,
     backgroundColor: '#E7F6EF', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
@@ -675,12 +1273,12 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: '700', color: '#12805C', letterSpacing: 0.5 },
   statusTextArchived: { color: '#C0392B' },
   photoAction: { marginTop: 12 },
-  photoActionText: { fontSize: 13, color: '#16324F', fontWeight: '600' },
+  photoActionText: { fontSize: 13, color: '#17263B', fontWeight: '600' },
   adminBar: {
     flexDirection: 'row', marginTop: 16, gap: 10,
   },
   adminBtn: {
-    flex: 1, backgroundColor: '#16324F', borderRadius: 12,
+    flex: 1, backgroundColor: '#17263B', borderRadius: 12,
     paddingVertical: 12, alignItems: 'center',
   },
   adminBtnDanger: { backgroundColor: '#C0392B' },
@@ -702,54 +1300,77 @@ const styles = StyleSheet.create({
   },
   infoRowLast: { borderBottomWidth: 0 },
   infoLabel: { fontSize: 13, color: '#667085' },
-  infoValue: { fontSize: 13, fontWeight: '600', color: '#0A1930', maxWidth: '60%', textAlign: 'right' },
+  infoValue: { fontSize: 13, fontWeight: '600', color: '#0E1A2B', maxWidth: '60%', textAlign: 'right' },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: '#667085', marginTop: 12, marginBottom: 6 },
   fieldInput: {
     borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0A1930',
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0E1A2B',
   },
   fieldInputLast: { marginBottom: 8 },
-  classReadOnly: { fontSize: 14, fontWeight: '600', color: '#0A1930', marginBottom: 4 },
+  classReadOnly: { fontSize: 14, fontWeight: '600', color: '#0E1A2B', marginBottom: 4 },
   editNote: { fontSize: 11, color: '#98A2B3', marginBottom: 4 },
   armOption: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
     paddingHorizontal: 8, borderRadius: 10, marginBottom: 4,
   },
-  armOptionSelected: { borderWidth: 1, borderColor: '#16324F', backgroundColor: '#EEF3F9' },
+  armOptionSelected: { borderWidth: 1, borderColor: '#17263B', backgroundColor: '#EEF3F9' },
   radioOuter: {
     width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#98A2B3',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  radioOuterSelected: { borderColor: '#16324F' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#16324F' },
-  armOptionText: { fontSize: 15, color: '#0A1930', fontWeight: '600' },
+  radioOuterSelected: { borderColor: '#17263B' },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#17263B' },
+  armOptionText: { fontSize: 15, color: '#0E1A2B', fontWeight: '600' },
   promoteChoice: { paddingVertical: 8 },
+  leaveButton: { backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#D0D5DD' },
+  leaveButtonText: { fontWeight: '700', color: '#B42318', fontSize: 14 },
+  leaveOption: { borderWidth: 1.5, borderColor: '#D0D5DD', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 8, backgroundColor: '#FFFFFF' },
+  leaveOptionSelected: { borderColor: '#0E1A2B', backgroundColor: '#F2F4F7' },
+  leaveOptionText: { fontSize: 14, color: '#344054' },
+  leaveOptionTextSelected: { fontWeight: '700', color: '#0E1A2B' },
+  leaveInput: { borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, padding: 12, minHeight: 64, textAlignVertical: 'top', fontSize: 14, color: '#101828', backgroundColor: '#FFFFFF' },
   editActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   correctionBox: {
     marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#EAECF0', padding: 16,
   },
-  correctionTitle: { fontSize: 14, fontWeight: '600', color: '#0A1930', marginBottom: 10 },
+  correctionTitle: { fontSize: 14, fontWeight: '600', color: '#0E1A2B', marginBottom: 10 },
   correctionInput: {
     borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, padding: 12,
-    minHeight: 72, textAlignVertical: 'top', fontSize: 14, color: '#0A1930',
+    minHeight: 72, textAlignVertical: 'top', fontSize: 14, color: '#0E1A2B',
   },
   correctionActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   cancelButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#F2F4F7' },
   cancelText: { fontWeight: '600', color: '#667085', fontSize: 13 },
   continueButton: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: '#16324F', minWidth: 100, alignItems: 'center',
+    backgroundColor: '#17263B', minWidth: 100, alignItems: 'center',
   },
   disabledButton: { backgroundColor: '#98A2B3' },
   continueText: { fontWeight: '700', color: '#FFFFFF', fontSize: 13 },
   promoteRow: { paddingVertical: 14 },
   maxClassText: { fontSize: 13, color: '#667085' },
   promoteButton: {
-    backgroundColor: '#C9A24B', borderRadius: 12, paddingVertical: 14,
+    backgroundColor: '#2FA37A', borderRadius: 12, paddingVertical: 14,
     alignItems: 'center', marginVertical: 8,
   },
-  promoteButtonText: { fontWeight: '700', color: '#0A1930', fontSize: 14 },
+  promoteButtonText: { fontWeight: '700', color: '#0E1A2B', fontSize: 14 },
+  undoPromoteButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#D0D5DD',
+  },
+  undoPromoteButtonText: {
+    fontWeight: '700',
+    color: '#667085',
+    fontSize: 14,
+  },
   syncNotice: {
     flexDirection: 'row', marginTop: 18, backgroundColor: '#FEF3E2',
     borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#F5D9A8',
@@ -760,7 +1381,7 @@ const styles = StyleSheet.create({
   },
   syncIconText: { color: '#fff', fontWeight: '700' },
   syncContent: { flex: 1 },
-  syncTitle: { fontWeight: '700', fontSize: 13, color: '#0A1930' },
+  syncTitle: { fontWeight: '700', fontSize: 13, color: '#0E1A2B' },
   syncText: { marginTop: 4, fontSize: 12, color: '#667085', lineHeight: 17 },
   footer: { marginTop: 28, alignItems: 'center' },
   footerText: { fontSize: 11, color: '#98A2B3' },
@@ -774,7 +1395,7 @@ const styles = StyleSheet.create({
   },
   exportPdfButtonText: {
     fontWeight: '700',
-    color: '#0A1930',
+    color: '#0E1A2B',
     fontSize: 14,
   },
 });

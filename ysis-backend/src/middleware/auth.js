@@ -26,7 +26,7 @@ async function requireAuth(req, res, next) {
     }
 
     const { rows } = await db.query(
-      `SELECT u.id, u.role, u.status, u.session_version, u.must_change_password,
+      `SELECT u.id, u.role, u.status, u.session_version, u.must_change_password, u.guest_expires_at,
               d.status AS device_status, d.last_seen_at AS device_last_seen
        FROM users u
        JOIN devices d ON d.id = $2 AND d.user_id = u.id
@@ -36,20 +36,28 @@ async function requireAuth(req, res, next) {
 
     const record = rows[0];
     if (!record) throw Errors.unauthorized('Account not found.');
-    if (record.status !== 'active') throw Errors.forbidden('This account is not active.');
+    if (record.status !== 'active') {
+      if (record.role === 'guest') throw Errors.unauthorized('This Guest account is not active. Contact the Principal or Director who approved it.');
+      throw Errors.forbidden('This account is not active.');
+    }
+    if (record.role === 'guest' && (!record.guest_expires_at || new Date(record.guest_expires_at) <= new Date())) {
+      throw Errors.unauthorized('Guest access has expired. Contact the Principal or Director who approved your account.');
+    }
     if (record.session_version !== payload.sessionVersion) {
       throw Errors.unauthorized('Your session has expired. Please sign in again.');
     }
     if (deviceIsStale(record.device_last_seen)) {
+      if (record.role === 'guest') throw Errors.unauthorized(STALE_DEVICE_MESSAGE);
       throw Errors.deviceNotTrusted(STALE_DEVICE_MESSAGE);
     }
     if (record.device_status !== 'trusted') {
+      if (record.role === 'guest') throw Errors.unauthorized('This Guest device is not trusted. Contact the Principal or Director for approval.');
       throw Errors.deviceNotTrusted();
     }
 
     req.auth = {
       userId: payload.userId,
-      role: payload.role,
+      role: record.role,
       deviceId: payload.deviceId,
       sessionVersion: payload.sessionVersion,
       mustChangePassword: record.must_change_password,

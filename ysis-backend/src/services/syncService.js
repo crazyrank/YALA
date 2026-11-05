@@ -1,4 +1,4 @@
-const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
+const { planPromotion, planUndoPromotion, validateEdit } = require('../utils/studentChangeRules');
 const { normalizeStudent } = require('../utils/studentRules');
 const db = require('../db');
 const { validate: isUuid } = require('uuid');
@@ -13,6 +13,15 @@ const {
 const { uploadStudentPhoto } = require('./photoService');
 const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
+const { approvalStatusForRegistration, classTeacherMayEdit } = require('../utils/approvalRules');
+const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
+const { handleBiodataOperation } = require('./biodataService');
+const { handleLogBookOperation } = require('./logBookService');
+const { handleStudentActionOperation } = require('./studentActionService');
+const { handleDirectoryOperation } = require('./directoryService');
+const { handleStaffProfileOperation } = require('./staffProfileService');
+const { handleStaffReportOperation } = require('./staffReportSyncService');
+const { handleBlackBookOperation, handleAlumniOperation } = require('./adminRecordSyncService');
 
 const VALID_DIVISIONS = ['primary', 'secondary'];
 
@@ -77,9 +86,59 @@ async function processOperation({
   }
 
   try {
-    if (opType === 'edit_student' || opType === 'promote_student') {
+    if (opType === 'staff_profile_update') {
+      return await handleStaffProfileOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'black_book_save') {
+      return await handleBlackBookOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'alumni_save') {
+      return await handleAlumniOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'staff_report_save') {
+      return await handleStaffReportOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'directory_create' || opType === 'directory_update' || opType === 'directory_delete') {
+      return await handleDirectoryOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'student_leave' || opType === 'entrance_outcome' || opType === 'student_status_change') {
+      return await handleStudentActionOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'log_entry_create' || opType === 'log_entry_edit') {
+      return await handleLogBookOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (opType === 'biodata_save' || opType === 'biodata_review') {
+      return await handleBiodataOperation({
+        operation, userId, userRole, deviceId, syncOpRowId, markStatus: markOpStatus,
+      });
+    }
+    if (
+      (opType === 'promote_student' || opType === 'undo_promote_student' || opType === 'create_student') &&
+      userRole !== 'principal' &&
+      userRole !== 'director' &&
+      !(opType === 'create_student' && (userRole === 'head_teacher' || userRole === 'class_teacher'))
+    ) {
+      await markOpStatus(syncOpRowId, 'failed', 'Only the principal or director can do this.');
+      return { operationId, status: 'failed', error: 'FORBIDDEN' };
+    }
+
+    if (opType === 'edit_student' || opType === 'promote_student' || opType === 'undo_promote_student') {
       if (
-        opType === 'promote_student' &&
+        (opType === 'promote_student' || opType === 'undo_promote_student') &&
         userRole !== 'principal' &&
         userRole !== 'director'
       ) {
@@ -146,6 +205,22 @@ async function processOperation({
       if (opType === 'edit_student') {
         const changes = payload.changes || {};
 
+        if (userRole === 'head_teacher' && 'status' in changes) {
+          await markOpStatus(syncOpRowId, 'failed', 'Head teachers cannot archive or restore students.');
+          return { operationId, status: 'failed', error: 'FORBIDDEN' };
+        }
+
+        if (userRole === 'class_teacher') {
+          if ('status' in changes) {
+            await markOpStatus(syncOpRowId, 'failed', 'Class teachers cannot archive or restore students.');
+            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+          }
+          if (!classTeacherMayEdit(currentStudent)) {
+            await markOpStatus(syncOpRowId, 'failed', 'Approved records can only be edited by the Principal or Director.');
+            return { operationId, status: 'failed', error: 'FORBIDDEN' };
+          }
+        }
+
         const touchesClassFields = [
           'division',
           'class_level',
@@ -211,6 +286,15 @@ async function processOperation({
           newClassLevel: payload.newClassLevel,
           arm: payload.arm,
         });
+        if (!plan.ok) {
+          await markOpStatus(syncOpRowId, 'failed', plan.message);
+          return { operationId, status: 'failed', error: plan.code };
+        }
+        finalChanges = plan.changes;
+      }
+
+      if (opType === 'undo_promote_student') {
+        const plan = planUndoPromotion(currentStudent);
         if (!plan.ok) {
           await markOpStatus(syncOpRowId, 'failed', plan.message);
           return { operationId, status: 'failed', error: plan.code };
@@ -291,6 +375,7 @@ async function processOperation({
         gender,
         guardianName,
         guardianPhone,
+        academicSession,
       } = payload || {};
 
       if (!id || !admissionNo || !fullName || !division || !classLevel) {
@@ -360,8 +445,38 @@ async function processOperation({
         gender,
         guardianName,
         guardianPhone,
+        dateOfBirth,
       } = norm.value);
-      dateOfBirth = null;
+
+      // Head teachers and class teachers may register only inside their own assigned scope.
+      if (userRole === 'head_teacher' || userRole === 'class_teacher') {
+        const createScope = await getScopeForUser({ role: userRole, userId });
+        if (!isWithinScope(createScope, { division, classLevel, arm: arm || null })) {
+          await markOpStatus(syncOpRowId, 'failed', 'You do not have permission to register students in this class.');
+          return { operationId, status: 'failed', error: 'FORBIDDEN' };
+        }
+      }
+
+      // The session the student was admitted. Older app builds send none, so
+      // those fall back to the registration date.
+      let sessionValue = null;
+      if (academicSession === undefined || academicSession === null || academicSession === '') {
+        sessionValue = academicSessionFor(createdAtClient);
+      } else {
+        sessionValue = normalizeSession(academicSession);
+        if (!sessionValue) {
+          await markOpStatus(
+            syncOpRowId,
+            'failed',
+            'academicSession: not a session the school can choose.'
+          );
+          return {
+            operationId,
+            status: 'failed',
+            error: 'VALIDATION_ERROR',
+          };
+        }
+      }
 
       const scope = await getScopeForUser({
         role: userRole,
@@ -402,10 +517,14 @@ async function processOperation({
                guardian_name,
                guardian_phone,
                registered_by,
-               registered_device_id
+               registered_device_id,
+               academic_session,
+               current_session,
+               created_at,
+               approval_status
              )
            VALUES
-             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
           [
             id,
             admissionNo,
@@ -419,6 +538,10 @@ async function processOperation({
             guardianPhone || null,
             userId,
             deviceId,
+            sessionValue,
+            sessionValue,
+            createdAtClient,
+            approvalStatusForRegistration(userRole),
           ]
         );
 
@@ -581,9 +704,14 @@ async function markOpStatus(
 ) {
   await db.query(
     `UPDATE sync_operations
-     SET status = $2, processed_at = now(), error_message = $3
+     SET status = $2, processed_at = now(), error_message = $3,
+         payload = CASE
+           WHEN op_type = 'upload_photo' AND $4::text IN ('synced', 'failed')
+           THEN payload - 'imageBase64'
+           ELSE payload
+         END
      WHERE id = $1`,
-    [id, status, errorMessage]
+    [id, status, errorMessage, status]
   );
 }
 

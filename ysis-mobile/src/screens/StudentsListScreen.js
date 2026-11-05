@@ -52,6 +52,7 @@ function tap(style = Haptics.ImpactFeedbackStyle.Light) {
 // needed. The rest aren't lost or hidden anywhere else -- tapping "See
 // more" expands this same list in place; "See less" collapses it back.
 const DASHBOARD_PREVIEW_COUNT = 3;
+const PAGE_SIZE = 5;
 
 function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disabled, ...rest }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -75,14 +76,14 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
       style={{ width: flatStyle.width }}
       {...rest}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>
+      <Animated.View style={[style, flatStyle.width ? { width: '100%' } : null, { transform: [{ scale }] }]}>
         {children}
       </Animated.View>
     </Pressable>
   );
 }
 
-function StudentCard({ item, navigation, colors }) {
+function StudentCard({ item, navigation, colors, isGuest }) {
   const initials = getInitials(item.full_name);
   const isActive = item.status === 'active';
   return (
@@ -130,7 +131,7 @@ function StudentCard({ item, navigation, colors }) {
               { color: isActive ? colors.success : colors.warning },
             ]}
           >
-            {(item.status || 'ACTIVE').toUpperCase()}
+            {item.approval_status === 'pending' ? 'PENDING' : item.approval_status === 'returned' ? 'RETURNED' : (isGuest && item.status === 'withdrawn' ? 'LEFT' : (item.status || 'ACTIVE')).toUpperCase()}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.textMuted} style={{ marginTop: 8 }} />
@@ -142,6 +143,25 @@ function StudentCard({ item, navigation, colors }) {
 export default function StudentsListScreen({ navigation, route }) {
   const { colors } = useTheme();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const canRegister = isAdmin || user?.role === 'head_teacher';
+  const [pendingDevices, setPendingDevices] = useState(0);
+
+  // Only Principals and Directors ask. The server refuses everyone else anyway.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAdmin) {
+        setPendingDevices(0);
+        return undefined;
+      }
+      let cancelled = false;
+      api
+        .get('/devices/pending-count')
+        .then((res) => { if (!cancelled) setPendingDevices(Number(res?.count) || 0); })
+        .catch(() => { if (!cancelled) setPendingDevices(0); });
+      return () => { cancelled = true; };
+    }, [isAdmin])
+  );
   const insets = useSafeAreaInsets();
   const classLevel = route?.params?.classLevel || '';
 
@@ -153,44 +173,83 @@ export default function StudentsListScreen({ navigation, route }) {
   const [exporting, setExporting] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const [stats, setStats] = useState({ total: 0, enrolled: 0, classes: 0 });
+  const searchSeq = useRef(0);
 
-  const runLocalSearch = useCallback(async (text) => {
+  const loadStats = useCallback(async () => {
     const db = await getDb();
-    const term = `%${text}%`;
-    let rows;
-    if (classLevel && text.trim()) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE class_level = ?
-           AND (full_name LIKE ? OR admission_no LIKE ?)
-         ORDER BY full_name ASC`,
-        [classLevel, term, term]
-      );
-    } else if (classLevel) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students WHERE class_level = ?
-         ORDER BY full_name ASC`,
-        [classLevel]
-      );
-    } else if (text.trim()) {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students
-         WHERE full_name LIKE ? OR admission_no LIKE ?
-         ORDER BY full_name ASC`,
-        [term, term]
-      );
-    } else {
-      rows = await db.getAllAsync(
-        `SELECT id, admission_no, full_name, class_level, arm, status
-         FROM students ORDER BY full_name ASC`
-      );
+    const row = await db.getFirstAsync(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status IN ('registered','active','promoted') THEN 1 ELSE 0 END) AS enrolled,
+              COUNT(DISTINCT class_level) AS classes
+       FROM students`
+    );
+    setStats({
+      total: Number(row?.total || 0),
+      enrolled: Number(row?.enrolled || 0),
+      classes: Number(row?.classes || 0),
+    });
+  }, []);
+
+  // Searches the phone's copy. Shows PAGE_SIZE rows per page. Stale results
+  // from an earlier keystroke are dropped, so the list always matches the text.
+  const runLocalSearch = useCallback(async (text, pageIndex = 0) => {
+    const seq = ++searchSeq.current;
+    const db = await getDb();
+    const trimmed = String(text || '').trim();
+    const hasText = trimmed.length > 0;
+
+    loadStats();
+
+    // Nothing to show until the user searches or a class is open.
+    if (!classLevel && !hasText && user?.role !== 'guest') {
+      if (seq !== searchSeq.current) return;
+      setResults([]);
+      setMatchCount(0);
+      setPage(0);
+      setInitialLoading(false);
+      return;
     }
+
+    const conditions = [];
+    const params = [];
+    // Students who have left are shown on the Leavers screen, not in the class lists.
+    if (user?.role !== 'guest') {
+      conditions.push("status NOT IN ('graduated','transferred','withdrawn','expelled','deceased','not_admitted')");
+    }
+    if (classLevel) {
+      conditions.push('class_level = ?');
+      params.push(classLevel);
+    }
+    if (hasText) {
+      const term = `%${trimmed}%`;
+      conditions.push('(full_name LIKE ? OR admission_no LIKE ?)');
+      params.push(term, term);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRow = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM students ${where}`, params);
+    if (seq !== searchSeq.current) return;
+    const total = Number(countRow?.n || 0);
+    const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+    const safePage = Math.min(Math.max(0, pageIndex), lastPage);
+
+    const rows = await db.getAllAsync(
+      `SELECT id, admission_no, full_name, class_level, arm, status, approval_status, registered_by
+       FROM students ${where}
+       ORDER BY full_name ASC
+       LIMIT ? OFFSET ?`,
+      [...params, PAGE_SIZE, safePage * PAGE_SIZE]
+    );
+    if (seq !== searchSeq.current) return;
+
+    setMatchCount(total);
+    setPage(safePage);
     setResults(rows);
     setInitialLoading(false);
-  }, [classLevel]);
+  }, [classLevel, loadStats, user?.role]);
 
   const refreshFromServer = useCallback(async (force = false) => {
     try {
@@ -250,9 +309,16 @@ export default function StudentsListScreen({ navigation, route }) {
     setExporting(true);
     tap();
     try {
-      const count = await exportStudentsToCsv();
-      if (count === 0) {
+      const result = await exportStudentsToCsv();
+      if (result.count === 0) {
         Alert.alert('Nothing to export', 'There are no student records stored on this device yet.');
+      } else if (result.notImportable > 0) {
+        Alert.alert(
+          'Export complete',
+          `${result.count} students exported. ${result.notImportable} of them are missing a value the import needs ` +
+            '(gender, date of birth, session, or arm for SS2 and SS3). They are in the file, but a re-import will skip them ' +
+            'until those values are filled in.'
+        );
       }
     } catch (err) {
       Alert.alert('Export failed', err.message || 'Could not export student records.');
@@ -261,36 +327,58 @@ export default function StudentsListScreen({ navigation, route }) {
     }
   };
 
-  const displayedResults = (query || showAll) ? results : results.slice(0, DASHBOARD_PREVIEW_COUNT);
-  const enrolledCount = results.filter(
-  (s) => ['registered', 'active', 'promoted'].includes(s.status)
-).length;
-  const classCount = new Set(results.map((s) => s.class_level).filter(Boolean)).size;
+  const displayedResults = results;
+  const enrolledCount = stats.enrolled;
+  const classCount = stats.classes;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <OfflineMarquee />
-      <SyncIssueBanner pullError={pullError} onRetryPull={refreshFromServer} />
+      <SyncIssueBanner
+        pullError={pullError}
+        onRetryPull={refreshFromServer}
+        onPressAttention={() => navigation.navigate('ParkedOperations')}
+      />
 
       <LinearGradient
         colors={gradients.navy}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: Math.max(insets.top, 12) + 12 }]}
+        style={[styles.hero, { paddingTop: insets.top }]}
       >
         <View style={styles.heroTopRow}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.heroEyebrow}>
-              {classLevel ? classLevel.toUpperCase() : 'YALAMATRIX SIS'}
+          {classLevel ? (
+            <Pressable
+              onPress={() => navigation.goBack()}
+              hitSlop={12}
+              style={styles.heroBackBtn}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            {!classLevel && (
+              <Text style={styles.heroEyebrow} numberOfLines={1}>YALAMATRIX SIS</Text>
+            )}
+            <Text
+              style={styles.heroTitle}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {classLevel || 'Students'}
             </Text>
-            <Text style={styles.heroTitle}>
-              {classLevel ? `${classLevel} Students` : 'Students'}
-            </Text>
-            <Text style={styles.heroSub}>
-              {classLevel
-                ? `Records for ${classLevel}`
-                : 'Manage and access student records'}
-            </Text>
+          </View>
+
+          <View style={styles.heroMetaPill}>
+            {initialLoading ? (
+              <Skeleton width={24} height={14} borderRadius={6} style={{ marginBottom: 2 }} />
+            ) : (
+              <Text style={styles.heroMetaNum}>{matchCount}</Text>
+            )}
+            <Text style={styles.heroMetaLabel}>SHOWING</Text>
           </View>
 
           <Pressable
@@ -309,23 +397,12 @@ export default function StudentsListScreen({ navigation, route }) {
             ) : (
               <View style={styles.profileAvatar}>
                 <Text style={styles.profileAvatarText}>
-                  {getInitials(user?.full_name || user?.email || 'U')}
+                  {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                 </Text>
               </View>
             )}
-            <Ionicons name="chevron-down" size={14} color="#C9A24B" style={{ marginLeft: 4 }} />
+            <Ionicons name="chevron-down" size={12} color="#2FA37A" style={{ marginLeft: 3 }} />
           </Pressable>
-        </View>
-
-        <View style={styles.heroMeta}>
-          <View style={styles.heroMetaPill}>
-            {initialLoading ? (
-              <Skeleton width={28} height={18} borderRadius={6} style={{ marginBottom: 2 }} />
-            ) : (
-              <Text style={styles.heroMetaNum}>{results.length}</Text>
-            )}
-            <Text style={styles.heroMetaLabel}>SHOWING</Text>
-          </View>
         </View>
       </LinearGradient>
 
@@ -346,13 +423,13 @@ export default function StudentsListScreen({ navigation, route }) {
               ) : (
                 <View style={styles.menuAvatar}>
                   <Text style={styles.menuAvatarText}>
-                    {getInitials(user?.full_name || user?.email || 'U')}
+                    {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                   </Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuName} numberOfLines={1}>
-                  {user?.full_name || 'Staff'}
+                  {user?.fullName || user?.full_name || 'Guest'}
                 </Text>
                 <Text style={styles.menuRole}>
                   {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
@@ -368,7 +445,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   navigation.navigate('MoreTab', { screen: 'ManageStaff' });
                 }}
               >
-                <Ionicons name="people-outline" size={18} color="#0A1930" />
+                <Ionicons name="people-outline" size={18} color="#0E1A2B" />
                 <Text style={styles.menuItemText}>Manage Staff</Text>
               </Pressable>
             )}
@@ -380,7 +457,7 @@ export default function StudentsListScreen({ navigation, route }) {
                   navigation.navigate('ConflictsTab');
                 }}
               >
-                <Ionicons name="warning-outline" size={18} color="#0A1930" />
+                <Ionicons name="warning-outline" size={18} color="#0E1A2B" />
                 <Text style={styles.menuItemText}>Conflicts</Text>
               </Pressable>
             )}
@@ -391,7 +468,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 navigation.navigate('MoreTab');
               }}
             >
-              <Ionicons name="grid-outline" size={18} color="#0A1930" />
+              <Ionicons name="grid-outline" size={18} color="#0E1A2B" />
               <Text style={styles.menuItemText}>More</Text>
             </Pressable>
             <View style={styles.menuDivider} />
@@ -437,36 +514,71 @@ export default function StudentsListScreen({ navigation, route }) {
                       <SkeletonStatCard />
                       <SkeletonStatCard />
                       <SkeletonStatCard />
+                      <SkeletonStatCard />
+                      <SkeletonStatCard />
                     </View>
-                  ) : (
+                  ) : user?.role === 'guest' ? null : (
                     <View style={styles.statsGrid}>
-                      <DashboardStatCard icon="people" value={results.length} title="Students" subtitle="Registered" color={colors.inkSoft} bg={colors.surface} delay={0} />
+                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.textPrimary} bg={colors.surface} delay={0} />
                       <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
                       <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
-                      <DashboardStatCard icon="layers" value={results.length} title="Records" subtitle="On this device" color="#5B3A8E" bg={colors.surface} delay={150} />
+                      <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color={colors.accentPurple} bg={colors.surface} delay={150} />
                       <DashboardStudentSyncCards />
                     </View>
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
-                  <View style={styles.actionRow}>
-                    <Squish style={[styles.primaryAction, { backgroundColor: colors.ink }]} onPress={() => navigation.navigate('RegisterStudent')}>
-                      <Ionicons name="person-add" size={18} color={colors.gold} />
-                      <Text style={styles.primaryActionText}>Register Student</Text>
-                    </Squish>
-                  </View>
                   <View style={styles.secondaryRow}>
-                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('ClassesTab')}>
-                      <Ionicons name="school-outline" size={16} color={colors.inkSoft} />
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Classes</Text>
+                    {canRegister && (
+                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
+                      <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
                     </Squish>
-                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
+                    )}
+                    {user?.role !== 'guest' && <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
                       {exporting ? (
                         <ActivityIndicator size="small" color={colors.goldDark} />
                       ) : (
-                        <Ionicons name="download-outline" size={16} color={colors.goldDark} />
+                        <Ionicons name="download-outline" size={22} color={colors.goldDark} />
                       )}
                       <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
-                    </Squish>
+                    </Squish>}
+                    {['director', 'principal', 'head_teacher', 'class_teacher'].includes(user?.role) && (
+                      <Squish
+                        style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
+                        onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
+                      >
+                        <Ionicons name="document-text-outline" size={22} color={colors.pinkDark} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
+                      </Squish>
+                    )}
+                    {user?.role !== 'guest' && <Squish
+                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
+                      onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
+                    >
+                      <Ionicons name="globe-outline" size={22} color={colors.pinkDark} />
+                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
+                    </Squish>}
+                    {canRegister && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
+                        <Ionicons name="cloud-upload-outline" size={22} color={colors.textPrimary} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
+                      </Squish>
+                    )}
+                    {isAdmin && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('PromoteClass')}>
+                        <Ionicons name="arrow-up-circle-outline" size={22} color={colors.goldDark} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Promote class</Text>
+                      </Squish>
+                    )}
+                    {isAdmin && pendingDevices > 0 && (
+                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.warning }]} onPress={() => navigation.navigate('MoreTab', { screen: 'DeviceReview' })}>
+                        <Ionicons name="phone-portrait-outline" size={22} color={colors.warning} />
+                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Approve devices</Text>
+                        <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
+                          <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
+                        </View>
+                      </Squish>
+                    )}
                   </View>
                 </>
               )}
@@ -496,28 +608,50 @@ export default function StudentsListScreen({ navigation, route }) {
                   {query ? 'Search results' : 'Student records'}
                 </Text>
                 <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-                  {results.length} record{results.length === 1 ? '' : 's'}
+                  {matchCount} record{matchCount === 1 ? '' : 's'}
                 </Text>
               </View>
             </View>
         }
         renderItem={({ item }) => (
           <View style={styles.listPad}>
-            <StudentCard item={item} navigation={navigation} colors={colors} />
+            <StudentCard item={item} navigation={navigation} colors={colors} isGuest={user?.role === 'guest'} />
           </View>
         )}
         ListFooterComponent={
-          !initialLoading && !query && results.length > DASHBOARD_PREVIEW_COUNT ? (
+          !initialLoading && matchCount > PAGE_SIZE ? (
             <View style={styles.listPad}>
-              <Squish
-                style={[styles.seeMoreBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => setShowAll((prev) => !prev)}
-              >
-                <Text style={[styles.seeMoreText, { color: colors.textPrimary }]}>
-                  {showAll ? 'See less' : `See more (${results.length - DASHBOARD_PREVIEW_COUNT})`}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Squish
+                  disabled={page === 0}
+                  onPress={() => runLocalSearch(query, page - 1)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
+                    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+                    opacity: page === 0 ? 0.4 : 1,
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.textPrimary} />
+                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Previous</Text>
+                </Squish>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+                  {page * PAGE_SIZE + 1} to {Math.min((page + 1) * PAGE_SIZE, matchCount)} of {matchCount}
                 </Text>
-                <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimary} />
-              </Squish>
+                <Squish
+                  disabled={(page + 1) * PAGE_SIZE >= matchCount}
+                  onPress={() => runLocalSearch(query, page + 1)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
+                    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+                    opacity: (page + 1) * PAGE_SIZE >= matchCount ? 0.4 : 1,
+                  }}
+                >
+                  <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Next</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textPrimary} />
+                </Squish>
+              </View>
             </View>
           ) : null
         }
@@ -531,17 +665,17 @@ export default function StudentsListScreen({ navigation, route }) {
           ) : (
             <View style={styles.empty}>
               <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.inkSoft} />
+                <Ionicons name={query ? 'search' : 'people'} size={28} color={colors.textPrimary} />
               </View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-                {query ? 'No student found' : 'No students yet'}
+                {query ? 'No student found' : 'Search for a student'}
               </Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                 {query
                   ? 'No matching student was found in the local records. Try a name or admission number.'
                   : 'Student records assigned to your account will appear here.'}
               </Text>
-              {query.length > 0 ? (
+              {canRegister && (query.length > 0 ? (
                 <Squish
                   style={[styles.fallbackButton, { backgroundColor: colors.goldTint }]}
                   onPress={() => navigation.navigate('RegisterStudent', { prefillName: query })}
@@ -555,7 +689,7 @@ export default function StudentsListScreen({ navigation, route }) {
                 >
                   <Text style={styles.emptyRegisterText}>+ Register first student</Text>
                 </Squish>
-              )}
+              ))}
             </View>
           )
         }
@@ -569,35 +703,35 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 36 },
   emptyListContent: { flexGrow: 1 },
   hero: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center' },
   profileChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
-    paddingVertical: 4,
-    paddingLeft: 4,
-    paddingRight: 8,
+    paddingVertical: 3,
+    paddingLeft: 3,
+    paddingRight: 6,
     borderWidth: 1,
     borderColor: 'rgba(201,162,75,0.35)',
   },
   profileAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#C9A24B',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2FA37A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileAvatarImg: { width: 36, height: 36, borderRadius: 18 },
+  profileAvatarImg: { width: 28, height: 28, borderRadius: 14 },
   profileAvatarText: {
-    color: '#0A1930',
+    color: '#0E1A2B',
     fontFamily: fontFamily.bodyBold,
     fontSize: 13,
   },
@@ -628,7 +762,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#16324F',
+    backgroundColor: '#17263B',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -639,12 +773,12 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyBold,
     fontSize: 14,
   },
-  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0A1930' },
+  menuName: { fontFamily: fontFamily.heading, fontSize: 15, color: '#0E1A2B' },
   menuRole: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 10,
     letterSpacing: 0.6,
-    color: '#C9A24B',
+    color: '#2FA37A',
     marginTop: 2,
   },
   menuDivider: { height: 1, backgroundColor: '#E4E8EF', marginVertical: 4 },
@@ -658,20 +792,21 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontFamily: fontFamily.bodySemibold,
     fontSize: 14,
-    color: '#0A1930',
+    color: '#0E1A2B',
   },
+  heroBackBtn: { marginRight: 6, padding: 2 },
   heroEyebrow: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    color: '#C9A24B',
-    marginBottom: 8,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    color: '#2FA37A',
+    marginBottom: 1,
   },
   heroTitle: {
     fontFamily: fontFamily.display,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: -1,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.6,
     color: '#FFFFFF',
   },
   heroSub: {
@@ -685,16 +820,17 @@ const styles = StyleSheet.create({
   heroMetaPill: {
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
   heroMetaNum: {
     fontFamily: fontFamily.display,
-    fontSize: 16,
+    fontSize: 15,
     color: '#FFFFFF',
-    marginRight: 8,
+    marginRight: 6,
   },
   heroMetaLabel: {
     fontFamily: fontFamily.bodyBold,
@@ -733,23 +869,45 @@ const styles = StyleSheet.create({
   },
   secondaryRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 18,
+    marginBottom: 8,
   },
   secondaryAction: {
     width: '48%',
-    height: 48,
+    height: 60,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.raised,
   },
   secondaryActionText: {
-    fontFamily: fontFamily.bodySemibold,
+    fontFamily: fontFamily.heading,
     fontSize: 13,
+    lineHeight: 17,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  actionBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
     marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBadgeText: {
+    fontFamily: fontFamily.bodyBold,
+    fontSize: 11,
+    color: '#FFFFFF',
   },
   searchBox: {
     height: 50,

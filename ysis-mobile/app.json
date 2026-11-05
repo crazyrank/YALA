@@ -3,6 +3,7 @@
     "name": "YALAMATRIX SIS",
     "slug": "ysis-mobile",
     "version": "1.0.0",
+    "runtimeVersion": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
@@ -10,10 +11,12 @@
     ],
     "ios": {
       "supportsTablet": false,
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera is used to capture student passport photos.",
         "NSFaceIDUsageDescription": "Face ID is used to unlock the app securely."
-      }
+      },
+      "bundleIdentifier": "com.crazyrank.ysismobile"
     },
     "android": {
       "permissions": [
@@ -26,6 +29,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.crazyrank.ysismobile",
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon-adaptive.png",
@@ -42,14 +46,24 @@
         }
       ],
       "expo-sharing",
-      "expo-splash-screen",
-      "expo-sqlite"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/yala-matrix-schools-logo.jpg",
+          "imageWidth": 220
+        }
+      ],
+      "expo-sqlite",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
-        "projectId": "f6d3169c-7b31-4412-a54b-8685dcc811e4"
+        "projectId": "a92ff0c2-8e23-4adc-a6d8-1d573f5fb531"
       }
     },
-    "icon": "./assets/app-icon.png"
-  }
+    "icon": "./assets/app-icon.png",
+    "owner": "lonescripter"
+  },
+  "owner": "lonescripter"
 }

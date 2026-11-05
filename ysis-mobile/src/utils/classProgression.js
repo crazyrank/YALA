@@ -1,6 +1,6 @@
 /**
  * Canonical, ordered list of every class the school uses, low to high
- * (Build Spec Section 2: Primary = KG stages + Primary 1-6, Secondary =
+ * (Build Spec Section 2: Primary = Creche, KG stages + Primary 1-5, Secondary =
  * JSS1-3 + SS1-3). This is the single source of truth the app uses to
  * figure out "what class comes next" for promotion.
  *
@@ -8,6 +8,7 @@
  * (free text, entered at registration — see RegisterStudentScreen).
  */
 export const CLASS_ORDER = [
+  'Creche',
   'KG1',
   'KG2',
   'Primary 1',
@@ -15,7 +16,6 @@ export const CLASS_ORDER = [
   'Primary 3',
   'Primary 4',
   'Primary 5',
-  'Primary 6',
   'JSS1',
   'JSS2',
   'JSS3',
@@ -38,4 +38,14 @@ export function getNextClass(currentClassLevel) {
 /** True once a student has reached the top of the progression (SS3). */
 export function isAtMaxClass(currentClassLevel) {
   return currentClassLevel === CLASS_ORDER[CLASS_ORDER.length - 1];
+}
+
+/**
+ * Returns the previous class in the progression, or null if already at
+ * the first class (Creche) or the label is not recognized.
+ */
+export function getPreviousClass(currentClassLevel) {
+  const idx = CLASS_ORDER.indexOf(currentClassLevel);
+  if (idx <= 0) return null;
+  return CLASS_ORDER[idx - 1];
 }

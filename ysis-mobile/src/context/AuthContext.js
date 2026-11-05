@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { registerInBackground } from '../services/pushNotifications';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { clearPortalLogins } from '../services/portalAccess';
+import { setSessionEndedHandler, api } from '../api/client';
 import {
   loginOnline,
   hasCompletedFirstLogin,
@@ -30,6 +33,22 @@ async function withLocalPhoto(user) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState('loading');
+  const userRef = useRef(null);
+  userRef.current = user;
+
+  // The server ended the session (refresh refused): sign out at once and remove the
+  // saved results-portal login from this phone.
+  useEffect(() => {
+    setSessionEndedHandler(async () => {
+      const current = userRef.current;
+      if (!current) return;
+      await clearPortalLogins(current.id);
+      if (current.role === 'guest') await logoutService(current.id);
+      setUser(null);
+      setStatus('needsFirstLogin');
+    });
+    return () => setSessionEndedHandler(null);
+  }, []);
 
   const resolvePostOnboardingStatus = useCallback(async () => {
     const completed = await hasCompletedFirstLogin();
@@ -73,6 +92,7 @@ export function AuthProvider({ children }) {
     const enriched = await withLocalPhoto(loggedInUser);
     setUser(enriched);
     setStatus(loggedInUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+    if (!loggedInUser.mustChangePassword) registerInBackground();
     return enriched;
   }, []);
 
@@ -87,9 +107,23 @@ export function AuthProvider({ children }) {
         return { unlocked: false, reason: 'NO_SESSION' };
       }
 
-      const enriched = await withLocalPhoto(cachedUser);
+      let currentUser = cachedUser;
+      if (cachedUser.role === 'guest') {
+        try {
+          const session = await api.get('/auth/session');
+          currentUser = session.user || cachedUser;
+          await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(currentUser));
+        } catch (error) {
+          // Guest access is never allowed to continue from an offline cached session.
+          await setUser(null);
+          setStatus('needsFirstLogin');
+          return { unlocked: false, reason: 'GUEST_SESSION_REVALIDATION_REQUIRED' };
+        }
+      }
+      const enriched = await withLocalPhoto(currentUser);
       setUser(enriched);
-      setStatus(cachedUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+      setStatus(currentUser.mustChangePassword ? 'needsPasswordChange' : 'authenticated');
+      if (!cachedUser.mustChangePassword) registerInBackground();
     }
 
     return result;
@@ -100,6 +134,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await clearPortalLogins(user?.id);
     await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');
@@ -108,6 +143,7 @@ export function AuthProvider({ children }) {
   // After a forced password change the old session is invalid on the server,
   // so clear it and make the user sign in again.
   const completePasswordChange = useCallback(async () => {
+    await clearPortalLogins(user?.id);
     await logoutService(user?.id);
     setUser(null);
     setStatus('needsFirstLogin');

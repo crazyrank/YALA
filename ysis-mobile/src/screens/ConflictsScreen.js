@@ -1,129 +1,158 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
+import { setConflictCount } from '../services/conflictBadge';
 import { useTheme } from '../theme/ThemeContext';
 import { type } from '../theme/typography';
 import { spacing, radius, shadow } from '../theme/spacing';
 
 export default function ConflictsScreen() {
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
 
   const [conflicts, setConflicts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actingId, setActingId] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await api.get('/conflicts?status=open');
-      setConflicts(res.conflicts);
-    } catch (err) {
-      Alert.alert('Could not load conflicts', err.message);
+      const list = res.conflicts || [];
+      setConflicts(list);
+      setConflictCount(list.length);
+    } catch {
+      setConflicts([]);
+      setConflictCount(0);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const resolve = async (conflictId, resolution) => {
-    try {
-      await api.post(`/conflicts/${conflictId}/resolve`, { resolution });
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
       load();
-    } catch (err) {
-      Alert.alert('Could not resolve', err.message);
+    }, [load])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    load();
+  };
+
+  const resolve = async (id, resolution) => {
+    setActingId(id);
+    try {
+      await api.post(`/conflicts/${id}/resolve`, { resolution });
+      // Remove the card and update the red badge straight away.
+      setConflicts((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        setConflictCount(next.length);
+        return next;
+      });
+    } catch {
+      // leave the card; user can retry
+    } finally {
+      setActingId(null);
     }
   };
 
   return (
-    <FlatList
-      style={styles.container}
-      data={conflicts}
-      refreshing={loading}
-      onRefresh={load}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={[
-        conflicts.length === 0 ? styles.emptyListContent : styles.listContent,
-        { paddingTop: Math.max(insets.top, 12) + 8 },
-      ]}
-      ListHeaderComponent={
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Conflicts</Text>
-          <Text style={styles.pageSub}>
-            Review and resolve disputed student records
-          </Text>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <Text style={styles.studentName}>{item.full_name}</Text>
-          <Text style={styles.admissionNo}>{item.admission_no}</Text>
-          <Text style={styles.summary}>{item.conflict_summary}</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Conflicts</Text>
+        <Text style={styles.subtitle}>Student records that were changed twice</Text>
+      </View>
 
-          <View style={styles.compareRow}>
-            <View style={styles.compareCol}>
-              <Text style={styles.compareLabel}>Current on server</Text>
-              <Text style={styles.compareValue}>{JSON.stringify(item.server_state, null, 2)}</Text>
-            </View>
-            <View style={styles.compareCol}>
-              <Text style={styles.compareLabel}>Attempted change</Text>
-              <Text style={styles.compareValue}>{JSON.stringify(item.incoming_change, null, 2)}</Text>
-            </View>
-          </View>
+      <FlatList
+        data={conflicts}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={
+          conflicts.length === 0 ? styles.emptyListContent : styles.listContent
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />
+        }
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Text style={styles.studentName}>{item.student_name || 'Student'}</Text>
+            <Text style={styles.admissionNo}>{item.admission_no || item.student_id}</Text>
 
-          <View style={styles.buttonRow}>
-            <Pressable
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-              onPress={() => resolve(item.id, 'restore')}
-            >
-              <Text style={styles.buttonText}>Apply the Change</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                styles.buttonSecondary,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => resolve(item.id, 'keep_deleted')}
-            >
-              <Text style={styles.buttonText}>Keep Current</Text>
-            </Pressable>
+            <View style={styles.diffBlock}>
+              <Text style={styles.diffLabel}>On this device</Text>
+              <Text style={styles.diffValue}>{item.local_summary || '—'}</Text>
+            </View>
+            <View style={styles.diffBlock}>
+              <Text style={styles.diffLabel}>On the server</Text>
+              <Text style={styles.diffValue}>{item.server_summary || '—'}</Text>
+            </View>
+
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.button, styles.keepLocal]}
+                disabled={actingId === item.id}
+                onPress={() => resolve(item.id, 'keep_local')}
+              >
+                {actingId === item.id ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.buttonText}>Keep this device</Text>
+                )}
+              </Pressable>
+              <Pressable
+                style={[styles.button, styles.keepServer]}
+                disabled={actingId === item.id}
+                onPress={() => resolve(item.id, 'keep_server')}
+              >
+                <Text style={styles.buttonText}>Keep saved</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      )}
-      ListHeaderComponent={
-        <View style={styles.statusCard}>
-          <View style={styles.statusIcon}>
-            <Ionicons name="sync" size={18} color={colors.inkSoft} />
+        )}
+        ListHeaderComponent={
+          <View style={styles.statusCard}>
+            <View style={styles.statusIcon}>
+              <Ionicons name="sync" size={18} color={colors.success} />
+            </View>
+            <View style={styles.statusInfo}>
+              <Text style={styles.statusTitle}>System Status</Text>
+              <Text style={styles.statusSub}>
+                Your student records are stored safely on this device.
+              </Text>
+            </View>
+            <View style={styles.statusBadge}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusBadgeText}>READY</Text>
+            </View>
           </View>
-          <View style={styles.statusInfo}>
-            <Text style={styles.statusTitle}>System Status</Text>
-            <Text style={styles.statusSub}>
-              Your student records are stored safely on this device.
-            </Text>
-          </View>
-          <View style={styles.statusBadge}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusBadgeText}>READY</Text>
-          </View>
-        </View>
-      }
-      ListEmptyComponent={
-        !loading && (
-          <View style={styles.empty}>
-            <Ionicons name="checkmark-circle-outline" size={36} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No open conflicts</Text>
-            <Text style={styles.emptyText}>
-              Everything is in sync. New conflicts will show up here.
-            </Text>
-          </View>
-        )
-      }
-    />
+        }
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.empty}>
+              <Ionicons name="checkmark-circle-outline" size={36} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>Nothing to check</Text>
+              <Text style={styles.emptyText}>
+                Nothing needs your attention. Problems with student records will show here.
+              </Text>
+            </View>
+          )
+        }
+      />
+    </View>
   );
 }
 
@@ -143,22 +172,22 @@ function createStyles(colors) {
       padding: spacing.lg,
     },
 
-    pageHeader: {
-      marginBottom: spacing.md,
+    header: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
     },
 
-    pageTitle: {
+    title: {
       ...type.h1,
       fontSize: 28,
       color: colors.textPrimary,
-      letterSpacing: -0.5,
     },
 
-    pageSub: {
-      ...type.body,
-      fontSize: 13,
-      marginTop: 4,
+    subtitle: {
+      ...type.bodySmall,
       color: colors.textSecondary,
+      marginTop: 4,
     },
 
     card: {
@@ -187,7 +216,7 @@ function createStyles(colors) {
       width: 38,
       height: 38,
       borderRadius: radius.md,
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.mode === 'dark' ? 'rgba(125, 187, 165, 0.18)' : colors.successBg,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.md,
@@ -210,10 +239,12 @@ function createStyles(colors) {
     statusBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.successBg,
+      backgroundColor: colors.mode === 'dark' ? 'rgba(125, 187, 165, 0.22)' : colors.successBg,
       borderRadius: radius.pill,
       paddingHorizontal: 9,
       paddingVertical: 5,
+      borderWidth: colors.mode === 'dark' ? 1 : 0,
+      borderColor: colors.mode === 'dark' ? 'rgba(125, 187, 165, 0.45)' : 'transparent',
     },
 
     statusDot: {
@@ -226,8 +257,9 @@ function createStyles(colors) {
 
     statusBadgeText: {
       ...type.overline,
-      fontSize: 8,
-      color: colors.success,
+      fontSize: 9,
+      letterSpacing: 0.6,
+      color: colors.mode === 'dark' ? '#A8D5C4' : colors.success,
     },
 
     studentName: {
@@ -242,64 +274,49 @@ function createStyles(colors) {
       marginBottom: spacing.sm,
     },
 
-    summary: {
-      ...type.body,
-      fontSize: 13,
-      color: colors.textSecondary,
-      marginBottom: spacing.md,
+    diffBlock: {
+      marginTop: spacing.sm,
     },
 
-    compareRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      marginBottom: spacing.md,
-    },
-
-    compareCol: {
-      flex: 1,
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: radius.sm,
-      padding: spacing.sm,
-    },
-
-    compareLabel: {
+    diffLabel: {
       ...type.overline,
-      fontSize: 9.5,
-      color: colors.goldDark,
-      marginBottom: spacing.xs,
-    },
-
-    compareValue: {
       fontSize: 10,
-      color: colors.textSecondary,
-      fontFamily: 'monospace',
+      color: colors.textMuted,
+      marginBottom: 2,
     },
 
-    buttonRow: {
+    diffValue: {
+      ...type.body,
+      fontSize: 14,
+      color: colors.textPrimary,
+    },
+
+    actions: {
       flexDirection: 'row',
+      marginTop: spacing.md,
       gap: spacing.sm,
     },
 
     button: {
       flex: 1,
+      paddingVertical: 12,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    keepLocal: {
       backgroundColor: colors.inkSoft,
-      borderRadius: radius.sm,
-      paddingVertical: spacing.sm + 2,
     },
 
-    buttonSecondary: {
-      backgroundColor: colors.error,
-    },
-
-    buttonPressed: {
-      opacity: 0.85,
+    keepServer: {
+      backgroundColor: colors.brandStrong,
     },
 
     buttonText: {
-      ...type.button,
-      textAlign: 'center',
-      color: colors.textInverse,
-      fontSize: 12,
+      ...type.label,
+      fontSize: 13,
+      color: '#FFFFFF',
     },
 
     empty: {
@@ -307,20 +324,20 @@ function createStyles(colors) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: spacing.xl,
+      paddingTop: 48,
     },
 
     emptyTitle: {
       ...type.h3,
-      fontSize: 15,
-      marginTop: spacing.md,
       color: colors.textPrimary,
+      marginTop: spacing.md,
     },
 
     emptyText: {
       ...type.bodySmall,
-      marginTop: spacing.xs,
-      textAlign: 'center',
       color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.sm,
     },
   });
 }

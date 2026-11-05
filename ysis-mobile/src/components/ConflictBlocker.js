@@ -63,7 +63,7 @@ export default function ConflictBlocker({ navigation, children }) {
         <Text style={styles.blockTitle}>Unresolved records need your decision</Text>
         <Text style={styles.blockBody}>
           {openCount > 0 &&
-            `${openCount} conflicting student record${openCount > 1 ? 's' : ''}`}
+            `${openCount} student record${openCount > 1 ? 's need' : ' needs'} checking`}
           {openCount > 0 && mergeCount > 0 && ' and '}
           {mergeCount > 0 &&
             `${mergeCount} duplicate registration${mergeCount > 1 ? 's' : ''} to reconcile`}
@@ -75,7 +75,7 @@ export default function ConflictBlocker({ navigation, children }) {
             style={styles.button}
             onPress={() => navigation.navigate('ConflictsTab')}
           >
-            <Text style={styles.buttonText}>Review Conflicts</Text>
+            <Text style={styles.buttonText}>Check them now</Text>
           </Pressable>
         )}
         {mergeCount > 0 && (
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   button: {
-    backgroundColor: '#c9a24b',
+    backgroundColor: '#2FA37A',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 6,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonSecondary: {
-    backgroundColor: '#16324f',
+    backgroundColor: '#17263B',
   },
   buttonText: {
     textAlign: 'center',

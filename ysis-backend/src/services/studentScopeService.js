@@ -12,6 +12,22 @@ async function getScopeForUser(auth) {
     return null;
   }
 
+  if (auth.role === 'guest') {
+    const { rows } = await db.query(
+      'SELECT student_id FROM guest_student_access WHERE guest_user_id = $1',
+      [auth.userId]
+    );
+    return { guestStudentIds: rows.map((row) => row.student_id) };
+  }
+
+  if (auth.role === 'class_teacher') {
+    const { rows: classTeacherRows } = await db.query(
+      `SELECT division, class_level, arm FROM class_teacher_assignments WHERE user_id = $1`,
+      [auth.userId]
+    );
+    return classTeacherRows;
+  }
+
   const { rows } = await db.query(
     `SELECT division, class_level, arm
      FROM head_teacher_class_assignments
@@ -28,6 +44,10 @@ async function getScopeForUser(auth) {
  * startIndex so it can be combined with other filters in the same query.
  */
 function scopeToSqlClause(scope, startIndex) {
+  if (scope && !Array.isArray(scope) && Array.isArray(scope.guestStudentIds)) {
+    if (scope.guestStudentIds.length === 0) return { clause: 'FALSE', params: [] };
+    return { clause: `id = ANY($${startIndex}::uuid[])`, params: [scope.guestStudentIds] };
+  }
   if (!scope || scope.length === 0) {
     return {
       clause: 'FALSE',
@@ -40,6 +60,12 @@ function scopeToSqlClause(scope, startIndex) {
   let idx = startIndex;
 
   for (const s of scope) {
+    if (!s.class_level) {
+      clauses.push(`(division = $${idx})`);
+      params.push(s.division);
+      idx += 1;
+      continue;
+    }
     if (s.arm) {
       clauses.push(
         `(division = $${idx}
@@ -78,14 +104,29 @@ function scopeToSqlClause(scope, startIndex) {
  */
 function isWithinScope(scope, { division, classLevel, arm }) {
   if (scope === null) return true; // unscoped: principal/director
+  if (!Array.isArray(scope)) return false; // Guest accounts are read-only; no write scope.
   if (scope.length === 0) return false;
 
   return scope.some((s) => {
     if (s.division !== division) return false;
-    if (s.class_level !== classLevel) return false;
+    if (s.class_level && s.class_level !== classLevel) return false;
     if (s.arm) return s.arm === arm;
     return true;
   });
 }
 
-module.exports = { getScopeForUser, scopeToSqlClause, isWithinScope };
+
+/**
+ * Stable text key for a user's scope. Admins get "unscoped". The phone saves
+ * this key and clears its local students when the key changes.
+ */
+function scopeKeyFor(scope) {
+  if (scope === null) return 'unscoped';
+  if (!Array.isArray(scope)) return `guest|${(scope.guestStudentIds || []).slice().sort().join(',')}`;
+  if (scope.length === 0) return 'none';
+  const parts = scope.map((s) => `${s.division}|${s.class_level || ''}|${s.arm || ''}`);
+  parts.sort();
+  return parts.join(';');
+}
+
+module.exports = { getScopeForUser, scopeToSqlClause, isWithinScope, scopeKeyFor };

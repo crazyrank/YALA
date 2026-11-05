@@ -58,7 +58,7 @@ export default function ClassesScreen({ navigation }) {
         navigation.navigate('ClassStudents', { classLevel: item.class_level })
       }
     >
-      <View style={[styles.classIcon, { backgroundColor: colors.goldTint || '#FBF3E1' }]}>
+      <View style={[styles.classIcon, { backgroundColor: colors.goldTint || '#E6F4EE' }]}>
         <Text style={styles.classIconText}>🎓</Text>
       </View>
       <View style={styles.classInfo}>
@@ -79,7 +79,7 @@ export default function ClassesScreen({ navigation }) {
       <View
         style={[
           styles.header,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
+          { paddingTop: insets.top },
         ]}
       >
         <Text style={[styles.title, { color: colors.textPrimary }]}>Classes</Text>

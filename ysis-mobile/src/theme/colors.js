@@ -1,82 +1,108 @@
 export const lightColors = {
   mode: 'light',
 
-  // Core ink / surfaces
-  ink: '#0A1930',
-  inkSoft: '#16324F',
+  // Premium navy and muted blue
+  ink: '#101C30',
+  inkSoft: '#1C2D46',
+
+  // Surfaces
   surface: '#FFFFFF',
-  surfaceAlt: '#FAFBFD',
-  background: '#F5F7FA',
+  surfaceAlt: '#F8F9FB',
+  background: '#F2F4F7',
+  border: '#E2E6EC',
+  borderStrong: '#CCD3DD',
 
-  // Borders
-  border: '#E4E8EF',
-  borderStrong: '#D5DAE3',
-
-  // Text
-  textPrimary: '#0A1930',
-  textSecondary: '#5B6472',
-  textMuted: '#8A94A3',
+  // Typography
+  textPrimary: '#101C30',
+  textSecondary: '#5C6675',
+  textMuted: '#8791A0',
   textInverse: '#FFFFFF',
 
-  // Gold accent (premium highlight)
-  gold: '#C9A24B',
-  goldLight: '#E7C878',
-  goldDark: '#9C7A32',
-  goldTint: '#FBF3E1',
+  // School brand, sampled from the school buildings: blue (main) and pink (secondary).
+  brand: '#0A74A3', // fills: buttons, chips, active states (dark text on top)
+  brandLight: '#8ADBF2',
+  brandDark: '#0A74A3', // text and icons on light surfaces
+  brandStrong: '#0A74A3', // fills that carry white text
+  brandTint: '#E4F3FA',
+  pink: '#E8847F', // borders and fills
+  pinkDark: '#C24A52', // icons and text on light surfaces
+  pinkTint: '#FCEDEC',
+  accentPurple: '#5B3A8E',
 
-  // Feedback
-  success: '#12805C',
-  successBg: '#E7F6EF',
-  error: '#C0392B',
-  errorBg: '#FDECEA',
-  warning: '#B7791F',
-  warningBg: '#FEF3E2',
+  // Legacy names kept so older screens keep working. They now point at the blue.
+  gold: '#0A74A3',
+  goldLight: '#8ADBF2',
+  goldDark: '#0A74A3',
+  goldTint: '#E4F3FA',
 
-  overlay: 'rgba(10,25,48,0.55)',
+  // Status colours
+  success: '#3D8B75',
+  successBg: '#E8F2EE',
+  error: '#B94B49',
+  errorBg: '#F8EAE9',
+  warning: '#A77C36',
+  warningBg: '#F7F0E2',
+
+  overlay: 'rgba(16,28,48,0.55)',
 };
 
 export const darkColors = {
   mode: 'dark',
 
-  // Core ink / surfaces — lighter navy so brand elements still pop
-  ink: '#16324F',
-  inkSoft: '#22456B',
-  surface: '#141B2E',
-  surfaceAlt: '#1B2438',
-  background: '#0B1220',
+  // Soft slate instead of midnight navy
+  ink: '#161B26',
+  inkSoft: '#1E2433',
 
-  // Borders
-  border: '#232D45',
-  borderStrong: '#2E3A56',
+  // Surfaces
+  surface: '#1E2433',
+  surfaceAlt: '#232B3D',
+  background: '#161B26',
+  border: '#2A3142',
+  borderStrong: '#363E52',
 
-  // Text
+  // Typography
   textPrimary: '#F2F4F8',
-  textSecondary: '#AEB6C4',
-  textMuted: '#7C879C',
+  textSecondary: '#A3ACBE',
+  textMuted: '#7D8698',
   textInverse: '#FFFFFF',
 
-  // Gold accent — brightened slightly for dark backgrounds
-  gold: '#D8B563',
-  goldLight: '#EDD9A0',
-  goldDark: '#B4913E',
-  goldTint: '#241F12',
+  // School brand, sampled from the school buildings: blue (main) and pink (secondary).
+  brand: '#2BB3D9', // fills: buttons, chips, active states (dark text on top)
+  brandLight: '#7ED6EF',
+  brandDark: '#2AA3C8', // text and icons on dark surfaces
+  brandStrong: '#1678A0', // fills that carry white text
+  brandTint: '#17303D',
+  pink: '#F4958F', // borders and fills
+  pinkDark: '#F4958F', // icons and text on dark surfaces
+  pinkTint: '#3A2530',
+  accentPurple: '#B9A2E0',
 
-  // Feedback
-  success: '#33B786',
-  successBg: '#123A2B',
-  error: '#E5695A',
-  errorBg: '#3A1614',
-  warning: '#E0B04A',
-  warningBg: '#3A2C0F',
+  // Legacy names kept so older screens keep working. They now point at the blue.
+  gold: '#2BB3D9',
+  goldLight: '#7ED6EF',
+  goldDark: '#2AA3C8',
+  goldTint: '#17303D',
+
+  // Status colours
+  success: '#7DBBA5',
+  successBg: '#1D2F2A',
+  error: '#E09A94',
+  errorBg: '#33222A',
+  warning: '#DDBB78',
+  warningBg: '#342D1F',
 
   overlay: 'rgba(0,0,0,0.6)',
 };
 
-// Brand gradients stay consistent across themes.
+// Shared brand gradients
 export const gradients = {
-  navy: ['#0A1930', '#16324F'],
-  navyDeep: ['#071120', '#0A1930'],
-  gold: ['#C9A24B', '#E7C878'],
-  goldSubtle: ['#F4E8CC', '#FFFFFF'],
-  sheen: ['rgba(255,255,255,0.0)', 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.0)'],
+  navy: ['#161B26', '#1E2433'],
+  navyDeep: ['#11151E', '#161B26'],
+  gold: ['#1BA8DD', '#8ADBF2'],
+  goldSubtle: ['#17303D', '#1E2433'],
+  sheen: [
+    'rgba(255,255,255,0.0)',
+    'rgba(255,255,255,0.06)',
+    'rgba(255,255,255,0.0)',
+  ],
 };

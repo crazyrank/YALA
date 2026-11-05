@@ -4,18 +4,14 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import Skeleton, { SkeletonStudentRow, SkeletonStatCard } from '../components/Skeleton';
-
 import LoginScreen from '../screens/LoginScreen';
-import OnboardingScreen from '../screens/OnboardingScreen';
+import IntroScreen from '../screens/IntroScreen';
 import UnlockScreen from '../screens/UnlockScreen';
-import ClassStudentsScreen from '../screens/ClassStudentsScreen';
-import StudentDetailScreen from '../screens/StudentDetailScreen';
-import RegisterStudentScreen from '../screens/RegisterStudentScreen';
-import MergeQueueScreen from '../screens/MergeQueueScreen';
+import { useTheme } from '../theme/ThemeContext';
+import { stackHeaderOptions } from '../theme/stackHeader';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
-import CreateAccountScreen from '../screens/CreateAccountScreen';
-import ManageStaffScreen from '../screens/ManageStaffScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
+import PolicyScreen from '../screens/PolicyScreen';
 import MainTabs from './MainTabs';
 
 const Stack = createNativeStackNavigator();
@@ -47,7 +43,7 @@ function AuthBootstrapSkeleton() {
 const bootStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F6F8FC' },
   hero: {
-    backgroundColor: '#0A1930',
+    backgroundColor: '#0E1A2B',
     paddingHorizontal: 20,
     paddingTop: 56,
     paddingBottom: 28,
@@ -65,28 +61,18 @@ const bootStyles = StyleSheet.create({
 
 export default function RootNavigator() {
   const { status } = useAuth();
-
+  const { colors } = useTheme();
   if (status === 'loading') return <AuthBootstrapSkeleton />;
 
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: '#16324f',
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: '700',
-          },
-          headerTitleAlign: 'center',
-          headerBackTitle: '',
-        }}
+        screenOptions={stackHeaderOptions(colors)}
       >
         {status === 'onboarding' && (
           <Stack.Screen
             name="Onboarding"
-            component={OnboardingScreen}
+            component={IntroScreen}
             options={{ headerShown: false }}
           />
         )}
@@ -124,33 +110,12 @@ export default function RootNavigator() {
             />
 
             <Stack.Screen
-              name="ClassStudents"
-              component={ClassStudentsScreen}
-              options={({ route }) => ({
-                title: route?.params?.classLevel
-                  ? route.params.classLevel + ' Students'
-                  : 'Students',
-              })}
+              name="Intro"
+              component={IntroScreen}
+              options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
 
-            <Stack.Screen
-              name="StudentDetail"
-              component={StudentDetailScreen}
-              options={{ title: 'Student' }}
-            />
-
-            <Stack.Screen
-              name="RegisterStudent"
-              component={RegisterStudentScreen}
-              options={{ title: 'Register Student' }}
-            />
-
-            <Stack.Screen
-              name="MergeQueue"
-              component={MergeQueueScreen}
-              options={{ title: 'Duplicate Registrations' }}
-            />
-
+            {/* Full-screen camera — intentionally above the tab bar */}
             <Stack.Screen
               name="CameraCapture"
               component={CameraCaptureScreen}
@@ -159,20 +124,15 @@ export default function RootNavigator() {
                 presentation: 'fullScreenModal',
               }}
             />
-
-            <Stack.Screen
-              name="CreateAccount"
-              component={CreateAccountScreen}
-              options={{ title: 'Create Account' }}
-            />
-
-            <Stack.Screen
-              name="ManageStaff"
-              component={ManageStaffScreen}
-              options={{ title: 'Manage Staff' }}
-            />
           </>
         )}
+
+        {/* Registered for every status so onboarding can open it too. */}
+        <Stack.Screen
+          name="Policy"
+          component={PolicyScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

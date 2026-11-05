@@ -104,10 +104,12 @@ export function SkeletonStatCard({ style }) {
         style,
       ]}
     >
-      <Skeleton width={36} height={36} borderRadius={12} style={{ marginBottom: 12 }} />
-      <Skeleton width={48} height={28} borderRadius={8} style={{ marginBottom: 8 }} />
-      <Skeleton width="70%" height={11} borderRadius={6} style={{ marginBottom: 6 }} />
-      <Skeleton width="50%" height={10} borderRadius={6} />
+      <Skeleton width={30} height={30} borderRadius={15} style={{ marginRight: 12 }} />
+      <View style={{ flex: 1 }}>
+        <Skeleton width={48} height={26} borderRadius={8} style={{ marginBottom: 8 }} />
+        <Skeleton width="70%" height={11} borderRadius={6} style={{ marginBottom: 6 }} />
+        <Skeleton width="50%" height={10} borderRadius={6} />
+      </View>
     </View>
   );
 }
@@ -190,12 +192,13 @@ export function SkeletonClassRow({ style }) {
 const styles = StyleSheet.create({
   statCard: {
     width: '48%',
-    minHeight: 118,
+    minHeight: 88,
     borderRadius: radius.lg,
     borderWidth: 1,
-    paddingTop: 14,
-    paddingBottom: 14,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 12,
     ...shadow.card,
   },

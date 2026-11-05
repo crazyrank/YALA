@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
@@ -18,12 +19,20 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queueOperation } from '../services/syncEngine';
+import { checkRegistration, formatErrors } from '../services/registrationGuard';
+import ClassLevelPicker from '../components/ClassLevelPicker';
+import { CLASS_ORDER } from '../utils/classProgression';
+import { divisionOfClass, ARMS, formatAdmissionInput } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
+import { academicSessionFor, availableSessions } from '../utils/academicSession';
+import { dobToIso, formatDobInput } from '../utils/dobFormat';
 
 export default function RegisterStudentScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const isDark = colors.mode === 'dark';
   const prefillName = route.params?.prefillName || '';
 
   const [admissionNo, setAdmissionNo] = useState('');
@@ -33,10 +42,16 @@ export default function RegisterStudentScreen({ route, navigation }) {
   const [arm, setArm] = useState('');
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState('');
+  // Newest session first. Defaults to the current session.
+  const sessionOptions = useMemo(() => availableSessions(new Date()).reverse(), []);
+  const [academicSession, setAcademicSession] = useState(() => academicSessionFor(new Date()));
   const [saving, setSaving] = useState(false);
 
   const [lookupQuery, setLookupQuery] = useState('');
   const [lookupResults, setLookupResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const handleLookupChange = async (text) => {
     setLookupQuery(text);
@@ -46,11 +61,11 @@ export default function RegisterStudentScreen({ route, navigation }) {
     }
     try {
       const db = await getDb();
-      const term = `%${text}%`;
+      const term = `%${text.replace(/[\\%_]/g, '\\$&')}%`;
       const rows = await db.getAllAsync(
         `SELECT id, admission_no, full_name, class_level, arm
          FROM students
-         WHERE full_name LIKE ? OR admission_no LIKE ?
+         WHERE full_name LIKE ? ESCAPE '\\' OR admission_no LIKE ? ESCAPE '\\'
          ORDER BY full_name ASC
          LIMIT 5`,
         [term, term]
@@ -59,6 +74,14 @@ export default function RegisterStudentScreen({ route, navigation }) {
     } catch (err) {
       setLookupResults([]);
     }
+  };
+
+  // Switching division clears a class that belongs to the other division,
+  // and clears the arm when the student is primary.
+  const chooseDivision = (next) => {
+    setDivision(next);
+    if (classLevel && divisionOfClass(classLevel) !== next) setClassLevel('');
+    if (next === 'primary') setArm('');
   };
 
   const handleSave = async () => {
@@ -71,6 +94,29 @@ export default function RegisterStudentScreen({ route, navigation }) {
         'Missing details',
         'Admission number, student name, and class are required.'
       );
+      return;
+    }
+
+    const dobIso = dobToIso(dateOfBirth);
+    if (dobIso === null) {
+      Alert.alert('Check the details', 'Date of birth must be written as DD/MM/YYYY, for example 25/03/2014.');
+      return;
+    }
+
+    const check = checkRegistration({
+      admissionNo,
+      fullName,
+      division,
+      classLevel,
+      arm,
+      guardianName,
+      guardianPhone,
+      dateOfBirth: dobIso,
+      gender,
+    });
+    if (!check.ok) {
+      const lines = formatErrors(check.errors).map((e) => e.message);
+      Alert.alert('Check the details', lines.join('\n'));
       return;
     }
 
@@ -92,13 +138,17 @@ export default function RegisterStudentScreen({ route, navigation }) {
             arm,
             guardian_name,
             guardian_phone,
+            date_of_birth,
+            gender,
+            academic_session,
+            current_session,
             status,
             sync_version,
             created_at,
             updated_at,
             local_dirty
           )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'registered', 1, ?, ?, 1)`,
         [
           id,
           admissionNo.trim(),
@@ -108,6 +158,10 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm.trim() || null,
           guardianName.trim() || null,
           guardianPhone.trim() || null,
+          dobIso || null,
+          gender || null,
+          academicSession,
+          academicSession,
           now,
           now,
         ]
@@ -125,12 +179,16 @@ export default function RegisterStudentScreen({ route, navigation }) {
           arm: arm.trim() || null,
           guardianName: guardianName.trim() || null,
           guardianPhone: guardianPhone.trim() || null,
+          dateOfBirth: dobIso || null,
+          gender: gender || null,
+          academicSession,
+          currentSession: academicSession,
         },
       });
 
       Alert.alert(
         'Student saved',
-        'The record is safely stored on this device and will sync automatically when an internet connection is available.',
+        'The record is saved on this device.',
         [
           {
             text: 'Done',
@@ -148,112 +206,63 @@ export default function RegisterStudentScreen({ route, navigation }) {
     }
   };
 
+  const closeSearch = () => {
+    setSearchOpen(false);
+    handleLookupChange('');
+  };
+
+  // This screen draws its own header, so hide the navigation bar
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
   return (
     <KeyboardAvoidingView
-      style={[styles.safe, { backgroundColor: colors.background }]}
+      style={styles.safe}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar
-        barStyle="dark-content"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
 
+      <View style={[styles.headerRow, { paddingTop: insets.top + 6 }]}>
+        <Text style={styles.title}>Register student</Text>
+        <Pressable
+          onPress={() => setSearchOpen(true)}
+          hitSlop={12}
+          style={styles.searchBtn}
+          accessibilityLabel="Search"
+        >
+          <Ionicons name="search" size={22} color={colors.textPrimary} />
+        </Pressable>
+      </View>
+
       <ScrollView
-        style={styles.container}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
+          { paddingTop: 4, paddingBottom: insets.bottom + 32 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* FIND EXISTING STUDENT */}
-        <View style={styles.lookupCard}>
-          <Text style={styles.lookupLabel}>Find existing student</Text>
-          <View style={styles.lookupBox}>
-            <Ionicons name="search" size={17} color="#667085" style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.lookupInput}
-              placeholder="Search by name or admission number"
-              placeholderTextColor="#98A2B3"
-              value={lookupQuery}
-              onChangeText={handleLookupChange}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {lookupQuery.length > 0 && (
-              <Pressable onPress={() => handleLookupChange('')} hitSlop={10}>
-                <Ionicons name="close-circle" size={17} color="#98A2B3" />
-              </Pressable>
-            )}
-          </View>
 
-          {lookupResults.length > 0 && (
-            <View style={styles.lookupResults}>
-              {lookupResults.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.lookupResultRow}
-                  onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
-                >
-                  <View>
-                    <Text style={styles.lookupResultName}>{item.full_name}</Text>
-                    <Text style={styles.lookupResultSub}>
-                      {item.admission_no || 'No admission number'}
-                      {item.class_level ? ` • ${item.class_level}` : ''}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
 
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.eyebrow}>STUDENT RECORDS</Text>
-
-          <Text style={styles.title}>
-            Register student
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Create a student record directly on this device.
-            It will sync with the school system automatically.
-          </Text>
-        </View>
-
-        {/* OFFLINE NOTICE */}
-        <View style={styles.offlineNotice}>
-          <View style={styles.offlineDot} />
-
-          <View style={styles.offlineTextArea}>
-            <Text style={styles.offlineTitle}>
-              Offline-first registration
-            </Text>
-
-            <Text style={styles.offlineText}>
-              You can save this record without internet access.
-              Synchronisation happens automatically later.
-            </Text>
-          </View>
-        </View>
-
-        {/* FORM CARD */}
+        {/* STUDENT DETAILS */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
-            Student information
-          </Text>
+          <Text style={styles.sectionTitle}>Student</Text>
 
           <Field
             label="ADMISSION NUMBER"
             required
             value={admissionNo}
-            onChangeText={setAdmissionNo}
-            placeholder="e.g. YAL/2026/0142"
+            onChangeText={(t) => setAdmissionNo(formatAdmissionInput(t))}
+            placeholder="YMS/00/00/000"
             autoCapitalize="characters"
             autoCorrect={false}
+            maxLength={15}
+            styles={styles}
+            colors={colors}
           />
 
           <Field
@@ -262,92 +271,141 @@ export default function RegisterStudentScreen({ route, navigation }) {
             value={fullName}
             onChangeText={setFullName}
             placeholder="Student's full name"
-            autoCapitalize="words"
-            autoCorrect={false}
+            styles={styles}
+            colors={colors}
           />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
               DIVISION <Text style={styles.required}>*</Text>
             </Text>
-
-            <View style={styles.segmentRow}>
-              <Pressable
-                style={[
-                  styles.segment,
-                  division === 'primary' && styles.segmentActive,
-                ]}
-                onPress={() => setDivision('primary')}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    division === 'primary' &&
-                      styles.segmentTextActive,
-                  ]}
-                >
-                  Primary
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.segment,
-                  division === 'secondary' && styles.segmentActive,
-                ]}
-                onPress={() => setDivision('secondary')}
-              >
-                <Text
-                  style={[
-                    styles.segmentText,
-                    division === 'secondary' &&
-                      styles.segmentTextActive,
-                  ]}
-                >
-                  Secondary
-                </Text>
-              </Pressable>
+            <View style={styles.segment}>
+              {['primary', 'secondary'].map((d) => {
+                const active = division === d;
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => chooseDivision(d)}
+                    style={[styles.segmentItem, active && styles.segmentItemActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {d === 'primary' ? 'Primary' : 'Secondary'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
-          <Field
-            label="CLASS LEVEL"
-            required
-            value={classLevel}
-            onChangeText={setClassLevel}
-            placeholder={
-              division === 'primary'
-                ? 'e.g. Primary 4'
-                : 'e.g. SS2'
-            }
-            autoCapitalize="characters"
-          />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              CLASS LEVEL <Text style={styles.required}>*</Text>
+            </Text>
+            <ClassLevelPicker
+              value={classLevel}
+              onChange={setClassLevel}
+              allowed={CLASS_ORDER.filter((c) => divisionOfClass(c) === division)}
+            />
+          </View>
+
+          {division === 'secondary' && (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>ARM</Text>
+              <View style={styles.chipRow}>
+                {ARMS.map((a) => {
+                  const active = arm === a;
+                  return (
+                    <Pressable
+                      key={a}
+                      onPress={() => setArm(active ? '' : a)}
+                      style={[styles.chip, active && styles.chipActive]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{a}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           <Field
-            label="ARM"
-            hint="Secondary students only"
-            value={arm}
-            onChangeText={setArm}
-            placeholder="e.g. Science"
-            autoCapitalize="words"
+            label="DATE OF BIRTH"
+            value={dateOfBirth}
+            onChangeText={(t) => setDateOfBirth(formatDobInput(t))}
+            placeholder="DD/MM/YYYY"
+            maxLength={10}
+            styles={styles}
+            colors={colors}
           />
 
-          <View style={styles.sectionDivider} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>GENDER</Text>
+            <View style={styles.chipRow}>
+              {['M', 'F'].map((g) => {
+                const active = gender === g;
+                return (
+                  <Pressable
+                    key={g}
+                    onPress={() => setGender(active ? '' : g)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {g === 'M' ? 'Male' : 'Female'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
-          <Text style={styles.sectionTitle}>
-            Guardian information
-          </Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              ACADEMIC SESSION <Text style={styles.required}>*</Text>
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.sessionRow}
+            >
+              {sessionOptions.map((s) => {
+                const active = academicSession === s;
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => setAcademicSession(s)}
+                    style={[styles.chip, active && styles.chipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{s}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={styles.hint}>
+              The session this student was admitted. For a student who joined earlier, choose that earlier session.
+            </Text>
+          </View>
+        </View>
 
-          <Text style={styles.sectionHint}>
-            These details are optional and can be completed later.
-          </Text>
+        {/* GUARDIAN */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Guardian</Text>
 
           <Field
             label="GUARDIAN NAME"
             value={guardianName}
             onChangeText={setGuardianName}
             placeholder="Parent or guardian name"
-            autoCapitalize="words"
+            styles={styles}
+            colors={colors}
           />
 
           <Field
@@ -356,386 +414,264 @@ export default function RegisterStudentScreen({ route, navigation }) {
             onChangeText={setGuardianPhone}
             placeholder="Phone number"
             keyboardType="phone-pad"
+            styles={styles}
+            colors={colors}
           />
-
-          {/* SAVE */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.saveButton,
-              pressed && styles.saveButtonPressed,
-              saving && styles.disabledButton,
-            ]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <ActivityIndicator color="#FFFFFF" />
-                <Text style={styles.saveText}>
-                  Saving record...
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.saveText}>
-                  Save student
-                </Text>
-
-                <Text style={styles.saveArrow}>
-                  →
-                </Text>
-              </>
-            )}
-          </Pressable>
         </View>
 
-        {/* FOOTER */}
-        <View style={styles.footer}>
-          <Text style={styles.footerTitle}>
-            YALA
-          </Text>
-
-          <Text style={styles.footerText}>
-            Yalamatrix School Information System
-          </Text>
-
-          <Text style={styles.footerSchool}>
-            Yalamatrix Schools • Okitipupa
-          </Text>
-        </View>
+        <Pressable
+          style={({ pressed }) => [
+            styles.saveButton,
+            (pressed || saving) && styles.saveButtonPressed,
+          ]}
+          onPress={handleSave}
+          disabled={saving}
+          accessibilityRole="button"
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <>
+              <Text style={styles.saveText}>Save student</Text>
+              <Ionicons name="arrow-forward" size={18} color={colors.textInverse} />
+            </>
+          )}
+        </Pressable>
       </ScrollView>
+      <Modal visible={searchOpen} animationType="slide" onRequestClose={closeSearch}>
+        <View style={[styles.modalSafe, { paddingTop: insets.top + 6 }]}>
+          <View style={styles.modalTop}>
+            <View style={styles.modalInputWrap}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Find an existing student"
+                placeholderTextColor={colors.textSecondary}
+                value={lookupQuery}
+                onChangeText={handleLookupChange}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <Pressable onPress={closeSearch} hitSlop={12} style={styles.searchBtn} accessibilityLabel="Close search">
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            {lookupQuery.trim().length > 0 && lookupResults.length === 0 && (
+              <Text style={styles.modalEmpty}>No student matches that search.</Text>
+            )}
+            {lookupResults.length > 0 && (
+              <View style={styles.resultsCard}>
+                {lookupResults.map((item, index) => (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.resultRow, index > 0 && styles.resultDivider]}
+                    onPress={() => {
+                      closeSearch();
+                      navigation.navigate('StudentDetail', { studentId: item.id });
+                    }}
+                  >
+                    <View style={styles.resultText}>
+                      <Text style={styles.resultName}>{item.full_name}</Text>
+                      <Text style={styles.resultSub}>
+                        {item.admission_no || 'No admission number'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({
-  label,
-  required,
-  hint,
-  ...props
-}) {
+function Field({ label, required, styles, colors, ...props }) {
   return (
     <View style={styles.fieldGroup}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>
-          {label}{' '}
-          {required && (
-            <Text style={styles.required}>*</Text>
-          )}
-        </Text>
-
-        {hint && (
-          <Text style={styles.fieldHint}>
-            {hint}
-          </Text>
-        )}
-      </View>
-
+      <Text style={styles.label}>
+        {label}
+        {required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
       <TextInput
         style={styles.input}
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textSecondary}
         {...props}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-
-  container: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
-  },
-
-  header: {
-    marginBottom: 20,
-  },
-
-  eyebrow: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.7,
-    color: '#5B6472',
-    marginBottom: 8,
-  },
-
-  lookupCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4E8EF',
-    borderRadius: 13,
-    padding: 14,
-    marginBottom: 20,
-  },
-  lookupLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#5B6472',
-    marginBottom: 8,
-  },
-  lookupBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  lookupInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0A1930',
-    paddingVertical: 0,
-  },
-  lookupResults: {
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E4E8EF',
-  },
-  lookupResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F4F7',
-  },
-  lookupResultName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0A1930',
-  },
-  lookupResultSub: {
-    fontSize: 11,
-    color: '#5B6472',
-    marginTop: 2,
-  },
-
-  title: {
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-    color: '#0A1930',
-  },
-
-  subtitle: {
-    marginTop: 8,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: '#5B6472',
-  },
-
-  offlineNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F0FDF9',
-    borderWidth: 1,
-    borderColor: '#B7E4D9',
-    borderRadius: 13,
-    padding: 13,
-    marginBottom: 16,
-  },
-
-  offlineDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#1F8A7A',
-    marginTop: 4,
-    marginRight: 10,
-  },
-
-  offlineTextArea: {
-    flex: 1,
-  },
-
-  offlineTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#176B60',
-  },
-
-  offlineText: {
-    marginTop: 3,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: '#4B766F',
-  },
-
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E4E8EF',
-    shadowColor: '#0A1930',
-    shadowOffset: {
-      width: 0,
-      height: 6,
+function createStyles(colors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    content: { paddingHorizontal: 20 },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingBottom: 14,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 2,
-  },
+    searchBtn: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalSafe: { flex: 1, backgroundColor: colors.background },
+    modalTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+    },
+    modalInputWrap: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      height: 44,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    modalInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    modalList: { paddingHorizontal: 20, paddingBottom: 32 },
+    modalEmpty: {
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 24,
+      fontSize: 14,
+    },
+    title: {
+      fontFamily: fontFamily.display,
+      fontSize: 28,
+      letterSpacing: -0.6,
+      color: colors.textPrimary,
+    },
 
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#0A1930',
-    marginBottom: 16,
-  },
+    lookupBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      height: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    lookupInput: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    resultsCard: {
+      marginTop: 8,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    resultRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+    },
+    resultDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+    resultText: { flex: 1 },
+    resultName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    resultSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
 
-  sectionHint: {
-    fontSize: 10.5,
-    color: '#8A94A3',
-    marginTop: -9,
-    marginBottom: 17,
-  },
+    card: {
+      marginTop: 20,
+      padding: 20,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      marginBottom: 16,
+    },
+    fieldGroup: { marginBottom: 18 },
+    label: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.8,
+      marginBottom: 8,
+    },
+    required: { color: colors.error },
+    input: {
+      height: 52,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
 
-  fieldGroup: {
-    marginBottom: 16,
-  },
+    segment: {
+      flexDirection: 'row',
+      padding: 4,
+      gap: 4,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceAlt,
+    },
+    segmentItem: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    segmentItemActive: { backgroundColor: colors.ink },
+    segmentText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    segmentTextActive: { color: colors.textInverse },
 
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 7,
-  },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    sessionRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
+    hint: { fontSize: 12, lineHeight: 17, color: colors.textSecondary, marginTop: 8 },
+    chip: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+    },
+    chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+    chipText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    chipTextActive: { color: colors.textInverse },
 
-  label: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    color: '#5B6472',
-  },
-
-  required: {
-    color: '#B42318',
-  },
-
-  fieldHint: {
-    marginLeft: 'auto',
-    fontSize: 9,
-    color: '#8A94A3',
-  },
-
-  input: {
-    height: 51,
-    borderWidth: 1,
-    borderColor: '#D5DAE3',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#0A1930',
-    backgroundColor: '#FFFFFF',
-  },
-
-  segmentRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  segment: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D5DAE3',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  segmentActive: {
-    backgroundColor: '#0A1930',
-    borderColor: '#0A1930',
-  },
-
-  segmentText: {
-    color: '#5B6472',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  segmentTextActive: {
-    color: '#FFFFFF',
-  },
-
-  sectionDivider: {
-    height: 1,
-    backgroundColor: '#E4E8EF',
-    marginVertical: 7,
-    marginBottom: 20,
-  },
-
-  saveButton: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: '#0A1930',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 5,
-  },
-
-  saveButtonPressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-  disabledButton: {
-    opacity: 0.65,
-  },
-
-  saveText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    marginLeft: 8,
-  },
-
-  saveArrow: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '300',
-    marginLeft: 12,
-  },
-
-  footer: {
-    alignItems: 'center',
-    paddingTop: 24,
-  },
-
-  footerTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: '#0A1930',
-  },
-
-  footerText: {
-    marginTop: 4,
-    fontSize: 9,
-    color: '#8A94A3',
-  },
-
-  footerSchool: {
-    marginTop: 3,
-    fontSize: 8,
-    color: '#B0B7C3',
-  },
-});
+    saveButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      height: 56,
+      marginTop: 24,
+      borderRadius: 16,
+      backgroundColor: colors.ink,
+    },
+    saveButtonPressed: { opacity: 0.85 },
+    saveText: { fontSize: 16, fontWeight: '700', color: colors.textInverse },
+  });
+}

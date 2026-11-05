@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readDirectoryGrouped } from '../services/directoryLocal';
 import {
   View,
   Text,
@@ -194,7 +195,7 @@ export default function StaffDirectoryScreen({ navigation }) {
   const loadDirectory = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const result = await api.get('/directory');
+      const result = await readDirectoryGrouped();
       setData({
         board: result.board || [],
         management: result.management || [],

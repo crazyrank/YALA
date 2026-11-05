@@ -3,21 +3,24 @@ import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
-import { radius, shadow } from '../theme/spacing';
+import { radius } from '../theme/spacing';
 
 export default function DashboardStatCard({
   icon = 'ellipse',
   value,
   title,
   subtitle,
-  color = '#16324F',
+  color = '#17263B',
   bg = '#FFFFFF',
   delay = 0,
+  accent = 'brand', // 'brand' (school blue) or 'strong' (navy in light mode)
 }) {
   const { colors } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
   const valueAnim = useRef(new Animated.Value(0)).current;
   const [displayValue, setDisplayValue] = useState(value);
+
+  const barColor = accent === 'strong' ? colors.brandStrong : colors.brand;
 
   // Entrance animation (runs once on mount)
   useEffect(() => {
@@ -88,23 +91,29 @@ export default function DashboardStatCard({
         animatedStyle,
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={18} color="#FFFFFF" />
+      {/* Left accent bar. The card clips it to the rounded corner. */}
+      <View style={[styles.accentBar, { backgroundColor: barColor }]} />
+
+      {/* Icon sits to the left, centred vertically, in a fixed-width slot so every card's text lines up */}
+      <View style={styles.iconSlot}>
+        <Ionicons name={icon} size={30} color={color} />
       </View>
 
-      <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
-        {displayValue}
-      </Text>
-
-      <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
-        {title}
-      </Text>
-
-      {!!subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {subtitle}
+      <View style={styles.textWrap}>
+        <Text style={[styles.value, { color: colors.textPrimary }]} numberOfLines={1}>
+          {displayValue}
         </Text>
-      )}
+
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
+          {title}
+        </Text>
+
+        {!!subtitle && (
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -112,38 +121,50 @@ export default function DashboardStatCard({
 const styles = StyleSheet.create({
   card: {
     width: '48%',
-    minHeight: 118,
+    minHeight: 88,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    paddingTop: 14,
-    paddingBottom: 14,
-    paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingLeft: 20,
+    paddingRight: 16,
     marginBottom: 12,
-    ...shadow.card,
   },
 
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+  accentBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+  },
+
+  iconSlot: {
+    width: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginRight: 12,
+  },
+
+  textWrap: {
+    flex: 1,
   },
 
   value: {
     fontFamily: fontFamily.display,
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 30,
     letterSpacing: -0.8,
   },
 
   title: {
     fontFamily: fontFamily.bodyBold,
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontSize: 10.5,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginTop: 4,
+    marginTop: 3,
   },
 
   subtitle: {

@@ -3,9 +3,11 @@ const { query, validationResult } = require('express-validator');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { Errors } = require('../utils/errors');
+const { guestStatusFor } = require('../utils/leaveRules');
 const {
   getScopeForUser,
   scopeToSqlClause,
+  scopeKeyFor,
 } = require('../services/studentScopeService');
 
 const router = express.Router();
@@ -62,7 +64,15 @@ router.get(
                 division,
                 class_level,
                 arm,
+                academic_session,
+                current_session,
+                to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+                gender,
+                created_at,
                 status,
+                entrance_outcome,
+                approval_status,
+                return_reason,
                 sync_version,
                 to_char(updated_at AT TIME ZONE 'UTC',
                         'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_ts
@@ -77,11 +87,19 @@ router.get(
       const page = hasMore ? rows.slice(0, limit) : rows;
       const last = page[page.length - 1];
 
-      const students = page.map(({ cursor_ts, ...student }) => student);
+      const students = page.map(({ cursor_ts, ...student }) => {
+        if (req.auth.role === 'guest') {
+          // Guest cache receives only the fields the Guest role is permitted to see.
+          const { date_of_birth, gender, arm, entrance_outcome, approval_status, return_reason, ...safeStudent } = student;
+          return { ...safeStudent, status: guestStatusFor(student.status) };
+        }
+        return student;
+      });
 
       return res.json({
         students,
         hasMore,
+        scopeKey: scopeKeyFor(scope),
         nextCursor: last
           ? { since: last.cursor_ts, afterId: last.id }
           : { since, afterId },

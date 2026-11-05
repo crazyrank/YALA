@@ -129,8 +129,9 @@ async function main() {
       await client.query(
         `INSERT INTO students
            (id, admission_no, full_name, division, class_level, arm, gender,
+            date_of_birth, academic_session, current_session,
             guardian_name, guardian_phone, registered_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           crypto.randomUUID(),
           v.admissionNo,
@@ -139,6 +140,9 @@ async function main() {
           v.classLevel,
           v.arm,
           v.gender,
+          v.dateOfBirth,
+          v.academicSession,
+          v.academicSession,
           v.guardianName,
           v.guardianPhone,
           admin.id,

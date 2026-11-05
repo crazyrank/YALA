@@ -89,5 +89,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fbe4e0', paddingHorizontal: 14, paddingVertical: 8,
   },
   text: { flex: 1, fontSize: 11.5, color: '#9a3b2f', fontWeight: '500' },
-  retry: { fontSize: 12, fontWeight: '700', color: '#16324f', marginLeft: 10 },
+  retry: { fontSize: 12, fontWeight: '700', color: '#17263B', marginLeft: 10 },
 });

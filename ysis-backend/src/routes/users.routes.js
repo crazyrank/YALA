@@ -8,6 +8,7 @@ const { writeAudit } = require('../middleware/audit');
 const { Errors } = require('../utils/errors');
 const { userHasPermission } = require('../services/permissionService');
 const { CLASS_ORDER } = require('../utils/classProgression');
+const { validateClassTeacherClass } = require('../utils/classTeacherRules');
 
 const router = express.Router();
 
@@ -72,23 +73,66 @@ router.post(
     body('fullName').isString().trim().notEmpty(),
     body('email').isEmail(),
     body('phone').optional().isString(),
+    body('division').optional().isIn(['primary', 'secondary']),
+    // Explicit role from the app. Validated below — never allows privilege escalation.
+    body('role').optional().isIn(['principal', 'head_teacher', 'class_teacher']),
+    body('classLevel').optional().isString(),
+    body('arm').optional().isString(),
   ],
   async (req, res, next) => {
     try {
       checkValidation(req);
-      const { fullName, email, phone } = req.body;
+      const { fullName, email, phone, division, role: requestedRole, classLevel, arm } = req.body;
 
-      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
-      if (!targetRole) throw Errors.forbidden('You are not able to create accounts.');
+      /**
+       * Resolve role to create (server decides, client only requests):
+       * - principal caller → always head_teacher
+       * - director → body.role if present; else division ⇒ head_teacher; else principal
+       */
+      let targetRole;
+      if (req.auth.role === 'principal') {
+        targetRole = requestedRole === 'class_teacher' ? 'class_teacher' : 'head_teacher';
+      } else if (req.auth.role === 'director') {
+        if (requestedRole === 'head_teacher' || requestedRole === 'principal' || requestedRole === 'class_teacher') {
+          targetRole = requestedRole;
+        } else if (['primary', 'secondary'].includes(division)) {
+          targetRole = 'head_teacher';
+        } else {
+          targetRole = 'principal';
+        }
+      } else {
+        throw Errors.forbidden('You are not able to create accounts.');
+      }
 
       const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
         throw Errors.conflict('EMAIL_IN_USE', 'An account with this email already exists.');
       }
 
+      let classTeacherClass = null;
+      if (targetRole === 'class_teacher') {
+        const checked = validateClassTeacherClass({ division, classLevel, arm });
+        if (!checked.ok) throw Errors.badRequest(checked.code, checked.message);
+        classTeacherClass = checked.value;
+      }
+
+      if (targetRole === 'head_teacher' && !['primary', 'secondary'].includes(division)) {
+        throw Errors.badRequest(
+          'DIVISION_REQUIRED',
+          'Choose Primary or Secondary for this head teacher.'
+        );
+      }
+
       const tempCredential = generateTempCredential();
       const passwordHash = await hashPassword(tempCredential);
-      const directoryTitle = targetRole === 'principal' ? 'Principal' : 'Head Teacher';
+      const directoryTitle =
+        targetRole === 'class_teacher'
+          ? 'Class Teacher'
+          : targetRole === 'principal'
+          ? 'Principal'
+          : division === 'primary'
+            ? 'Primary Head Teacher'
+            : 'Secondary Head Teacher';
 
       const created = await db.withTransaction(async (client) => {
         const { rows } = await client.query(
@@ -101,9 +145,25 @@ router.post(
 
         await client.query(
           `INSERT INTO staff_directory (section, full_name, title, linked_user_id, created_by)
-           VALUES ('management', $1, $2, $3, $4)`,
-          [user.full_name, directoryTitle, user.id, req.auth.userId]
+           VALUES ($5, $1, $2, $3, $4)`,
+          [user.full_name, directoryTitle, user.id, req.auth.userId, targetRole === 'class_teacher' ? 'class_teacher' : 'management']
         );
+
+        if (targetRole === 'class_teacher') {
+          await client.query(
+            `INSERT INTO class_teacher_assignments (user_id, division, class_level, arm, assigned_by)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [user.id, classTeacherClass.division, classTeacherClass.classLevel, classTeacherClass.arm, req.auth.userId]
+          );
+        }
+
+        if (targetRole === 'head_teacher') {
+          await client.query(
+            `INSERT INTO head_teacher_class_assignments (user_id, division, class_level, arm, assigned_by)
+             VALUES ($1, $2, NULL, NULL, $3)`,
+            [user.id, division, req.auth.userId]
+          );
+        }
 
         return user;
       });
@@ -115,7 +175,11 @@ router.post(
         entityType: 'user',
         entityId: created.id,
         result: 'success',
-        metadata: { role: targetRole },
+        metadata: {
+          role: targetRole,
+          requestedRole: requestedRole || null,
+          division: division || null,
+        },
       });
 
       return res.status(201).json({
@@ -141,18 +205,36 @@ router.post(
 
 /**
  * GET /users
+ * Principal: head teachers they created.
+ * Director: principals and head teachers they created.
  */
 router.get('/', requireAuth, requireRole('director', 'principal'), async (req, res, next) => {
   try {
-    const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
-    if (!targetRole) throw Errors.forbidden('You are not able to view staff accounts.');
-
-    const { rows } = await db.query(
-      `SELECT id, full_name, email, phone, role, status, created_at
-       FROM users WHERE role = $1 AND created_by = $2
-       ORDER BY created_at DESC`,
-      [targetRole, req.auth.userId]
-    );
+    let rows;
+    if (req.auth.role === 'director') {
+      const result = await db.query(
+        `SELECT id, full_name, email, phone, role, status, created_at
+         FROM users
+         WHERE created_by = $1
+           AND role IN ('principal', 'head_teacher')
+           AND status <> 'inactive'
+         ORDER BY
+           CASE role WHEN 'principal' THEN 0 ELSE 1 END,
+           created_at DESC`,
+        [req.auth.userId]
+      );
+      rows = result.rows;
+    } else {
+      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
+      if (!targetRole) throw Errors.forbidden('You are not able to view staff accounts.');
+      const result = await db.query(
+        `SELECT id, full_name, email, phone, role, status, created_at
+         FROM users WHERE role = $1 AND created_by = $2 AND status <> 'inactive'
+         ORDER BY created_at DESC`,
+        [targetRole, req.auth.userId]
+      );
+      rows = result.rows;
+    }
 
     return res.json({
       users: rows.map((u) => ({
@@ -187,12 +269,22 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
-      const { rows } = await db.query('SELECT id, role, created_by FROM users WHERE id = $1', [id]);
+      const { rows } = await db.query('SELECT id, role, created_by, status FROM users WHERE id = $1', [id]);
       const target = rows[0];
       if (!target) throw Errors.notFound('That account could not be found.');
 
-      const targetRole = CREATABLE_ROLE_BY_CALLER[req.auth.role];
-      const ownsTarget = target.role === targetRole && target.created_by === req.auth.userId;
+      if (target.status === 'inactive') {
+        throw Errors.badRequest('ACCOUNT_DELETED', 'This account was deleted and cannot be changed.');
+      }
+      // Director may manage principals and head teachers they created.
+      // Principal may only manage head teachers they created.
+      const allowedRoles =
+        req.auth.role === 'director'
+          ? ['principal', 'head_teacher']
+          : [CREATABLE_ROLE_BY_CALLER[req.auth.role]];
+      const ownsTarget =
+        target.role === 'class_teacher' ||
+        (allowedRoles.includes(target.role) && target.created_by === req.auth.userId);
       if (!ownsTarget) throw Errors.forbidden('You are not able to manage this account.');
 
       const updated = await db.query(
@@ -243,7 +335,7 @@ router.post(
   [
     param('id').isUUID(),
     body('division').isIn(['primary', 'secondary']),
-    body('classLevel').isIn(CLASS_ORDER),
+    body('classLevel').optional().isIn(CLASS_ORDER),
     body('arm').optional().isString().trim(),
   ],
   async (req, res, next) => {
@@ -259,7 +351,7 @@ router.post(
         `INSERT INTO head_teacher_class_assignments (user_id, division, class_level, arm, assigned_by)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, division, class_level, arm, assigned_at`,
-        [target.id, division, classLevel, arm || null, req.auth.userId]
+        [target.id, division, classLevel || null, arm || null, req.auth.userId]
       );
 
       await writeAudit({
@@ -347,6 +439,218 @@ router.delete(
       });
 
       return res.status(204).send();
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * DELETE /users/:id
+ * Director only. Removes principals or head teachers the Director created
+ * from the database (hard delete). Dependent rows are cleaned first.
+ * Audit log entries that referenced the account are left in place (append-only);
+ * their user_id / entity_id simply point at a removed account.
+ */
+router.delete(
+  '/:id',
+  requireAuth,
+  requireRole('director'),
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      const { id } = req.params;
+
+      const { rows } = await db.query(
+        'SELECT id, role, created_by, full_name, status FROM users WHERE id = $1',
+        [id]
+      );
+      const target = rows[0];
+      if (!target) throw Errors.notFound('That account could not be found.');
+      if (
+        !['principal', 'head_teacher'].includes(target.role) ||
+        target.created_by !== req.auth.userId
+      ) {
+        throw Errors.forbidden('You are not able to delete this account.');
+      }
+
+      const roleLabel = target.role === 'principal' ? 'principal' : 'head teacher';
+
+      // Refuse if this account still has subordinates (e.g. principal who created HTs).
+      const subordinates = await db.query(
+        `SELECT id FROM users WHERE created_by = $1 AND status <> 'inactive' LIMIT 1`,
+        [id]
+      );
+      if (subordinates.rows.length > 0) {
+        throw Errors.badRequest(
+          'HAS_SUBORDINATES',
+          'Delete or reassign accounts created by this person first.'
+        );
+      }
+
+      await db.withTransaction(async (client) => {
+        // Clean dependents that would block a hard delete (FKs).
+        await client.query(
+          `DELETE FROM password_reset_tokens WHERE user_id = $1 OR issued_by = $1`,
+          [id]
+        );
+        await client.query(`DELETE FROM notifications WHERE user_id = $1`, [id]);
+        await client.query(
+          `DELETE FROM head_teacher_class_assignments WHERE user_id = $1 OR assigned_by = $1`,
+          [id]
+        );
+        await client.query(
+          `DELETE FROM staff_directory WHERE linked_user_id = $1 OR created_by = $1`,
+          [id]
+        );
+        await client.query(`DELETE FROM devices WHERE user_id = $1`, [id]);
+        // Clear optional references on other rows so the user row can be removed.
+        await client.query(
+          `UPDATE devices SET revoked_by = NULL WHERE revoked_by = $1`,
+          [id]
+        );
+        await client.query(
+          `DELETE FROM user_permissions WHERE user_id = $1 OR granted_by = $1`,
+          [id]
+        );
+        // Inactive subordinates (if any) must go too so created_by FK does not block.
+        await client.query(`DELETE FROM users WHERE created_by = $1`, [id]);
+        // Finally remove the account row.
+        await client.query(`DELETE FROM users WHERE id = $1`, [id]);
+      });
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'STAFF_DELETED',
+        entityType: 'user',
+        entityId: id,
+        result: 'success',
+        metadata: { hardDelete: true, role: target.role, fullName: target.full_name },
+      });
+      notifyDirectors({
+        title: 'Staff deleted',
+        body: `${target.full_name} (${roleLabel}) was permanently removed from the system.`,
+        entityId: id,
+      });
+
+      return res.status(204).send();
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/**
+ * Is this class inside a Head Teacher's own scope? A Head Teacher with a whole-division
+ * assignment covers every class in that division.
+ */
+async function headTeacherCovers(userId, division, classLevel) {
+  const { rows } = await db.query(
+    `SELECT 1 FROM head_teacher_class_assignments h
+      WHERE h.user_id = $1 AND h.division = $2
+        AND (h.class_level IS NULL OR h.class_level = $3)`,
+    [userId, division, classLevel]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * GET /users/class-teachers
+ * Principal and Director: every Class Teacher. Head Teacher: those whose class is in their scope.
+ */
+router.get('/class-teachers', requireAuth, async (req, res, next) => {
+  try {
+    if (!['director', 'principal', 'head_teacher'].includes(req.auth.role)) {
+      throw Errors.forbidden('You are not able to view class teachers.');
+    }
+    const { rows } = await db.query(
+      `SELECT u.id, u.full_name, u.email, u.status, c.division, c.class_level, c.arm
+         FROM users u
+         JOIN class_teacher_assignments c ON c.user_id = u.id
+        WHERE u.role = 'class_teacher'
+          AND u.status <> 'inactive'
+          AND ($1 <> 'head_teacher' OR EXISTS (
+                SELECT 1 FROM head_teacher_class_assignments h
+                 WHERE h.user_id = $2 AND h.division = c.division
+                   AND (h.class_level IS NULL OR h.class_level = c.class_level)))
+        ORDER BY c.division, c.class_level, u.full_name`,
+      [req.auth.role, req.auth.userId]
+    );
+    return res.json({ classTeachers: rows });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * PUT /users/:id/class-teacher-class   body { division, classLevel, arm }
+ * Sets the one class a Class Teacher is responsible for.
+ * Principal and Director: any class. Head Teacher: only a Class Teacher and a class
+ * inside their own scope, both now and after the change.
+ */
+router.put(
+  '/:id/class-teacher-class',
+  requireAuth,
+  [param('id').isUUID()],
+  async (req, res, next) => {
+    try {
+      checkValidation(req);
+      if (!['director', 'principal', 'head_teacher'].includes(req.auth.role)) {
+        throw Errors.forbidden('You are not able to change class teacher classes.');
+      }
+
+      const { rows } = await db.query('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
+      const target = rows[0];
+      if (!target || target.role !== 'class_teacher') {
+        throw Errors.badRequest('INVALID_TARGET_ROLE', 'Only Class Teacher accounts have a class.');
+      }
+
+      const checked = validateClassTeacherClass(req.body);
+      if (!checked.ok) throw Errors.badRequest(checked.code, checked.message);
+      const wanted = checked.value;
+
+      if (req.auth.role === 'head_teacher') {
+        const current = await db.query(
+          'SELECT division, class_level FROM class_teacher_assignments WHERE user_id = $1',
+          [target.id]
+        );
+        const currentRow = current.rows[0];
+        const currentInScope = currentRow
+          ? await headTeacherCovers(req.auth.userId, currentRow.division, currentRow.class_level)
+          : true;
+        const newInScope = await headTeacherCovers(req.auth.userId, wanted.division, wanted.classLevel);
+        if (!currentInScope || !newInScope) {
+          throw Errors.forbidden('That class is outside your assigned classes.');
+        }
+      }
+
+      await db.query(
+        `INSERT INTO class_teacher_assignments (user_id, division, class_level, arm, assigned_by, assigned_at)
+         VALUES ($1, $2, $3, $4, $5, now())
+         ON CONFLICT (user_id) DO UPDATE SET
+           division = EXCLUDED.division,
+           class_level = EXCLUDED.class_level,
+           arm = EXCLUDED.arm,
+           assigned_by = EXCLUDED.assigned_by,
+           assigned_at = now()`,
+        [target.id, wanted.division, wanted.classLevel, wanted.arm, req.auth.userId]
+      );
+
+      await writeAudit({
+        userId: req.auth.userId,
+        deviceId: req.auth.deviceId,
+        action: 'CLASS_TEACHER_CLASS_CHANGED',
+        entityType: 'user',
+        entityId: target.id,
+        result: 'success',
+        metadata: { division: wanted.division, classLevel: wanted.classLevel, arm: wanted.arm },
+      });
+
+      return res.json({
+        assignment: { division: wanted.division, classLevel: wanted.classLevel, arm: wanted.arm },
+      });
     } catch (err) {
       return next(err);
     }

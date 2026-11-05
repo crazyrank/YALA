@@ -17,6 +17,28 @@ import {
   purgeOldCompletedImports,
 } from '../services/stagedImports';
 
+const IMPORT_GUIDE = [
+  { column: 'admission_no', rule: 'the admission number, for example YMS/2024/03/033.' },
+  { column: 'full_name', rule: "the student's full name. Letters only." },
+  { column: 'division', rule: 'primary or secondary.' },
+  { column: 'class_level', rule: 'for example KG1, Primary 4, JSS1 or SS2.' },
+  { column: 'arm', rule: 'only for SS2 and SS3 (Science, Arts or Commercial). Leave empty for every other class.' },
+  { column: 'guardian_name', rule: 'the guardian\'s name. May be left empty.' },
+  { column: 'guardian_phone', rule: 'the guardian\'s phone number, digits only. May be left empty.' },
+  { column: 'gender', rule: 'M or F. Required.' },
+  { column: 'date_of_birth', rule: 'written as DD/MM/YYYY, for example 25/03/2014. Required.' },
+  { column: 'session', rule: 'the session the student was admitted, for example 2024/2025. Required.' },
+];
+
+const IMPORT_CONSEQUENCES = [
+  'If a column name is missing, misspelled or extra, the whole file is declined and nothing is saved.',
+  'If a student row breaks a rule, only that row is skipped. The other rows are still imported.',
+  'Every skipped row is listed with its row number, the column and the reason, so it can be corrected and uploaded again.',
+  'If an admission number appears twice in the file, both rows are skipped.',
+  'A student who already exists is never changed by an import.',
+  'In Excel, format the date_of_birth column as Text before typing dates, so Excel keeps the DD/MM/YYYY layout.',
+];
+
 const STATUS_LABEL = {
   staged: 'Waiting to upload',
   uploading: 'Uploading',
@@ -43,7 +65,8 @@ function messageFor(outcome) {
 export default function ImportStudentsScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  // Head teachers may import, but the server accepts only rows in their own scope.
+  const canImport = user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher';
 
   const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -64,7 +87,7 @@ export default function ImportStudentsScreen() {
   // Sends anything still waiting, then shows the current list.
   useFocusEffect(
     useCallback(() => {
-      if (!isAdmin) return undefined;
+      if (!canImport) return undefined;
       let cancelled = false;
       (async () => {
         setBusy(true);
@@ -80,7 +103,7 @@ export default function ImportStudentsScreen() {
         }
       })();
       return () => { cancelled = true; };
-    }, [isAdmin, refresh])
+    }, [canImport, refresh])
   );
 
   const pickFile = async () => {
@@ -190,11 +213,11 @@ export default function ImportStudentsScreen() {
     );
   };
 
-  if (!isAdmin) {
+  if (!canImport) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Only a Principal or Director can import students.
+          Only a Principal, Director, or Head Teacher can import students.
         </Text>
       </View>
     );
@@ -208,8 +231,23 @@ export default function ImportStudentsScreen() {
         Choose a CSV file. Rows are checked here, then checked again by the server before anything is saved.
       </Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.label, { color: colors.textMuted }]}>Required columns, in this order</Text>
+        <Text style={[styles.label, { color: colors.textMuted }]}>FILE FORMAT</Text>
+        <Text style={[styles.body, { color: colors.textPrimary }]}>
+          Use a CSV file (UTF-8) with up to 2,000 students and a size under 1 MB. The first row must contain these column names, spelled exactly as shown. A file made by Export students on the Students screen already uses this format and can be imported as it is:
+        </Text>
         <Text style={[styles.mono, { color: colors.textPrimary }]}>{HEADER.join(', ')}</Text>
+
+        <Text style={[styles.label, { color: colors.textMuted, marginTop: 14 }]}>WHAT TO ENTER IN EACH COLUMN</Text>
+        {IMPORT_GUIDE.map((item) => (
+          <Text key={item.column} style={[styles.small, { color: colors.textPrimary }]}>
+            {item.column}: {item.rule}
+          </Text>
+        ))}
+
+        <Text style={[styles.label, { color: colors.textMuted, marginTop: 14 }]}>IF THE FILE DOES NOT FOLLOW THE FORMAT</Text>
+        {IMPORT_CONSEQUENCES.map((line, i) => (
+          <Text key={i} style={[styles.small, { color: colors.textPrimary }]}>{'\u2022'} {line}</Text>
+        ))}
       </View>
 
       <Pressable

@@ -3,6 +3,8 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import { getDb } from '../db';
+import { readBiodata } from './biodataLocal';
+import { FIELD_GROUPS } from '../utils/biodataForm';
 
 /**
  * Export a single student record as an A4 PDF for printing.
@@ -83,7 +85,49 @@ async function loadPhotoBase64(localUri) {
   }
 }
 
-function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
+function escapeOrDash(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return '-';
+  return escapeHtml(String(value));
+}
+
+function yesNo(value) {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  return '-';
+}
+
+// Second page: the student's biodata, from the phone's local copy.
+function biodataPageHtml(biodataRow) {
+  const data = biodataRow && biodataRow.data ? biodataRow.data : (biodataRow || {});
+  const status = biodataRow && biodataRow.approval_status ? biodataRow.approval_status : null;
+  const statusLabel = status === 'approved' ? 'Verified by Head Teacher'
+    : status === 'pending' ? 'Awaiting verification'
+    : status === 'returned' ? 'Returned for correction'
+    : 'Not yet entered';
+
+  const rowStyle = 'display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:5px 0;font-size:12px;';
+  const labelStyle = 'color:#000;width:45%;';
+  const valueStyle = 'color:#000;width:55%;text-align:right;font-weight:bold;';
+
+  const groups = FIELD_GROUPS.map((g) => {
+    const rows = g.fields.map((f) => {
+      let value;
+      if (f.type === 'bool') value = yesNo(data[f.key]);
+      else if (f.type === 'date' && data[f.key]) value = formatDate(String(data[f.key]).slice(0, 10));
+      else value = escapeOrDash(data[f.key]);
+      return `<div style="${rowStyle}"><div style="${labelStyle}">${escapeHtml(f.label)}</div><div style="${valueStyle}">${value}</div></div>`;
+    }).join('');
+    return `<div style="font-size:12px;font-weight:bold;margin-top:14px;margin-bottom:4px;">${escapeHtml(g.title)}</div>${rows}`;
+  }).join('');
+
+  return `<div style="page-break-before: always; padding: 24px 40px; font-family: sans-serif; color: #000;">
+  <div style="font-size:18px;font-weight:bold;margin-bottom:4px;">Student Biodata</div>
+  <div style="font-size:11px;margin-bottom:12px;">Status: ${escapeHtml(statusLabel)}</div>
+  ${groups}
+</div>`;
+}
+
+function buildHtml({ student, logoDataUri, photoDataUri, printedAt, biodataRow }) {
   const name = escapeHtml(student.full_name || '-');
   const admission = escapeHtml(student.admission_no || '-');
   const section = escapeHtml(capitalize(student.division));
@@ -93,6 +137,8 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
   const guardian = escapeHtml(student.guardian_name || '-');
   const phone = escapeHtml(student.guardian_phone || '-');
   const registered = escapeHtml(formatDate(student.created_at));
+  const registeredSession = escapeHtml(student.academic_session || 'Not recorded');
+  const currentSession = escapeHtml(student.current_session || student.academic_session || 'Not recorded');
   const printed = escapeHtml(formatDate(printedAt));
 
   const logoBlock = logoDataUri
@@ -217,14 +263,13 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
     <div class="header-text">
       <div class="school-name">${escapeHtml(SCHOOL.name)}</div>
       <div class="tagline">${escapeHtml(SCHOOL.tagline)}</div>
+      <div class="contact">
+        ${escapeHtml(SCHOOL.address)}<br/>
+        Tel: ${escapeHtml(SCHOOL.tel)} &nbsp;|&nbsp;
+        Email: ${escapeHtml(SCHOOL.email)}<br/>
+        ${escapeHtml(SCHOOL.website)}
+      </div>
     </div>
-  </div>
-
-  <div class="contact">
-    ${escapeHtml(SCHOOL.address)}<br/>
-    Tel: ${escapeHtml(SCHOOL.tel)} &nbsp;|&nbsp;
-    Email: ${escapeHtml(SCHOOL.email)} &nbsp;|&nbsp;
-    ${escapeHtml(SCHOOL.website)}
   </div>
 
   <hr class="line" />
@@ -268,6 +313,14 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
         <div class="value">${registered}</div>
       </div>
       <div class="row">
+        <div class="label">Registered Session</div>
+        <div class="value">${registeredSession}</div>
+      </div>
+      <div class="row">
+        <div class="label">Current Session</div>
+        <div class="value">${currentSession}</div>
+      </div>
+      <div class="row">
         <div class="label">Date Printed</div>
         <div class="value">${printed}</div>
       </div>
@@ -280,6 +333,7 @@ function buildHtml({ student, logoDataUri, photoDataUri, printedAt }) {
   <div class="footer">
     Official student record - Yala Matrix Schools
   </div>
+  ${biodataPageHtml(biodataRow)}
 </body>
 </html>
 `;
@@ -306,6 +360,8 @@ export async function exportStudentToPdf(studentId) {
     [studentId]
   );
 
+  const biodataRow = await readBiodata(studentId);
+
   const [logoDataUri, photoDataUri] = await Promise.all([
     loadLogoBase64(),
     loadPhotoBase64(photo?.local_uri || null),
@@ -317,6 +373,7 @@ export async function exportStudentToPdf(studentId) {
     logoDataUri,
     photoDataUri,
     printedAt,
+    biodataRow,
   });
 
   // Remove any previous PDF for this student from the cache
@@ -328,7 +385,7 @@ export async function exportStudentToPdf(studentId) {
       files
         .filter((name) => name.startsWith(prefix) && name.endsWith('.pdf'))
         .map((name) =>
-          FileSystem.deleteAsync(`\( {cacheDir} \){name}`, { idempotent: true })
+          FileSystem.deleteAsync(`${cacheDir}${name}`, { idempotent: true })
         )
     );
   } catch {
@@ -343,7 +400,7 @@ export async function exportStudentToPdf(studentId) {
 
   const safeName = (student.admission_no || studentId)
     .replace(/[^a-zA-Z0-9_-]/g, '_');
-  const finalUri = `\( {cacheDir}yala-student- \){studentId}-${safeName}.pdf`;
+  const finalUri = `${cacheDir}yala-student-${studentId}-${safeName}.pdf`;
 
   try {
     await FileSystem.moveAsync({ from: uri, to: finalUri });

@@ -1,3 +1,4 @@
+const pushRoutes = require('./routes/push.routes');
 const offboardRoutes = require('./routes/offboard.routes');
 const express = require('express');
 const cors = require('cors');
@@ -9,6 +10,7 @@ const config = require('./config');
 
 const authRoutes = require('./routes/auth.routes');
 const usersRoutes = require('./routes/users.routes');
+const guestAccountsRoutes = require('./routes/guestAccounts.routes');
 const studentsRoutes = require('./routes/students.routes');
 const studentImportRoutes = require('./routes/studentImport.routes');
 const studentsChangesRoutes = require('./routes/studentsChanges.routes');
@@ -18,6 +20,16 @@ const permissionsRoutes = require('./routes/permissions.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
 const devicesRoutes = require('./routes/devices.routes');
 const directoryRoutes = require('./routes/directory.routes');
+const loginBlocksRoutes = require('./routes/loginBlocks.routes');
+const resultsPortalRoutes = require('./routes/resultsPortal.routes');
+const logBookRoutes = require('./routes/logBook.routes');
+const staffReportsRoutes = require('./routes/staffReports.routes');
+const staffProfilesRoutes = require('./routes/staffProfiles.routes');
+const studentStatusRoutes = require('./routes/studentStatus.routes');
+const auditLogRoutes = require('./routes/auditLogs.routes');
+const studentBiodataRoutes = require('./routes/studentBiodata.routes');
+const blackBookRoutes = require('./routes/blackBook.routes');
+const alumniRoutes = require('./routes/alumni.routes');
 
 const app = express();
 
@@ -57,6 +69,7 @@ app.use(globalLimiter);
 app.get('/health', (req, res) => res.json({ ok: true, service: 'ysis-backend' }));
 
 app.use('/auth', authRoutes);
+app.use('/guest-accounts', guestAccountsRoutes);
 app.use('/users', usersRoutes);
 // Import routes must be mounted before /students so '/students/import' is not treated as a student id.
 app.use('/students/import', studentImportRoutes);
@@ -67,8 +80,19 @@ app.use('/conflicts', conflictsRoutes);
 app.use('/permissions', permissionsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/devices', devicesRoutes);
+app.use('/push', pushRoutes);
 app.use('/users', offboardRoutes);
 app.use('/directory', directoryRoutes);
+app.use('/login-blocks', loginBlocksRoutes);
+app.use('/results-portal', resultsPortalRoutes);
+app.use('/log-entries', logBookRoutes);
+app.use('/staff-reports', staffReportsRoutes);
+app.use('/staff-profiles', staffProfilesRoutes);
+app.use('/student-status', studentStatusRoutes);
+app.use('/audit-logs', auditLogRoutes);
+app.use('/student-biodata', studentBiodataRoutes);
+app.use('/black-book', blackBookRoutes);
+app.use('/alumni', alumniRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'That endpoint does not exist.' } });

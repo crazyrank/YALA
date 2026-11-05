@@ -68,6 +68,12 @@ export async function unlockWithBiometrics() {
 }
 
 export async function logout(userId) {
+  // Stop sending this device phone alerts before the session ends
+  try {
+    await api.delete('/push/token');
+  } catch {
+    // best-effort
+  }
   try {
     await api.post('/auth/logout', {});
   } catch {

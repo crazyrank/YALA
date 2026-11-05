@@ -23,8 +23,8 @@ const SECTION_CREATORS = {
 
 const VISIBLE_SECTIONS_BY_ROLE = {
   director: ['board', 'management', 'class_teacher'],
-  principal: ['management', 'class_teacher'],
-  head_teacher: ['class_teacher'],
+  principal: ['board', 'management', 'class_teacher'],
+  head_teacher: ['board', 'management', 'class_teacher'],
 };
 
 function serialize(row) {

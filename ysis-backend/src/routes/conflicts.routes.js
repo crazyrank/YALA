@@ -147,6 +147,20 @@ router.post(
           );
         }
 
+        const { rows: history } = await client.query(
+          `SELECT (SELECT COUNT(*) FROM student_leaves WHERE student_id = $1)::int AS leaves,
+                  (SELECT COUNT(*) FROM student_status_events WHERE student_id = $1)::int AS events`,
+          [discardedId]
+        );
+        if (history[0].leaves > 0 || history[0].events > 0) {
+          throw Errors.badRequest(
+            'MERGE_BLOCKED',
+            'The record chosen to discard has leave or status history, so it cannot be deleted. Keep that record as the main one instead.'
+          );
+        }
+
+        await client.query('DELETE FROM student_photos WHERE student_id = $1', [discardedId]);
+        await client.query('DELETE FROM conflicts WHERE student_id = $1', [discardedId]);
         await client.query('DELETE FROM students WHERE id = $1', [discardedId]);
 
         await client.query(
@@ -154,6 +168,14 @@ router.post(
            SET status = 'resolved', resolved_by = $2, canonical_id = $3, discarded_id = $4, resolved_at = now()
            WHERE id = $1`,
           [req.params.id, req.auth.userId, canonicalId, discardedId]
+        );
+
+        // Any other open items that pointed at the deleted record are settled too.
+        await client.query(
+          `UPDATE admission_merge_queue
+           SET status = 'resolved', resolved_by = $2, canonical_id = $3, discarded_id = $1, resolved_at = now()
+           WHERE status = 'open' AND id <> $4 AND ($1 IN (record_a_id, record_b_id))`,
+          [discardedId, req.auth.userId, canonicalId, req.params.id]
         );
       });
 

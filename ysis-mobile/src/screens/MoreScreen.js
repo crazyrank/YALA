@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius, shadow } from '../theme/spacing';
+import { getDb } from '../db';
 
 function MenuRow({ icon, label, subtitle, color, onPress, danger }) {
   const { colors } = useTheme();
@@ -113,13 +115,105 @@ function getInitials(name = '') {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+// Keeps only letters, digits, spaces, and . ' / - so the search text is safe to use.
+// The text is also passed to the database as a parameter, never joined into the SQL.
+function sanitizeSearch(raw) {
+  return String(raw ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/[^A-Za-z0-9 .'\/\-]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^ +/, '')
+    .slice(0, 40);
+}
+
+function SearchResults({ query, rows, navigation, colors }) {
+  if (query.length < 2) {
+    return (
+      <Text style={[styles.resultHint, { color: colors.textMuted }]}>
+        Type at least 2 letters or numbers.
+      </Text>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <Text style={[styles.resultHint, { color: colors.textMuted }]}>
+        No student matches "{query}".
+      </Text>
+    );
+  }
+  return (
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {rows.map((item) => (
+        <Pressable
+          key={item.id}
+          onPress={() => navigation.navigate('StudentDetail', { studentId: item.id })}
+          style={[styles.resultRow, { borderBottomColor: colors.border }]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.resultName, { color: colors.textPrimary }]} numberOfLines={1}>
+              {item.full_name}
+            </Text>
+            <Text style={[styles.resultSub, { color: colors.textMuted }]} numberOfLines={1}>
+              {item.admission_no}, {item.class_level}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 export default function MoreScreen({ navigation }) {
   const { user, logout, updateProfilePhoto, removeProfilePhoto } = useAuth();
   const { colors, preference, setPreference } = useTheme();
   const insets = useSafeAreaInsets();
   const isAdmin = user?.role === 'principal' || user?.role === 'director';
+  const canImport = isAdmin || user?.role === 'head_teacher';
+  const isGuest = user?.role === 'guest';
+  const canStaffReports = isAdmin || user?.role === 'head_teacher';
+  const canLeavers = isAdmin || user?.role === 'head_teacher';
   const [uploading, setUploading] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    if (!searchOpen || query.length < 2) {
+      setResults([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const db = await getDb();
+        const term = `%${query}%`;
+        const rows = await db.getAllAsync(
+          `SELECT id, admission_no, full_name, class_level
+             FROM students
+            WHERE full_name LIKE ? OR admission_no LIKE ?
+            ORDER BY full_name ASC
+            LIMIT 25`,
+          [term, term]
+        );
+        if (!cancelled) setResults(rows || []);
+      } catch {
+        if (!cancelled) setResults([]);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, searchOpen]);
+
+  const onQueryChange = (text) => setQuery(sanitizeSearch(text));
+  const toggleSearch = () => {
+    setSearchOpen((open) => !open);
+    setQuery('');
+    setResults([]);
+  };
 
   const confirmLogout = () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -226,11 +320,44 @@ export default function MoreScreen({ navigation }) {
 
   return (
     <>
+      <View style={[styles.settingsHeader, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+        <Text style={[styles.settingsTitle, { color: colors.textPrimary }]}>Settings</Text>
+        {!isGuest && <Pressable
+          onPress={toggleSearch}
+          hitSlop={12}
+          style={styles.searchBtn}
+          accessibilityLabel={searchOpen ? 'Close search' : 'Search'}
+        >
+          <Ionicons name={searchOpen ? 'close' : 'search'} size={22} color={colors.textPrimary} />
+        </Pressable>}
+      </View>
+
+      {!isGuest && searchOpen && (
+        <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="search" size={16} color={colors.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={onQueryChange}
+            placeholder="Search students by name or admission no."
+            placeholderTextColor={colors.textMuted}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="none"
+            maxLength={40}
+            returnKeyType="search"
+          />
+        </View>
+      )}
+
+      {!isGuest && searchOpen ? (
+        <SearchResults query={query} rows={results} navigation={navigation} colors={colors} />
+      ) : (
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Math.max(insets.top, 12) + 12 },
+          { paddingTop: 12 },
         ]}
       >
         <View
@@ -253,15 +380,23 @@ export default function MoreScreen({ navigation }) {
             ) : (
               <View style={[styles.avatar, { backgroundColor: colors.ink }]}>
                 <Text style={styles.avatarText}>
-                  {getInitials(user?.full_name || user?.email || 'U')}
+                  {getInitials(user?.fullName || user?.full_name || user?.email || 'U')}
                 </Text>
               </View>
             )}
-            <View style={[styles.cameraBadge, { backgroundColor: colors.gold }]}>
+            <View
+              style={[
+                styles.cameraBadge,
+                {
+                  backgroundColor: colors.gold,
+                  borderColor: colors.surface,
+                },
+              ]}
+            >
               {uploading ? (
-                <ActivityIndicator size="small" color="#0A1930" />
+                <ActivityIndicator size="small" color="#0E1A2B" />
               ) : (
-                <Ionicons name="camera" size={14} color="#0A1930" />
+                <Ionicons name="camera" size={14} color="#0E1A2B" />
               )}
             </View>
           </Pressable>
@@ -270,7 +405,7 @@ export default function MoreScreen({ navigation }) {
               style={[styles.name, { color: colors.textPrimary }]}
               numberOfLines={1}
             >
-              {user?.full_name || 'Staff'}
+              {user?.fullName || user?.fullName || user?.full_name || 'Guest'}
             </Text>
             <Text style={[styles.role, { color: colors.goldDark }]}>
               {(user?.role || 'staff').replace(/_/g, ' ').toUpperCase()}
@@ -290,7 +425,7 @@ export default function MoreScreen({ navigation }) {
           icon="camera"
           label="Change profile picture"
           subtitle="Upload, view, or remove your photo"
-          color={colors.inkSoft}
+          color={colors.textPrimary}
           onPress={handleChangePhoto}
         />
 
@@ -301,8 +436,18 @@ export default function MoreScreen({ navigation }) {
             icon="people"
             label="Manage Staff"
             subtitle="Create and manage accounts"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('ManageStaff')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
+            icon="person-circle"
+            label="Guest Accounts"
+            subtitle="Approve, renew and manage Guest access"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('GuestAccounts')}
           />
         )}
 
@@ -311,18 +456,34 @@ export default function MoreScreen({ navigation }) {
             icon="phone-portrait"
             label="Trusted Devices"
             subtitle="Approve, review and revoke devices"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('DeviceReview')}
           />
         )}
 
         <MenuRow
+          icon="play-circle-outline"
+          label="Replay introduction"
+          subtitle="Watch the school declaration again"
+          color={colors.goldDark}
+          onPress={() => navigation.navigate('Intro', { replay: true })}
+        />
+
+        {!isGuest && <MenuRow
+          icon="notifications"
+          label="Notifications"
+          subtitle="Alerts for your account"
+          color={colors.textPrimary}
+          onPress={() => navigation.navigate('Notifications')}
+        />}
+
+        {!isGuest && <MenuRow
           icon="albums"
           label="Staff Directory"
           subtitle="Board, management & class teachers"
           color={colors.goldDark}
           onPress={() => navigation.navigate('StaffDirectory')}
-        />
+        />}
 
         {isAdmin && (
           <MenuRow
@@ -339,28 +500,128 @@ export default function MoreScreen({ navigation }) {
             icon="git-merge"
             label="Duplicate Registrations"
             subtitle="Merge queue"
-            color="#5B3A8E"
+            color={colors.accentPurple}
             onPress={() => navigation.navigate('MergeQueue')}
+          />
+        )}
+
+        {canLeavers && (
+          <MenuRow
+            icon="exit"
+            label="Leavers"
+            subtitle="Students who have left, by session"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('Leavers')}
+          />
+        )}
+
+        {canImport && (
+          <MenuRow
+            icon="people"
+            label="Class Teachers"
+            subtitle="Each class teacher and their one class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('ClassTeachers')}
           />
         )}
 
         {isAdmin && (
           <MenuRow
+            icon="person-add"
+            label="Add Class Teacher"
+            subtitle="Create an account and give them one class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('CreateClassTeacher')}
+          />
+        )}
+
+        {!isGuest && (
+          <MenuRow
+            icon="book"
+            label="Log Book"
+            subtitle="Daily activity in each class"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('LogBook')}
+          />
+        )}
+
+        {user?.role === 'principal' && (
+          <MenuRow
+            icon="lock-closed"
+            label="Black Book"
+            subtitle="Principal's private record"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('BlackBook')}
+          />
+        )}
+
+        {(user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher') && (
+          <MenuRow
+            icon="people"
+            label="Alumni"
+            subtitle="Former students and their contact details"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('Alumni')}
+          />
+        )}
+
+        {canStaffReports && (
+          <MenuRow
+            icon="star"
+            label="Staff Reports"
+            subtitle="Monthly score and comment for each staff member"
+            color={colors.goldDark}
+            onPress={() => navigation.navigate('StaffReports')}
+          />
+        )}
+
+        {canStaffReports && (
+          <MenuRow
+            icon="people"
+            label="Staff Profiles"
+            subtitle="Contact details, role and class or division"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('StaffProfiles')}
+          />
+        )}
+
+        {user?.role === 'principal' && (
+          <MenuRow
+            icon="key"
+            label="Permissions"
+            subtitle="One-week promotion rights for Head Teachers"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('PermissionDelegation')}
+          />
+        )}
+
+        {isAdmin && (
+          <MenuRow
+            icon="document-text"
+            label="Audit Log"
+            subtitle="Who did what, filtered by person and date"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('AuditLog')}
+          />
+        )}
+
+        {canImport && (
+          <MenuRow
             icon="cloud-upload"
             label="Import Students"
             subtitle="Upload a CSV from this phone"
-            color={colors.inkSoft}
+            color={colors.textPrimary}
             onPress={() => navigation.navigate('ImportStudents')}
           />
         )}
 
-        <MenuRow
+        {!isGuest && <MenuRow
           icon="person-add"
           label="Register Student"
           subtitle="Add a new student record"
-          color={colors.inkSoft}
+          color={colors.textPrimary}
           onPress={() => navigation.navigate('RegisterTab')}
-        />
+        />}
 
         <Text
           style={[styles.section, { color: colors.textMuted, marginTop: 18 }]}
@@ -377,6 +638,7 @@ export default function MoreScreen({ navigation }) {
           onPress={confirmLogout}
         />
       </ScrollView>
+      )}
 
       <Modal
         visible={viewerOpen}
@@ -423,6 +685,58 @@ export default function MoreScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+  },
+  settingsTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 28,
+    letterSpacing: -0.6,
+  },
+  searchBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    height: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fontFamily.body,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  resultName: { fontFamily: fontFamily.heading, fontSize: 15 },
+  resultSub: { fontFamily: fontFamily.body, fontSize: 12, marginTop: 2 },
+  resultHint: {
+    fontFamily: fontFamily.body,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 32,
+    paddingHorizontal: 24,
+  },
   container: { flex: 1 },
   content: { padding: 18, paddingBottom: 40 },
   profile: {
@@ -461,7 +775,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   avatarText: {
     color: '#FFFFFF',
@@ -561,14 +874,14 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width - 40,
     height: Dimensions.get('window').width - 40,
     borderRadius: 16,
-    backgroundColor: '#16324F',
+    backgroundColor: '#17263B',
   },
   viewerActions: {
     flexDirection: 'row',
     marginTop: 28,
   },
   viewerBtn: {
-    backgroundColor: '#C9A24B',
+    backgroundColor: '#2FA37A',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,

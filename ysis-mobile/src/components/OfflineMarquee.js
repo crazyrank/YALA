@@ -60,7 +60,7 @@ export default function OfflineMarquee() {
 const styles = StyleSheet.create({
   container: {
     height: 26,
-    backgroundColor: '#f4ead0',
+    backgroundColor: '#E6F4EE',
     justifyContent: 'center',
     overflow: 'hidden',
   },

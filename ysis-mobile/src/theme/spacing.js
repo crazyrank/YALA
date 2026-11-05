@@ -22,7 +22,7 @@ export const radius = {
 export const shadow = {
   card: Platform.select({
     ios: {
-      shadowColor: '#0A1930',
+      shadowColor: '#0E1A2B',
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.08,
       shadowRadius: 16,
@@ -32,7 +32,7 @@ export const shadow = {
   }),
   raised: Platform.select({
     ios: {
-      shadowColor: '#0A1930',
+      shadowColor: '#0E1A2B',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.06,
       shadowRadius: 10,
@@ -42,7 +42,7 @@ export const shadow = {
   }),
   button: Platform.select({
     ios: {
-      shadowColor: '#0A1930',
+      shadowColor: '#0E1A2B',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.22,
       shadowRadius: 18,
@@ -52,7 +52,7 @@ export const shadow = {
   }),
   goldGlow: Platform.select({
     ios: {
-      shadowColor: '#C9A24B',
+      shadowColor: '#2FA37A',
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 14,

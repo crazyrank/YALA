@@ -1,4 +1,5 @@
 const { notifyDirectors } = require('../services/alerts');
+const { assertNotLocked, recordFailure } = require('../services/loginProtection');
 const { isBreachedPassword } = require('../services/breachCheck');
 const { deviceIsStale, STALE_DEVICE_MESSAGE } = require('../services/deviceTrust');
 const express = require('express');
@@ -58,6 +59,18 @@ async function storeRefreshHash(deviceId, refreshToken) {
   );
 }
 
+
+router.get('/session', requireAuth, async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, full_name, role, must_change_password, guest_expires_at
+         FROM users WHERE id = $1`, [req.auth.userId]
+    );
+    const user = rows[0];
+    return res.json({ user: { id: user.id, fullName: user.full_name, role: user.role, mustChangePassword: user.must_change_password, guestExpiresAt: user.role === 'guest' ? user.guest_expires_at : null } });
+  } catch (err) { return next(err); }
+});
+
 router.post(
   '/login',
   authLimiter,
@@ -72,6 +85,7 @@ router.post(
       checkValidation(req);
       const { email, password, deviceFingerprint, deviceName } = req.body;
 
+      await assertNotLocked(email, req.ip);
       const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       const user = rows[0];
 
@@ -80,24 +94,7 @@ router.post(
       const passwordOk = await verifyPassword(password, hashToCheck);
 
       if (!user || !passwordOk) {
-        if (user) {
-          const nextCount = (user.failed_login_count || 0) + 1;
-          const updates = { failed_login_count: nextCount };
-          if (nextCount >= config.maxFailedLogins) {
-            updates.locked_until = new Date(Date.now() + config.lockoutMinutes * 60 * 1000);
-            notifyDirectors({
-              title: 'Account locked after failed sign-ins',
-              body: user.full_name + ' was locked after repeated failed sign-in attempts.',
-              entityId: user.id,
-            });
-          }
-          await db.query(
-            `UPDATE users SET failed_login_count = $2,
-               locked_until = COALESCE($3, locked_until), updated_at = now()
-             WHERE id = $1`,
-            [user.id, nextCount, updates.locked_until || null]
-          );
-        }
+        await recordFailure(email, req.ip);
         // Do not store raw email in audit on failure — store a short hash only
         await writeAudit({
           action: 'LOGIN',
@@ -107,9 +104,8 @@ router.post(
         throw Errors.unauthorized('Incorrect email or password.');
       }
 
-      if (user.locked_until && new Date(user.locked_until) > new Date()) {
-        throw Errors.accountLocked();
-      }
+      // Account-wide lockout removed. Sign-in protection is handled by
+      // the account and network pair lock and the network block.
 
       if (user.status !== 'active') {
         await writeAudit({
@@ -121,12 +117,9 @@ router.post(
         throw Errors.forbidden('This account is not active. Contact your administrator.');
       }
 
-      // Clear lockout counters on successful auth
-      if (user.failed_login_count > 0 || user.locked_until) {
-        await db.query(
-          `UPDATE users SET failed_login_count = 0, locked_until = NULL, updated_at = now() WHERE id = $1`,
-          [user.id]
-        );
+      if (user.role === 'guest' && (!user.guest_expires_at || new Date(user.guest_expires_at) <= new Date())) {
+        await writeAudit({ userId: user.id, action: 'GUEST_LOGIN_EXPIRED', result: 'failure' });
+        throw Errors.unauthorized('Guest access has expired. Contact the Principal or Director who approved your account.');
       }
 
       let device;
@@ -166,7 +159,7 @@ router.post(
           [user.id, 'revoked']
         );
         const isFirstDevice = (countRows[0]?.c || 0) === 0;
-        const initialStatus = isFirstDevice ? 'trusted' : 'pending_verification';
+        const initialStatus = isFirstDevice && user.role !== 'guest' ? 'trusted' : 'pending_verification';
 
         const created = await db.query(
           `INSERT INTO devices (user_id, device_name, device_fingerprint, status, last_seen_at)
@@ -194,6 +187,11 @@ router.post(
         }
       }
 
+      await db.query(
+        'UPDATE devices SET last_login_ip = $2, last_login_at = now() WHERE id = $1',
+        [device.id, req.ip]
+      );
+
       const { accessToken, refreshToken } = issueTokens(res, {
         userId: user.id,
         role: user.role,
@@ -205,7 +203,7 @@ router.post(
       await writeAudit({
         userId: user.id,
         deviceId: device.id,
-        action: 'LOGIN',
+        action: user.role === 'guest' ? 'GUEST_LOGIN' : 'LOGIN',
         result: 'success',
       });
 
@@ -219,6 +217,7 @@ router.post(
           fullName: user.full_name,
           role: user.role,
           mustChangePassword: user.must_change_password,
+          guestExpiresAt: user.role === 'guest' ? user.guest_expires_at : null,
         },
       });
     } catch (err) {
@@ -244,7 +243,7 @@ router.post('/refresh', async (req, res, next) => {
     }
 
     const { rows } = await db.query(
-      `SELECT u.role, u.session_version, u.status, d.status AS device_status, d.last_seen_at AS device_last_seen, d.refresh_token_hash
+      `SELECT u.role, u.session_version, u.status, u.guest_expires_at, d.status AS device_status, d.last_seen_at AS device_last_seen, d.refresh_token_hash
        FROM users u
        JOIN devices d ON d.id = $2 AND d.user_id = u.id
        WHERE u.id = $1`,
@@ -253,6 +252,9 @@ router.post('/refresh', async (req, res, next) => {
     const record = rows[0];
     if (!record || record.status !== 'active') {
       throw Errors.unauthorized('Session expired. Please sign in again.');
+    }
+    if (record.role === 'guest' && (!record.guest_expires_at || new Date(record.guest_expires_at) <= new Date())) {
+      throw Errors.unauthorized('Guest access has expired. Contact the Principal or Director who approved your account.');
     }
     if (record.session_version !== payload.sessionVersion) {
       throw Errors.unauthorized('Session expired. Please sign in again.');
@@ -388,9 +390,22 @@ router.post(
       if (!target) throw Errors.notFound('That account could not be found.');
 
       const callerRole = req.auth.role;
-      const validPair =
+      let validPair =
         (callerRole === 'principal' && target.role === 'head_teacher') ||
-        (callerRole === 'director' && target.role === 'principal');
+        (callerRole === 'director' && target.role === 'principal') ||
+        ((callerRole === 'principal' || callerRole === 'director') && target.role === 'class_teacher');
+      if (!validPair && callerRole === 'head_teacher' && target.role === 'class_teacher') {
+        // A Head Teacher resets only a Class Teacher whose class is inside their own scope.
+        const { rows: inScope } = await db.query(
+          `SELECT 1 FROM class_teacher_assignments c
+            WHERE c.user_id = $1 AND EXISTS (
+              SELECT 1 FROM head_teacher_class_assignments h
+               WHERE h.user_id = $2 AND h.division = c.division
+                 AND (h.class_level IS NULL OR h.class_level = c.class_level))`,
+          [target.id, req.auth.userId]
+        );
+        validPair = inScope.length > 0;
+      }
       if (!validPair) throw Errors.forbidden('You are not able to reset this account.');
 
       await db.query(

@@ -99,3 +99,8 @@ mandatory-reason Principal-only correction path, uploaded to Cloudinary.
 - Never commit `.env.development` or `.env.production`. Only `.env.example` is tracked.
 - Production secrets live on Render's dashboard only, never on a local machine.
 - `audit_logs` has `UPDATE`/`DELETE` revoked from the app's DB role via migration 004 — verify this actually took effect on your specific Neon role (some managed providers restrict self-revocation; check via Neon's SQL console if the migration's DO block logged a NOTICE instead of applying it).
+
+
+## Guest accounts
+
+Guest accounts are provisioned through `/guest-accounts` by Directors and Principals. See `docs/GUEST-ACCOUNTS.md` for provisioning, expiry, device trust, assigned-student read scope, Results Portal access, audit events and required migrations.

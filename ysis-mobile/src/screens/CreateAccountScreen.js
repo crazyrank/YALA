@@ -5,24 +5,48 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 
 /**
- * Director creates a Principal, or Principal creates a Head Teacher — the
- * target role is inferred server-side from the caller's own role (never
- * sent from here), matching the backend's privilege-escalation guard.
- * This screen is only reachable for director/principal (see RootNavigator).
+ * Create a staff account.
  *
- * This is an ONLINE-ONLY action (unlike student registration) — account
- * creation always hits the server directly, no local-first queue, since
- * the temp credential must come from the server and be shown exactly once.
+ * Route params (optional):
+ *   targetRole: 'principal' | 'head_teacher'  (default inferred from caller)
+ *   division:   'primary' | 'secondary'       (required when creating HT)
+ *
+ * Director may create Principal (no division) or Head Teacher (with division).
+ * Principal may only create Head Teacher (with division).
+ *
+ * Role is still enforced server-side — the client never escalates privilege.
+ * Online-only: temp credential comes from the server and is shown once.
  */
-export default function CreateAccountScreen({ navigation }) {
+export default function CreateAccountScreen({ navigation, route }) {
   const { user } = useAuth();
-  const creatingRole = user?.role === 'director' ? 'Principal' : 'Head Teacher';
+  const paramRole = route?.params?.targetRole;
+  const paramDivision = route?.params?.division;
+
+  // Resolve what we are creating.
+  const isHeadTeacher =
+    paramRole === 'head_teacher' ||
+    user?.role === 'principal' ||
+    (user?.role === 'director' && !!paramDivision);
+
+  const creatingRole = isHeadTeacher
+    ? paramDivision === 'primary'
+      ? 'Primary school HT'
+      : paramDivision === 'secondary'
+        ? 'Secondary school HT'
+        : 'Head Teacher'
+    : 'Principal';
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  // Pre-select division from route when director taps Primary/Secondary HT.
+  const [division, setDivision] = useState(
+    paramDivision === 'primary' || paramDivision === 'secondary' ? paramDivision : ''
+  );
   const [saving, setSaving] = useState(false);
-  const [created, setCreated] = useState(null); // { user, tempCredential } — shown once
+  const [created, setCreated] = useState(null); // { user, tempCredential }
+
+  const needsDivisionPicker = isHeadTeacher && !paramDivision;
 
   const handleCreate = async () => {
     if (!fullName.trim() || !email.trim()) {
@@ -30,19 +54,30 @@ export default function CreateAccountScreen({ navigation }) {
       return;
     }
 
+    if (isHeadTeacher && !['primary', 'secondary'].includes(division)) {
+      Alert.alert('Choose a division', 'Pick Primary school HT or Secondary school HT.');
+      return;
+    }
+
     setSaving(true);
     try {
+      // Always send explicit role. Server enforces what the caller may create.
       const result = await api.post('/users', {
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
+        role: isHeadTeacher ? 'head_teacher' : 'principal',
+        division: isHeadTeacher ? division : undefined,
       });
       setCreated(result);
     } catch (err) {
       if (err.code === 'EMAIL_IN_USE') {
         Alert.alert('Email already in use', 'An account with this email already exists.');
       } else if (err.isNetworkError) {
-        Alert.alert('Offline', 'Creating an account requires an internet connection. Please try again once you\'re online.');
+        Alert.alert(
+          'Offline',
+          "Creating an account requires an internet connection. Please try again once you're online."
+        );
       } else {
         Alert.alert('Could not create account', err.message || 'Something went wrong.');
       }
@@ -64,8 +99,6 @@ export default function CreateAccountScreen({ navigation }) {
     navigation.goBack();
   };
 
-  // Success state: show the one-time temp credential, same discipline as
-  // the existing password-reset flow — this never appears again.
   if (created) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -95,10 +128,10 @@ export default function CreateAccountScreen({ navigation }) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Create {creatingRole} Account</Text>
+      <Text style={styles.title}>Create {creatingRole}</Text>
       <Text style={styles.hint}>
-        A temporary password will be generated and shown once. The new {creatingRole.toLowerCase()}{' '}
-        will be required to set their own password on first login.
+        A temporary password will be generated and shown once. The new account holder will be
+        required to set their own password on first login.
       </Text>
 
       <Field label="Full Name *" value={fullName} onChangeText={setFullName} placeholder="Full name" />
@@ -110,7 +143,59 @@ export default function CreateAccountScreen({ navigation }) {
         keyboardType="email-address"
         autoCapitalize="none"
       />
-      <Field label="Phone" value={phone} onChangeText={setPhone} placeholder="Optional" keyboardType="phone-pad" />
+      <Field
+        label="Phone"
+        value={phone}
+        onChangeText={setPhone}
+        placeholder="Optional"
+        keyboardType="phone-pad"
+      />
+
+      {needsDivisionPicker && (
+        <View style={{ marginBottom: 16 }}>
+          <Text style={styles.label}>Division *</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {[
+              { key: 'primary', label: 'Primary school HT' },
+              { key: 'secondary', label: 'Secondary school HT' },
+            ].map((d) => (
+              <Pressable
+                key={d.key}
+                onPress={() => setDivision(d.key)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#D9DEE5',
+                  backgroundColor: division === d.key ? '#1D3557' : '#FFFFFF',
+                }}
+              >
+                <Text
+                  style={{
+                    fontWeight: '600',
+                    fontSize: 13,
+                    textAlign: 'center',
+                    color: division === d.key ? '#FFFFFF' : '#1F2933',
+                  }}
+                >
+                  {d.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* When division was passed via route, show it as read-only context */}
+      {isHeadTeacher && paramDivision && (
+        <View style={styles.divisionChip}>
+          <Text style={styles.divisionChipText}>
+            {paramDivision === 'primary' ? 'Primary school HT' : 'Secondary school HT'}
+          </Text>
+        </View>
+      )}
 
       <Pressable style={styles.button} onPress={handleCreate} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Creating...' : `Create ${creatingRole}`}</Text>
@@ -131,17 +216,48 @@ function Field({ label, ...props }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { padding: 18, paddingBottom: 40 },
-  title: { fontSize: 20, fontWeight: '700', color: '#16324f', marginBottom: 6 },
+  title: { fontSize: 20, fontWeight: '700', color: '#17263B', marginBottom: 6 },
   hint: { fontSize: 12, color: '#7a8a99', lineHeight: 17, marginBottom: 20 },
   fieldGroup: { marginBottom: 14 },
-  label: { fontSize: 12, fontWeight: '600', color: '#16324f', marginBottom: 6 },
-  input: { backgroundColor: '#f4f2ec', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-  button: { backgroundColor: '#c9a24b', paddingVertical: 14, borderRadius: 8, marginTop: 10 },
+  label: { fontSize: 12, fontWeight: '600', color: '#17263B', marginBottom: 6 },
+  input: {
+    backgroundColor: '#f4f2ec',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  button: { backgroundColor: '#2FA37A', paddingVertical: 14, borderRadius: 8, marginTop: 10 },
   buttonText: { textAlign: 'center', color: '#0d1f33', fontWeight: '700', fontSize: 15 },
-  secondaryButton: { backgroundColor: '#f4f2ec', paddingVertical: 14, borderRadius: 8, marginTop: 14 },
-  secondaryButtonText: { textAlign: 'center', color: '#16324f', fontWeight: '700', fontSize: 15 },
-  credentialCard: { backgroundColor: '#16324f', borderRadius: 12, padding: 18, marginTop: 6 },
-  credentialLabel: { color: '#9fb3c8', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
+  secondaryButton: {
+    backgroundColor: '#f4f2ec',
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginTop: 14,
+  },
+  secondaryButtonText: { textAlign: 'center', color: '#17263B', fontWeight: '700', fontSize: 15 },
+  credentialCard: { backgroundColor: '#17263B', borderRadius: 12, padding: 18, marginTop: 6 },
+  credentialLabel: {
+    color: '#9fb3c8',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
   credentialValue: { color: '#fff', fontSize: 15, fontWeight: '600', marginTop: 4 },
-  credentialValueLarge: { color: '#c9a24b', fontSize: 26, fontWeight: '800', letterSpacing: 2, marginTop: 4 },
+  credentialValueLarge: {
+    color: '#2FA37A',
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  divisionChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8EEF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  divisionChipText: { fontSize: 13, fontWeight: '600', color: '#1D3557' },
 });

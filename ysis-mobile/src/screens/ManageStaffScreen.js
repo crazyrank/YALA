@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +22,7 @@ export default function ManageStaffScreen({ navigation }) {
   const { user } = useAuth();
   const { colors } = useTheme();
   const isDirector = user?.role === 'director';
-  const staffLabel = isDirector ? 'Principals' : 'Head Teachers';
+  const staffLabel = isDirector ? 'Staff accounts' : 'Head Teachers';
   const createLabel = isDirector ? 'Create Principal' : 'Create Head Teacher';
 
   const [staff, setStaff] = useState([]);
@@ -49,10 +50,14 @@ export default function ManageStaffScreen({ navigation }) {
     }, [loadStaff])
   );
 
+  // Director can permanently delete principals and head teachers they created.
+  const canDelete = (member) =>
+    isDirector && (member.role === 'principal' || member.role === 'head_teacher');
+
   const toggleStatus = (member) => {
     const nextStatus = member.status === 'active' ? 'suspended' : 'active';
     const verb = nextStatus === 'suspended' ? 'Disable' : 'Enable';
-    const name = member.fullName || member.full_name || 'This account';
+    const name = member.fullName || 'This account';
 
     Alert.alert(
       `${verb} account?`,
@@ -71,14 +76,35 @@ export default function ManageStaffScreen({ navigation }) {
               const result = await api.patch(`/users/${member.id}/status`, {
                 status: nextStatus,
               });
-              setStaff((prev) =>
-                prev.map((s) => (s.id === member.id ? result.user : s))
-              );
+              setStaff((prev) => prev.map((s) => (s.id === member.id ? result.user : s)));
             } catch (err) {
-              Alert.alert(
-                'Could not update account',
-                err.message || 'Something went wrong.'
-              );
+              Alert.alert('Could not update account', err.message || 'Something went wrong.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteMember = (member) => {
+    const name = member.fullName || 'This account';
+    const roleLabel =
+      member.role === 'principal' ? 'principal' : 'head teacher';
+
+    Alert.alert(
+      `Delete ${roleLabel}?`,
+      `${name} will be permanently removed from the database and will no longer be able to sign in. Audit history that mentioned this account is kept.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete permanently',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/users/${member.id}`);
+              setStaff((prev) => prev.filter((s) => s.id !== member.id));
+            } catch (err) {
+              Alert.alert('Could not delete account', err.message || 'Something went wrong.');
             }
           },
         },
@@ -93,20 +119,25 @@ export default function ManageStaffScreen({ navigation }) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
+  const roleLabel = (role) => {
+    if (role === 'principal') return 'Principal';
+    if (role === 'head_teacher') return 'Head Teacher';
+    return role || 'Staff';
+  };
+
   const renderItem = ({ item }) => {
-    const name = item.fullName || item.full_name || 'Staff';
+    const name = item.fullName || 'Staff';
     const email = item.email || '';
-    const status = item.status || 'active';
-    const suspended = status === 'suspended';
+    const suspended = (item.status || 'active') === 'suspended';
 
     return (
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.surfaceAlt || '#1B2438', borderColor: colors.border },
+          { backgroundColor: colors.surfaceAlt || '#17263B', borderColor: colors.border },
         ]}
       >
-        <View style={[styles.avatar, { backgroundColor: colors.inkSoft || '#16324F' }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.inkSoft }]}>
           <Text style={styles.avatarText}>{getInitials(name)}</Text>
         </View>
 
@@ -132,33 +163,52 @@ export default function ManageStaffScreen({ navigation }) {
             >
               {suspended ? 'Suspended' : 'Active'}
             </Text>
+            {isDirector && item.role ? (
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: colors.textSecondary, marginLeft: 10 },
+                ]}
+              >
+                · {roleLabel(item.role)}
+              </Text>
+            ) : null}
           </View>
         </View>
 
-        <Pressable
-          onPress={() => toggleStatus(item)}
-          style={[
-            styles.actionBtn,
-            {
-              backgroundColor: suspended ? colors.gold : 'rgba(255,255,255,0.08)',
-            },
-          ]}
-        >
-          <Text
+        <View style={styles.actions}>
+          <Pressable
+            onPress={() => toggleStatus(item)}
             style={[
-              styles.actionText,
-              { color: suspended ? '#0A1930' : colors.textPrimary },
+              styles.actionBtn,
+              { backgroundColor: suspended ? colors.success : colors.errorBg },
             ]}
           >
-            {suspended ? 'Enable' : 'Disable'}
-          </Text>
-        </Pressable>
+            <Text
+              style={[
+                styles.actionText,
+                { color: suspended ? colors.textInverse : colors.error },
+              ]}
+            >
+              {suspended ? 'Enable' : 'Disable'}
+            </Text>
+          </Pressable>
+
+          {canDelete(item) && (
+            <Pressable
+              onPress={() => deleteMember(item)}
+              style={[styles.actionBtn, { backgroundColor: colors.error }]}
+            >
+              <Text style={[styles.actionText, { color: colors.textInverse }]}>Delete</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background || '#0B1220' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerBlock}>
         <Text style={[styles.eyebrow, { color: colors.gold }]}>STAFF</Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>{staffLabel}</Text>
@@ -167,13 +217,59 @@ export default function ManageStaffScreen({ navigation }) {
         </Text>
       </View>
 
-      <Pressable
-        style={[styles.createBtn, { backgroundColor: colors.gold }]}
-        onPress={() => navigation.navigate('CreateAccount')}
-      >
-        <Ionicons name="person-add" size={18} color="#0A1930" />
-        <Text style={styles.createBtnText}>{createLabel}</Text>
-      </Pressable>
+      {isDirector ? (
+        <View style={styles.createGroup}>
+          <Pressable
+            style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', { targetRole: 'principal' })
+            }
+          >
+            <Ionicons name="person-add" size={18} color={colors.textInverse} />
+            <Text style={[styles.createBtnText, { color: colors.textInverse }]}>
+              Create Principal
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.createBtn, styles.createBtnSecondary, { borderColor: colors.border }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', {
+                targetRole: 'head_teacher',
+                division: 'primary',
+              })
+            }
+          >
+            <Ionicons name="school-outline" size={18} color={colors.textPrimary} />
+            <Text style={[styles.createBtnText, { color: colors.textPrimary }]}>
+              Create Primary school HT
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.createBtn, styles.createBtnSecondary, { borderColor: colors.border }]}
+            onPress={() =>
+              navigation.navigate('CreateAccount', {
+                targetRole: 'head_teacher',
+                division: 'secondary',
+              })
+            }
+          >
+            <Ionicons name="school-outline" size={18} color={colors.textPrimary} />
+            <Text style={[styles.createBtnText, { color: colors.textPrimary }]}>
+              Create Secondary school HT
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.createGroup}>
+          <Pressable
+            style={[styles.createBtn, { backgroundColor: colors.inkSoft }]}
+            onPress={() => navigation.navigate('CreateAccount')}
+          >
+            <Ionicons name="person-add" size={18} color={colors.textInverse} />
+            <Text style={[styles.createBtnText, { color: colors.textInverse }]}>{createLabel}</Text>
+          </Pressable>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -184,10 +280,7 @@ export default function ManageStaffScreen({ navigation }) {
           data={staff}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          contentContainerStyle={[
-            styles.list,
-            staff.length === 0 && styles.emptyList,
-          ]}
+          contentContainerStyle={[styles.list, staff.length === 0 && styles.emptyList]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -202,7 +295,7 @@ export default function ManageStaffScreen({ navigation }) {
                 No {staffLabel.toLowerCase()} yet
               </Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                Tap “{createLabel}” to add the first account.
+                Tap "{createLabel}" to add the first account.
               </Text>
             </View>
           }
@@ -235,22 +328,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  createBtn: {
+  createGroup: {
     marginHorizontal: 20,
     marginTop: 12,
     marginBottom: 8,
+    gap: 10,
+  },
+  createBtn: {
     height: 52,
     borderRadius: radius.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    ...shadow.goldGlow,
+    ...shadow.card,
+  },
+  createBtnSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    ...Platform.select({
+      ios: { shadowOpacity: 0 },
+      android: { elevation: 0 },
+    }),
   },
   createBtnText: {
     fontFamily: fontFamily.bodyBold,
     fontSize: 15,
-    color: '#0A1930',
   },
   list: {
     paddingHorizontal: 16,
@@ -305,9 +408,15 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodySemibold,
     fontSize: 11,
   },
+  actions: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   actionBtn: {
+    minWidth: 78,
+    alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: radius.pill,
   },
   actionText: {
