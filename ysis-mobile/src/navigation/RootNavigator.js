@@ -12,6 +12,7 @@ import { stackHeaderOptions } from '../theme/stackHeader';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import PolicyScreen from '../screens/PolicyScreen';
+import Ss3QuizViewScreen from '../screens/Ss3QuizViewScreen';
 import StudentPortalScreen from '../screens/StudentPortalScreen';
 import MainTabs from './MainTabs';
 
@@ -116,6 +117,7 @@ export default function RootNavigator() {
               options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
 
+            <Stack.Screen name="Ss3QuizView" component={Ss3QuizViewScreen} options={{ headerShown: false }} />
             {/* Full-screen camera, intentionally above the tab bar */}
             <Stack.Screen
               name="CameraCapture"

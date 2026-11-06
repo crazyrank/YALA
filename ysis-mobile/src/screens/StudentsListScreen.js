@@ -102,20 +102,28 @@ const QUICK_ACTIONS = {
   auditLog: { label: 'Audit Log', icon: 'list-outline', iconColor: 'textPrimary', border: 'border' },
   logBook: { label: 'Log Book', icon: 'book-outline', iconColor: 'goldDark', border: 'border' },
   classBiodata: { label: 'Class Biodata', icon: 'create-outline', iconColor: 'goldDark', border: 'border' },
+  ss3Quiz: { label: 'SS3 quiz', icon: 'trophy-outline', iconColor: 'goldDark', border: 'border' },
 };
 
 // Which quick actions each account sees, in display order.
 const ADMIN_ACTIONS = [
-  'register', 'export', 'results', 'website', 'import', 'promote', 'devices',
+  'register', 'export', 'results', 'ss3Quiz', 'website', 'import', 'promote', 'devices',
   'blackBook', 'staffReports', 'alumni', 'permissions', 'manageStaff',
   'guests', 'classTeachers', 'auditLog',
+];
+
+// Director and Principal: two panels, four icons per row.
+// Panel 1 is student work. Panel 2 is school administration.
+const ADMIN_PANELS = [
+  ['register', 'results', 'ss3Quiz', 'promote', 'import', 'export', 'alumni', 'blackBook', 'website'],
+  ['devices', 'manageStaff', 'classTeachers', 'staffReports', 'guests', 'permissions', 'auditLog'],
 ];
 
 const ROLE_QUICK_ACTIONS = {
   director: ADMIN_ACTIONS,
   principal: ADMIN_ACTIONS,
-  head_teacher: ['register', 'export', 'results', 'website', 'import', 'logBook'],
-  class_teacher: ['register', 'website', 'classBiodata'],
+  head_teacher: ['register', 'export', 'results', 'ss3Quiz', 'website', 'import', 'logBook'],
+  class_teacher: ['register', 'website', 'classBiodata', 'ss3Quiz'],
   guest: ['website'],
 };
 
@@ -142,27 +150,31 @@ function QuickAction({ actionKey, navigation, colors, exporting, pendingDevices,
     classTeachers: () => openMore('ClassTeachers'),
     auditLog: () => openMore('AuditLog'),
     logBook: () => openMore('LogBook'),
+    ss3Quiz: () => navigation.navigate('Ss3QuizView'),
     classBiodata: () => navigation.navigate('ClassesTab'),
   };
 
   const isExport = actionKey === 'export';
+  const tint = action.iconColor === 'textPrimary' ? colors.brandDark : colors[action.iconColor];
   return (
     <Squish
-      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors[action.border] }]}
+      style={styles.actionTile}
       onPress={targets[actionKey]}
       disabled={isExport && exporting}
     >
-      {isExport && exporting ? (
-        <ActivityIndicator size="small" color={colors.goldDark} />
-      ) : (
-        <Ionicons name={action.icon} size={22} color={colors[action.iconColor]} />
-      )}
-      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>{action.label}</Text>
-      {actionKey === 'devices' && (
-        <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
-          <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
-        </View>
-      )}
+      <View style={[styles.actionIconWrap, { backgroundColor: tint + '1F' }]}>
+        {isExport && exporting ? (
+          <ActivityIndicator size="small" color={tint} />
+        ) : (
+          <Ionicons name={action.icon} size={24} color={tint} />
+        )}
+        {actionKey === 'devices' && (
+          <View style={[styles.actionBadge, styles.tileBadge, { backgroundColor: colors.error }]}>
+            <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
+          </View>
+        )}
+      </View>
+      <Text numberOfLines={2} style={[styles.actionTileLabel, { color: colors.textPrimary }]}>{action.label}</Text>
     </Squish>
   );
 }
@@ -414,6 +426,16 @@ export default function StudentsListScreen({ navigation, route }) {
   };
 
   const displayedResults = results;
+  const roleActions = ROLE_QUICK_ACTIONS[user?.role] || [];
+  const rawPanels = isAdmin ? ADMIN_PANELS.map((p) => [...p]) : [[...roleActions]];
+  // Any action added to the role list but missing from a panel still shows (last panel).
+  if (isAdmin) {
+    const placed = rawPanels.flat();
+    rawPanels[rawPanels.length - 1].push(...roleActions.filter((k) => !placed.includes(k)));
+  }
+  const actionPanels = rawPanels
+    .map((p) => p.filter((k) => !(k === 'devices' && pendingDevices <= 0)))
+    .filter((p) => p.length > 0);
   const enrolledCount = stats.enrolled;
   const classCount = stats.classes;
 
@@ -614,19 +636,24 @@ export default function StudentsListScreen({ navigation, route }) {
                     </View>
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
-                  <View style={styles.secondaryRow}>
-                    {(ROLE_QUICK_ACTIONS[user?.role] || []).map((key) => (
-                      <QuickAction
-                        key={key}
-                        actionKey={key}
-                        navigation={navigation}
-                        colors={colors}
-                        exporting={exporting}
-                        pendingDevices={pendingDevices}
-                        onExport={handleExport}
-                      />
-                    ))}
-</View>
+                  {actionPanels.map((panel, panelIndex) => (
+                    <View
+                      key={panelIndex}
+                      style={[styles.actionPanel, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    >
+                      {panel.map((key) => (
+                        <QuickAction
+                          key={key}
+                          actionKey={key}
+                          navigation={navigation}
+                          colors={colors}
+                          exporting={exporting}
+                          pendingDevices={pendingDevices}
+                          onExport={handleExport}
+                        />
+                      ))}
+                    </View>
+                  ))}
                 </>
               )}
 
@@ -913,6 +940,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFFFFF',
     marginLeft: 10,
+  },
+  actionPanel: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginBottom: 12,
+  },
+  actionTile: {
+    width: '25%',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+  },
+  actionIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTileLabel: {
+    fontFamily: fontFamily.body,
+    fontSize: 11,
+    lineHeight: 14,
+    marginTop: 7,
+    minHeight: 28,
+    textAlign: 'center',
+  },
+  tileBadge: {
+    top: -4,
+    right: -6,
+    marginLeft: 0,
   },
   secondaryRow: {
     flexDirection: 'row',
