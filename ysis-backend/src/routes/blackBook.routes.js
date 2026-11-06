@@ -43,7 +43,7 @@ function serialize(row, userId) {
 }
 
 // Principal only. The Black Book is not visible to any other role.
-router.get('/', requireAuth, requireRole('principal'), async (req, res, next) => {
+router.get('/', requireAuth, requireRole('principal', 'director'), async (req, res, next) => {
   try {
     const { rows } = await db.query(
       `SELECT ${ENTRY_COLUMNS} FROM black_book_entries ORDER BY written_at DESC`
@@ -57,7 +57,7 @@ router.get('/', requireAuth, requireRole('principal'), async (req, res, next) =>
 router.post(
   '/',
   requireAuth,
-  requireRole('principal'),
+  requireRole('principal', 'director'),
   [body('body').isString()],
   async (req, res, next) => {
     try {
@@ -92,7 +92,7 @@ router.post(
 router.patch(
   '/:id',
   requireAuth,
-  requireRole('principal'),
+  requireRole('principal', 'director'),
   [param('id').isUUID(), body('body').isString()],
   async (req, res, next) => {
     try {

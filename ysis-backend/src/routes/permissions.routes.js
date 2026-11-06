@@ -16,7 +16,7 @@ function checkValidation(req) {
 router.post(
   '/delegate',
   requireAuth,
-  requireRole('principal'),
+  requireRole('principal', 'director'),
   [
     body('userId').isUUID(),
     body('permissionCode').isString().notEmpty(),
@@ -29,6 +29,11 @@ router.post(
       const { userId, permissionCode, expiresInHours, reason } = req.body;
 
       const target = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+      // Only the Director controls the Principal's permissions, and a Principal
+      // cannot grant permissions to another Principal or to the Director.
+      if (req.auth.role === 'principal' && ['principal', 'director'].includes(target.rows[0]?.role)) {
+        throw Errors.forbidden('Only the Director can change a Principal permission.');
+      }
       if (
         target.rows[0]?.role === 'head_teacher' &&
         permissionCode === 'REGISTER_STUDENT'

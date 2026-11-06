@@ -22,7 +22,7 @@ function prettyDate(iso) {
 export default function BlackBookScreen() {
   const { user } = useAuth();
   const userId = user?.id ?? user?.userId;
-  const allowed = user?.role === 'principal';
+  const allowed = user?.role === 'principal' || user?.role === 'director';
 
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);

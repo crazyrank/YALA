@@ -391,7 +391,7 @@ router.post(
 
       const callerRole = req.auth.role;
       let validPair =
-        (callerRole === 'principal' && target.role === 'head_teacher') ||
+        ((callerRole === 'principal' || callerRole === 'director') && target.role === 'head_teacher') ||
         (callerRole === 'director' && target.role === 'principal') ||
         ((callerRole === 'principal' || callerRole === 'director') && target.role === 'class_teacher');
       if (!validPair && callerRole === 'head_teacher' && target.role === 'class_teacher') {

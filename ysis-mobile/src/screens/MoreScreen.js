@@ -545,7 +545,7 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
-        {user?.role === 'principal' && (
+        {(user?.role === 'principal' || user?.role === 'director') && (
           <MenuRow
             icon="lock-closed"
             label="Black Book"
@@ -585,7 +585,7 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
-        {user?.role === 'principal' && (
+        {(user?.role === 'principal' || user?.role === 'director') && (
           <MenuRow
             icon="key"
             label="Permissions"
