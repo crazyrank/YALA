@@ -83,6 +83,90 @@ function Squish({ onPress, style, children, scaleTo = 0.95, haptic = true, disab
   );
 }
 
+// Quick actions. Each key is one card on the dashboard.
+const QUICK_ACTIONS = {
+  register: { label: 'Register Student', icon: 'person-add-outline', iconColor: 'textPrimary', border: 'border' },
+  export: { label: 'Export', icon: 'download-outline', iconColor: 'goldDark', border: 'border' },
+  results: { label: 'Check Student Results', icon: 'document-text-outline', iconColor: 'pinkDark', border: 'pink' },
+  website: { label: 'School Website', icon: 'globe-outline', iconColor: 'pinkDark', border: 'pink' },
+  import: { label: 'Import', icon: 'cloud-upload-outline', iconColor: 'textPrimary', border: 'border' },
+  promote: { label: 'Promote class', icon: 'arrow-up-circle-outline', iconColor: 'goldDark', border: 'border' },
+  devices: { label: 'Approve devices', icon: 'phone-portrait-outline', iconColor: 'warning', border: 'warning' },
+  blackBook: { label: 'Black Book', icon: 'lock-closed-outline', iconColor: 'textPrimary', border: 'border' },
+  staffReports: { label: 'Staff Reports', icon: 'ribbon-outline', iconColor: 'goldDark', border: 'border' },
+  alumni: { label: 'Alumni', icon: 'school-outline', iconColor: 'textPrimary', border: 'border' },
+  permissions: { label: 'Permissions', icon: 'key-outline', iconColor: 'goldDark', border: 'border' },
+  manageStaff: { label: 'Manage Staff', icon: 'people-outline', iconColor: 'textPrimary', border: 'border' },
+  guests: { label: 'Guest Accounts', icon: 'person-outline', iconColor: 'textPrimary', border: 'border' },
+  classTeachers: { label: 'Class Teachers', icon: 'easel-outline', iconColor: 'textPrimary', border: 'border' },
+  auditLog: { label: 'Audit Log', icon: 'list-outline', iconColor: 'textPrimary', border: 'border' },
+  logBook: { label: 'Log Book', icon: 'book-outline', iconColor: 'goldDark', border: 'border' },
+  classBiodata: { label: 'Class Biodata', icon: 'create-outline', iconColor: 'goldDark', border: 'border' },
+};
+
+// Which quick actions each account sees, in display order.
+const ADMIN_ACTIONS = [
+  'register', 'export', 'results', 'website', 'import', 'promote', 'devices',
+  'blackBook', 'staffReports', 'alumni', 'permissions', 'manageStaff',
+  'guests', 'classTeachers', 'auditLog',
+];
+
+const ROLE_QUICK_ACTIONS = {
+  director: ADMIN_ACTIONS,
+  principal: ADMIN_ACTIONS,
+  head_teacher: ['register', 'export', 'results', 'website', 'import', 'logBook'],
+  class_teacher: ['register', 'website', 'classBiodata'],
+  guest: ['website'],
+};
+
+function QuickAction({ actionKey, navigation, colors, exporting, pendingDevices, onExport }) {
+  const action = QUICK_ACTIONS[actionKey];
+  if (!action) return null;
+  if (actionKey === 'devices' && pendingDevices <= 0) return null;
+
+  const openMore = (screen) => navigation.navigate('MoreTab', { screen });
+  const targets = {
+    register: () => navigation.navigate('RegisterStudent'),
+    export: onExport,
+    results: () => openMore('ResultPortal'),
+    website: () => openMore('SchoolWebsite'),
+    import: () => openMore('ImportStudents'),
+    promote: () => navigation.navigate('PromoteClass'),
+    devices: () => openMore('DeviceReview'),
+    blackBook: () => openMore('BlackBook'),
+    staffReports: () => openMore('StaffReports'),
+    alumni: () => openMore('Alumni'),
+    permissions: () => openMore('PermissionDelegation'),
+    manageStaff: () => openMore('ManageStaff'),
+    guests: () => openMore('GuestAccounts'),
+    classTeachers: () => openMore('ClassTeachers'),
+    auditLog: () => openMore('AuditLog'),
+    logBook: () => openMore('LogBook'),
+    classBiodata: () => navigation.navigate('ClassesTab'),
+  };
+
+  const isExport = actionKey === 'export';
+  return (
+    <Squish
+      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors[action.border] }]}
+      onPress={targets[actionKey]}
+      disabled={isExport && exporting}
+    >
+      {isExport && exporting ? (
+        <ActivityIndicator size="small" color={colors.goldDark} />
+      ) : (
+        <Ionicons name={action.icon} size={22} color={colors[action.iconColor]} />
+      )}
+      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>{action.label}</Text>
+      {actionKey === 'devices' && (
+        <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
+          <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
+        </View>
+      )}
+    </Squish>
+  );
+}
+
 function StudentCard({ item, navigation, colors, isGuest }) {
   const initials = getInitials(item.full_name);
   const isActive = item.status === 'active';
@@ -175,7 +259,7 @@ export default function StudentsListScreen({ navigation, route }) {
   const [initialLoading, setInitialLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
-  const [stats, setStats] = useState({ total: 0, enrolled: 0, classes: 0 });
+  const [stats, setStats] = useState({ total: 0, enrolled: 0, exited: 0, classes: 0 });
   const searchSeq = useRef(0);
 
   const loadStats = useCallback(async () => {
@@ -183,12 +267,14 @@ export default function StudentsListScreen({ navigation, route }) {
     const row = await db.getFirstAsync(
       `SELECT COUNT(*) AS total,
               SUM(CASE WHEN status IN ('registered','active','promoted') THEN 1 ELSE 0 END) AS enrolled,
+              SUM(CASE WHEN status IN ('transferred','withdrawn','expelled','graduated') THEN 1 ELSE 0 END) AS exited,
               COUNT(DISTINCT class_level) AS classes
        FROM students`
     );
     setStats({
       total: Number(row?.total || 0),
       enrolled: Number(row?.enrolled || 0),
+      exited: Number(row?.exited || 0),
       classes: Number(row?.classes || 0),
     });
   }, []);
@@ -519,67 +605,28 @@ export default function StudentsListScreen({ navigation, route }) {
                     </View>
                   ) : user?.role === 'guest' ? null : (
                     <View style={styles.statsGrid}>
-                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="Registered" color={colors.textPrimary} bg={colors.surface} delay={0} />
-                      <DashboardStatCard icon="checkmark-circle" value={enrolledCount} title="Enrolled" subtitle="Currently enrolled" color={colors.success} bg={colors.surface} delay={50} />
-                      <DashboardStatCard icon="school" value={classCount} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={100} />
-                      <DashboardStatCard icon="layers" value={stats.total} title="Records" subtitle="On this device" color={colors.accentPurple} bg={colors.surface} delay={150} />
-                      <DashboardStudentSyncCards />
+                      <DashboardStatCard icon="people" value={stats.total} title="Students" subtitle="On this device" color={colors.textPrimary} bg={colors.surface} delay={0} />
+                      <DashboardStatCard icon="checkmark-circle" value={stats.enrolled} title="Enrolled" subtitle={`${Math.round((stats.enrolled / Math.max(stats.total, 1)) * 100)}% of students`} color={colors.success} bg={colors.surface} delay={50} />
+                      <DashboardStatCard icon="exit-outline" value={stats.exited} title="Exited" subtitle={`${Math.round((stats.exited / Math.max(stats.total, 1)) * 100)}% of students`} color={colors.error} bg={colors.surface} delay={100} />
+                      <DashboardStatCard icon="school" value={stats.classes} title="Classes" subtitle="Represented" color={colors.goldDark} bg={colors.surface} delay={150} />
+                      
+<DashboardStudentSyncCards />
                     </View>
                   )}
                   <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Quick Actions</Text>
                   <View style={styles.secondaryRow}>
-                    {canRegister && (
-                    <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('RegisterStudent')}>
-                      <Ionicons name="person-add-outline" size={22} color={colors.textPrimary} />
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Register Student</Text>
-                    </Squish>
-                    )}
-                    {user?.role !== 'guest' && <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={handleExport} disabled={exporting}>
-                      {exporting ? (
-                        <ActivityIndicator size="small" color={colors.goldDark} />
-                      ) : (
-                        <Ionicons name="download-outline" size={22} color={colors.goldDark} />
-                      )}
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Export</Text>
-                    </Squish>}
-                    {['director', 'principal', 'head_teacher', 'class_teacher'].includes(user?.role) && (
-                      <Squish
-                        style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
-                        onPress={() => navigation.navigate('MoreTab', { screen: 'ResultPortal' })}
-                      >
-                        <Ionicons name="document-text-outline" size={22} color={colors.pinkDark} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Check Student Results</Text>
-                      </Squish>
-                    )}
-                    {user?.role !== 'guest' && <Squish
-                      style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.pink }]}
-                      onPress={() => navigation.navigate('MoreTab', { screen: 'SchoolWebsite' })}
-                    >
-                      <Ionicons name="globe-outline" size={22} color={colors.pinkDark} />
-                      <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>School Website</Text>
-                    </Squish>}
-                    {canRegister && (
-                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('MoreTab', { screen: 'ImportStudents' })}>
-                        <Ionicons name="cloud-upload-outline" size={22} color={colors.textPrimary} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Import</Text>
-                      </Squish>
-                    )}
-                    {isAdmin && (
-                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('PromoteClass')}>
-                        <Ionicons name="arrow-up-circle-outline" size={22} color={colors.goldDark} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Promote class</Text>
-                      </Squish>
-                    )}
-                    {isAdmin && pendingDevices > 0 && (
-                      <Squish style={[styles.secondaryAction, { backgroundColor: colors.surface, borderColor: colors.warning }]} onPress={() => navigation.navigate('MoreTab', { screen: 'DeviceReview' })}>
-                        <Ionicons name="phone-portrait-outline" size={22} color={colors.warning} />
-                        <Text style={[styles.secondaryActionText, { color: colors.textPrimary }]}>Approve devices</Text>
-                        <View style={[styles.actionBadge, { backgroundColor: colors.error }]}>
-                          <Text style={styles.actionBadgeText}>{pendingDevices}</Text>
-                        </View>
-                      </Squish>
-                    )}
-                  </View>
+                    {(ROLE_QUICK_ACTIONS[user?.role] || []).map((key) => (
+                      <QuickAction
+                        key={key}
+                        actionKey={key}
+                        navigation={navigation}
+                        colors={colors}
+                        exporting={exporting}
+                        pendingDevices={pendingDevices}
+                        onExport={handleExport}
+                      />
+                    ))}
+</View>
                 </>
               )}
 
