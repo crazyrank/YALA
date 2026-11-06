@@ -13,7 +13,19 @@ function checkValidation(req) {
   if (!result.isEmpty()) throw Errors.badRequest('VALIDATION_ERROR', result.array()[0].msg);
 }
 
-/** GET /devices/pending-count — number of devices waiting for approval. Principal/Director only. */
+// The Director owns the system. A Principal's device can only be approved or
+// revoked by the Director, never by the Principal themselves.
+async function ensureCanManageDevice(req, deviceId) {
+  const { rows } = await db.query(
+    `SELECT u.role FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
+    [deviceId]
+  );
+  if (rows[0]?.role === 'principal' && req.auth.role !== 'director') {
+    throw Errors.forbidden('Only the Director can approve or revoke a Principal device.');
+  }
+}
+
+/** GET /devices/pending-count: number of devices waiting for approval. Principal/Director only. */
 router.get('/pending-count', requireAuth, requireRole('principal', 'director'), async (req, res, next) => {
   try {
     const { rows } = await db.query(
@@ -25,7 +37,7 @@ router.get('/pending-count', requireAuth, requireRole('principal', 'director'), 
   }
 });
 
-/** GET /devices — Principal/Director see all, others see only their own */
+/** GET /devices: Principal/Director see all, others see only their own */
 router.get('/', requireAuth, async (req, res, next) => {
   try {
     const isAdmin = req.auth.role === 'principal' || req.auth.role === 'director';
@@ -46,6 +58,7 @@ router.get('/', requireAuth, async (req, res, next) => {
  * Principal/Director trust a pending device. Matches architecture:
  * new devices register, but only become trusted after admin oversight
  * (except the very first device for a user, which is auto-trusted at login).
+ * A Principal device can only be approved by the Director.
  */
 router.post(
   '/:id/approve',
@@ -55,6 +68,7 @@ router.post(
   async (req, res, next) => {
     try {
       checkValidation(req);
+      await ensureCanManageDevice(req, req.params.id);
       const { rows } = await db.query(
         `UPDATE devices SET status = 'trusted', last_seen_at = now()
          WHERE id = $1 AND status = 'pending_verification'
@@ -82,7 +96,7 @@ router.post(
   }
 );
 
-/** DELETE /devices/:id — remote revocation. Lost/damaged phone scenario. */
+/** DELETE /devices/:id: remote revocation. Lost/damaged phone scenario. A Principal device can only be revoked by the Director. */
 router.delete(
   '/:id',
   requireAuth,
@@ -91,6 +105,7 @@ router.delete(
   async (req, res, next) => {
     try {
       checkValidation(req);
+      await ensureCanManageDevice(req, req.params.id);
       const { rows } = await db.query(
         `UPDATE devices SET status = 'revoked', revoked_at = now(), revoked_by = $2,
                refresh_token_hash = NULL
