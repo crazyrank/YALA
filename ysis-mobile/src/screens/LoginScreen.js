@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { gradients } from '../theme/colors';
 import { useTheme } from '../theme/ThemeContext';
 import { createLoginStyles } from './LoginStyles';
+import StudentPortalButton from '../components/StudentPortalButton';
 
 export default function LoginScreen() {
   const { login, unlock } = useAuth();
@@ -355,6 +356,8 @@ export default function LoginScreen() {
               )}
             </Pressable>
           </View>
+
+          <StudentPortalButton />
 
           <View style={styles.footer}>
             <View style={styles.footerLine} />

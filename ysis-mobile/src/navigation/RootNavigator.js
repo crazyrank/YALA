@@ -12,6 +12,7 @@ import { stackHeaderOptions } from '../theme/stackHeader';
 import CameraCaptureScreen from '../screens/CameraCaptureScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import PolicyScreen from '../screens/PolicyScreen';
+import StudentPortalScreen from '../screens/StudentPortalScreen';
 import MainTabs from './MainTabs';
 
 const Stack = createNativeStackNavigator();
@@ -115,7 +116,7 @@ export default function RootNavigator() {
               options={{ headerShown: false, presentation: 'fullScreenModal' }}
             />
 
-            {/* Full-screen camera — intentionally above the tab bar */}
+            {/* Full-screen camera, intentionally above the tab bar */}
             <Stack.Screen
               name="CameraCapture"
               component={CameraCaptureScreen}
@@ -131,6 +132,14 @@ export default function RootNavigator() {
         <Stack.Screen
           name="Policy"
           component={PolicyScreen}
+          options={{ headerShown: false }}
+        />
+
+        {/* SS3 quiz portal for students. Reachable from the login screen
+            for every status, and never shown to staff by default. */}
+        <Stack.Screen
+          name="StudentPortal"
+          component={StudentPortalScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
