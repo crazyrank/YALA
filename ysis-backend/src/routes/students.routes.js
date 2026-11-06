@@ -116,21 +116,19 @@ router.get(
       let orderClause = 'ORDER BY full_name ASC';
 
       if (search) {
-        conditions.push(
-          `full_name ILIKE $${idx}`
-        );
-
+        conditions.push(`full_name ILIKE $${idx}`);
         params.push(`%${search}%`);
+        idx += 1;
+      }
 
-        const simIdx = idx + 1;
+      // Only the parameters the WHERE clause uses. The count query receives these,
+      // so it never gets a parameter its SQL does not reference.
+      const whereParams = [...params];
 
+      if (search) {
         params.push(search);
-
-        orderClause =
-          `ORDER BY similarity(full_name, $${simIdx}) DESC,
-           full_name ASC`;
-
-        idx += 2;
+        orderClause = `ORDER BY similarity(full_name, $${idx}) DESC, full_name ASC`;
+        idx += 1;
       }
 
       const whereClause =
@@ -144,7 +142,7 @@ router.get(
         `SELECT COUNT(*)::int AS total
          FROM students
          ${whereClause}`,
-        params
+        whereParams
       );
 
       const total = Number(countResult.rows[0]?.total || 0);
