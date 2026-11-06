@@ -138,20 +138,20 @@ function analyzeRecords(records) {
       for (const message of result.errors) {
         const cut = message.indexOf(':');
         const apiName = message.slice(0, cut);
+        // Arm is optional on import. It is assigned later by the principal.
+        if (apiName === 'arm' && text(d.arm) === '') continue;
         problems.push({ column: API_TO_CSV[apiName] || apiName, reason: message.slice(cut + 2) });
       }
     }
 
     // Gender, date of birth and session are compulsory for imports.
     // The shared student rules still allow them to be empty for other entry points.
-    if (gender === '') problems.push({ column: 'gender', reason: 'is required (M or F)' });
-    if (dobRaw === '') problems.push({ column: 'date_of_birth', reason: 'is required (use DD/MM/YYYY, for example 25/03/2014)' });
-    else if (!dobMatch) problems.push({ column: 'date_of_birth', reason: 'must be written as DD/MM/YYYY, for example 25/03/2014' });
+    // Gender, date of birth, session and arm are optional on import.
+    // Class teachers complete them later. A value that is given must still be valid.
+    if (dobRaw !== '' && !dobMatch) problems.push({ column: 'date_of_birth', reason: 'must be written as DD/MM/YYYY, for example 25/03/2014' });
 
     let session = null;
-    if (sessionRaw === '') {
-      problems.push({ column: 'session', reason: 'is required (for example 2024/2025)' });
-    } else {
+    if (sessionRaw !== '') {
       session = normalizeSession(sessionRaw);
       if (!session) problems.push({ column: 'session', reason: 'is not a valid session (use the form 2024/2025)' });
     }
