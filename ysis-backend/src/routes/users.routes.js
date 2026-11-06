@@ -573,7 +573,7 @@ router.get('/class-teachers', requireAuth, async (req, res, next) => {
           AND u.status <> 'inactive'
           AND ($1 <> 'head_teacher' OR EXISTS (
                 SELECT 1 FROM head_teacher_class_assignments h
-                 WHERE h.user_id = $2 AND h.division = c.division
+                 WHERE h.user_id = $2 AND h.division::text = c.division
                    AND (h.class_level IS NULL OR h.class_level = c.class_level)))
         ORDER BY c.division, c.class_level, u.full_name`,
       [req.auth.role, req.auth.userId]

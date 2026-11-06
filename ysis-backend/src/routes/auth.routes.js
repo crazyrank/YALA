@@ -400,7 +400,7 @@ router.post(
           `SELECT 1 FROM class_teacher_assignments c
             WHERE c.user_id = $1 AND EXISTS (
               SELECT 1 FROM head_teacher_class_assignments h
-               WHERE h.user_id = $2 AND h.division = c.division
+               WHERE h.user_id = $2 AND h.division::text = c.division
                  AND (h.class_level IS NULL OR h.class_level = c.class_level))`,
           [target.id, req.auth.userId]
         );
