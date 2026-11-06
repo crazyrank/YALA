@@ -9,10 +9,10 @@
  */
 export const CLASS_ORDER = [
   'Creche',
-  'Nursery 1',
-  'Nursery 2',
   'KG1',
   'KG2',
+  'Nursery 1',
+  'Nursery 2',
   'Primary 1',
   'Primary 2',
   'Primary 3',
