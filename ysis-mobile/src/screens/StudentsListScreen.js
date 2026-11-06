@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -424,6 +424,16 @@ export default function StudentsListScreen({ navigation, route }) {
       setExporting(false);
     }
   };
+
+  const [ss3Allowed, setSs3Allowed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/ss3-quiz-view/access')
+      .then((res) => { if (!cancelled) setSs3Allowed(!!res.allowed); })
+      .catch(() => { if (!cancelled) setSs3Allowed(false); });
+    return () => { cancelled = true; };
+  }, [user?.role]);
 
   const displayedResults = results;
   const roleActions = ROLE_QUICK_ACTIONS[user?.role] || [];
