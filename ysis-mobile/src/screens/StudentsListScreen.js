@@ -444,7 +444,7 @@ export default function StudentsListScreen({ navigation, route }) {
     rawPanels[rawPanels.length - 1].push(...roleActions.filter((k) => !placed.includes(k)));
   }
   const actionPanels = rawPanels
-    .map((p) => p.filter((k) => !(k === 'devices' && pendingDevices <= 0)))
+    .map((p) => p.filter((k) => !(k === 'devices' && pendingDevices <= 0) && !(k === 'ss3Quiz' && !ss3Allowed)))
     .filter((p) => p.length > 0);
   const enrolledCount = stats.enrolled;
   const classCount = stats.classes;
