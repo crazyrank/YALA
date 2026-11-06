@@ -116,7 +116,7 @@ function canonicalClass(raw) {
 
 /** Which division a canonical class belongs to. */
 function divisionOfClass(classLevel) {
-  return /^(Creche|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+  return /^(Creche|Nursery|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
 }
 
 /**

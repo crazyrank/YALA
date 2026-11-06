@@ -10,6 +10,8 @@
  */
 const CLASS_ORDER = [
   'Creche',
+  'Nursery 1',
+  'Nursery 2',
   'KG1',
   'KG2',
   'Primary 1',

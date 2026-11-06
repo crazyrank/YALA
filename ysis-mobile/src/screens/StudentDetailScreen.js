@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { queueOperation } from '../services/syncEngine';
 import { api } from '../api/client';
 import { getNextClass, isAtMaxClass, getPreviousClass } from '../utils/classProgression';
-import { nextSession, previousSession, sessionIsAfter } from '../utils/academicSession';
+import { nextSession, previousSession, sessionIsAfter, normalizeSession } from '../utils/academicSession';
 import { exportStudentToPdf } from '../services/studentPdfExport';
 import { dobToIso, isoToDob, formatDobInput } from '../utils/dobFormat';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
@@ -38,7 +38,7 @@ function armRequiredFor(classLevel) {
 }
 
 function divisionOfClass(classLevel) {
-  return /^(Creche|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
+  return /^(Creche|Nursery|KG|Primary)/.test(classLevel) ? 'primary' : 'secondary';
 }
 
 export default function StudentDetailScreen({ route, navigation }) {
@@ -67,6 +67,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [editAdmissionNo, setEditAdmissionNo] = useState('');
   const [editDob, setEditDob] = useState('');
   const [editGender, setEditGender] = useState('');
+  const [editSession, setEditSession] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
 
@@ -554,6 +555,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     setEditAdmissionNo(student.admission_no || '');
     setEditDob(isoToDob(student.date_of_birth));
     setEditGender(student.gender || '');
+    setEditSession(student.academic_session || '');
     setEditing(true);
   };
 
@@ -609,12 +611,20 @@ export default function StudentDetailScreen({ route, navigation }) {
       const basedOnVersion = student.sync_version;
       const v = check.value;
 
+      const sessionRaw = editSession.trim();
+      const sessionValue = sessionRaw === '' ? null : normalizeSession(sessionRaw);
+      if (sessionRaw !== '' && !sessionValue) {
+        setSaving(false);
+        Alert.alert('Academic session', 'Use the form 2024/2025.');
+        return;
+      }
       const nextArm = needsArm ? editArm : student.arm;
       const changes = {
         admission_no: v.admissionNo,
         full_name: v.fullName,
         gender: v.gender || null,
         date_of_birth: v.dateOfBirth || null,
+        academic_session: sessionValue,
         guardian_name: v.guardianName || null,
         guardian_phone: v.guardianPhone || null,
         arm: nextArm,
@@ -622,7 +632,7 @@ export default function StudentDetailScreen({ route, navigation }) {
 
       await db.runAsync(
         `UPDATE students
-         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?,
+         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?, academic_session = ?,
              arm = ?, guardian_name = ?, guardian_phone = ?,
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
@@ -631,6 +641,7 @@ export default function StudentDetailScreen({ route, navigation }) {
           changes.full_name,
           changes.gender,
           changes.date_of_birth,
+          changes.academic_session,
           changes.arm,
           changes.guardian_name,
           changes.guardian_phone,
@@ -889,6 +900,16 @@ export default function StudentDetailScreen({ route, navigation }) {
             <Text style={styles.fieldLabel}>Class</Text>
             <Text style={styles.classReadOnly}>{student.class_level || '-'}</Text>
             <Text style={styles.editNote}>Class changes only through promotion.</Text>
+
+            <Text style={styles.fieldLabel}>Academic session</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={editSession}
+              onChangeText={(t) => setEditSession(t.replace(/[^0-9/]/g, '').slice(0, 9))}
+              placeholder="2024/2025"
+              placeholderTextColor="#98A2B3"
+              keyboardType="numbers-and-punctuation"
+            />
 
             {editNeedsArm && (
               <>

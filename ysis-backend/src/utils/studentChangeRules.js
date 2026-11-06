@@ -22,12 +22,13 @@ const DB_TO_API = {
   guardian_name: 'guardianName',
   guardian_phone: 'guardianPhone',
   date_of_birth: 'dateOfBirth',
+  academic_session: 'academicSession',
 };
 const API_TO_DB = Object.fromEntries(Object.entries(DB_TO_API).map(([k, v]) => [v, k]));
 
 // Profile fields a normal edit may change. Division and class are never edited
 // directly; they change only through promotion.
-const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone'];
+const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone', 'academicSession'];
 
 // Status may be changed by edit only to these two values (archive and restore).
 // Promotion sets 'promoted' through planPromotion, never through edit.
@@ -213,14 +214,26 @@ function validateEdit(currentRow, changes) {
   }
   for (const key of profileKeys) merged[DB_TO_API[key]] = changes[key];
 
+  let sessionClean;
+  if ('academic_session' in changes) {
+    const { normalizeSession } = require('./academicSession');
+    const raw = changes.academic_session;
+    sessionClean = raw === null || raw === '' ? null : normalizeSession(String(raw));
+    if (raw !== null && raw !== '' && !sessionClean) {
+      return { ok: false, code: 'RECORD_INVALID', message: 'Academic session must look like 2024/2025.' };
+    }
+  }
+
   const check = normalizeStudent(merged);
   if (!check.ok) {
     return { ok: false, code: 'RECORD_INVALID', message: check.errors[0] };
   }
 
   for (const key of profileKeys) {
+    if (key === 'academic_session') continue;
     clean[key] = check.value[DB_TO_API[key]];
   }
+  if ('academic_session' in changes) clean.academic_session = sessionClean;
   return { ok: true, changes: clean };
 }
 
