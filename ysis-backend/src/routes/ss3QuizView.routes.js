@@ -58,4 +58,32 @@ router.post('/token', requireAuth, requireRole(...ALLOWED_ROLES), async (req, re
   }
 });
 
+/**
+ * GET /ss3-quiz-view/access
+ * Tells the app whether this account should see the SS3 quiz tile.
+ * Director, Principal and Head Teacher always do. A class teacher does
+ * only when assigned to an SS3 class.
+ */
+router.get('/access', requireAuth, async (req, res, next) => {
+  try {
+    const { userId, role } = req.auth;
+
+    if (['director', 'principal', 'head_teacher'].includes(role)) {
+      return res.json({ allowed: true });
+    }
+    if (role !== 'class_teacher') {
+      return res.json({ allowed: false });
+    }
+
+    const { rows } = await db.query(
+      `SELECT 1 FROM class_teacher_assignments
+       WHERE user_id = $1 AND class_level = 'SS3' LIMIT 1`,
+      [userId]
+    );
+    return res.json({ allowed: rows.length > 0 });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;
