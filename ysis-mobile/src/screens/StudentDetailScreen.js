@@ -27,7 +27,11 @@ import StudentBiodataSection from '../components/StudentBiodataSection';
 
 // Arms exist only for SS2 and SS3. Must match the server rules exactly.
 const ARMS = ['Science', 'Arts', 'Commercial'];
-const ARM_CLASSES = ['SS2', 'SS3'];
+const ARM_CLASSES = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
+
+function armChoicesFor(classLevel) {
+  return /^SS[123]$/.test(classLevel) ? ARMS : ['A', 'B'];
+}
 
 function armRequiredFor(classLevel) {
   return ARM_CLASSES.includes(classLevel);
@@ -889,7 +893,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             {editNeedsArm && (
               <>
                 <Text style={styles.fieldLabel}>Arm *</Text>
-                {ARMS.map((a) => (
+                {armChoicesFor(student.class_level).map((a) => (
                   <ArmOption key={a} label={a} selected={editArm === a} onPress={() => setEditArm(a)} />
                 ))}
               </>
@@ -960,7 +964,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             ) : showPromoteChoice ? (
               <View style={styles.promoteChoice}>
                 <Text style={styles.fieldLabel}>Choose the arm for {nextClass}</Text>
-                {ARMS.map((a) => (
+                {armChoicesFor(nextClass).map((a) => (
                   <ArmOption key={a} label={a} selected={promoteArm === a} onPress={() => setPromoteArm(a)} />
                 ))}
                 <View style={styles.editActions}>

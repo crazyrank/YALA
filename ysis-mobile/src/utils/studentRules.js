@@ -126,11 +126,21 @@ function divisionOfClass(classLevel) {
  *   SS2 and SS3:      required, Science / Arts / Commercial
  * JSS sections (A, B) are out of scope and are not recorded.
  */
+const SECTIONS = ['A', 'B'];
+const SENIOR_ARMS = ['Science', 'Arts', 'Commercial'];
+
+// Arm or section by class group (confirmed by the school):
+//   Creche to Primary 5: section A or B, optional
+//   JSS1 to JSS3:        section A or B, required
+//   SS1 to SS3:          arm Science, Arts or Commercial, required
 function armRuleFor(classLevel) {
-  if (classLevel === 'SS2' || classLevel === 'SS3') {
-    return { required: true, allowed: ARMS };
-  }
-  return { required: false, allowed: [] };
+  if (/^SS[123]$/.test(classLevel)) return { required: true, allowed: SENIOR_ARMS };
+  if (/^JSS[123]$/.test(classLevel)) return { required: true, allowed: SECTIONS };
+  return { required: false, allowed: SECTIONS };
+}
+
+function armChoicesFor(classLevel) {
+  return armRuleFor(classLevel).allowed;
 }
 
 /**
@@ -171,11 +181,11 @@ function normalizeStudent(input = {}) {
   if (v.classLevel) {
     const rule = armRuleFor(v.classLevel);
     if (!rule.required) {
-      if (armRaw) errors.push('arm: not allowed for this class');
-      v.arm = null;
+      v.arm = armRaw ? rule.allowed.find((a) => a.toLowerCase() === armRaw.toLowerCase()) || null : null;
+      if (armRaw && !v.arm) errors.push('arm: must be A or B for this class');
     } else {
-      v.arm = ARM_LOOKUP.get(armRaw.toLowerCase()) || null;
-      if (!v.arm) errors.push('arm: must be Science, Arts, or Commercial for this class');
+      v.arm = rule.allowed.find((a) => a.toLowerCase() === armRaw.toLowerCase()) || null;
+      if (!v.arm) errors.push('arm: must be ' + rule.allowed.join(' or ') + ' for this class');
     }
   } else {
     v.arm = armRaw || null; // class already rejected above
@@ -203,6 +213,6 @@ function normalizeStudent(input = {}) {
 }
 
 export {
-  DIVISIONS, ARMS, GENDERS, normalizeStudent, cleanText, canonicalClass, divisionOfClass, armRuleFor,
+  DIVISIONS, ARMS, GENDERS, normalizeStudent, cleanText, canonicalClass, divisionOfClass, armRuleFor, armChoicesFor,
   formatAdmissionInput, admissionNoInRange,
 };

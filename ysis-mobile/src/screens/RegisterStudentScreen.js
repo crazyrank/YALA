@@ -22,7 +22,7 @@ import { queueOperation } from '../services/syncEngine';
 import { checkRegistration, formatErrors } from '../services/registrationGuard';
 import ClassLevelPicker from '../components/ClassLevelPicker';
 import { CLASS_ORDER } from '../utils/classProgression';
-import { divisionOfClass, ARMS, formatAdmissionInput } from '../utils/studentRules';
+import { divisionOfClass, ARMS, formatAdmissionInput, armChoicesFor } from '../utils/studentRules';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { academicSessionFor, availableSessions } from '../utils/academicSession';
@@ -310,11 +310,11 @@ export default function RegisterStudentScreen({ route, navigation }) {
             />
           </View>
 
-          {division === 'secondary' && (
+          {classLevel !== '' && (
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>ARM</Text>
               <View style={styles.chipRow}>
-                {ARMS.map((a) => {
+                {armChoicesFor(classLevel).map((a) => {
                   const active = arm === a;
                   return (
                     <Pressable

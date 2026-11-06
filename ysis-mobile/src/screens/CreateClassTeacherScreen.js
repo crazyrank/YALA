@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Activi
 import * as Clipboard from 'expo-clipboard';
 import { api } from '../api/client';
 import { CLASS_ORDER } from '../utils/classProgression';
-import { armRuleFor, divisionOfClass } from '../utils/studentRules';
+import { armRuleFor, armChoicesFor, divisionOfClass } from '../utils/studentRules';
 
 // The Principal or Director creates a Class Teacher and gives them one class.
 // The server checks the role and the class again. The temporary password is shown once.
@@ -141,11 +141,11 @@ export default function CreateClassTeacherScreen({ navigation }) {
         </>
       )}
 
-      {classLevel !== '' && armRuleFor(classLevel).required && (
+      {classLevel !== '' && (
         <>
           <Text style={styles.label}>Arm</Text>
           <View style={styles.chips}>
-            {ARMS.map((a) => (
+            {armChoicesFor(classLevel).map((a) => (
               <Pressable key={a} style={[styles.chip, arm === a && styles.chipOn]} onPress={() => setArm(a)}>
                 <Text style={[styles.chipText, arm === a && styles.chipTextOn]}>{a}</Text>
               </Pressable>
