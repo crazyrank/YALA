@@ -555,6 +555,16 @@ export default function MoreScreen({ navigation }) {
           />
         )}
 
+        {user?.role === 'principal' && (
+          <MenuRow
+            icon="journal"
+            label="My Log"
+            subtitle="Your own notes, saved on this phone"
+            color={colors.textPrimary}
+            onPress={() => navigation.navigate('PersonalLog')}
+          />
+        )}
+
         {(user?.role === 'principal' || user?.role === 'director' || user?.role === 'head_teacher') && (
           <MenuRow
             icon="people"

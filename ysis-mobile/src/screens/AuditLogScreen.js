@@ -12,6 +12,8 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius } from '../theme/spacing';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -57,7 +59,8 @@ export default function AuditLogScreen() {
       if (from) parts.push(`from=${encodeURIComponent(from)}`);
       if (to) parts.push(`to=${encodeURIComponent(to)}`);
       if (personId) parts.push(`userId=${encodeURIComponent(personId)}`);
-      const res = await api.get(`/audit-logs?${parts.join('&')}`);
+      const q = parts.join('&');
+      const res = await cachedGet({ group: 'audit', key: `audit:${q}`, path: `/audit-logs?${q}` });
       setEntries(res.entries || []);
     } catch (e) {
       setError(e.message || 'Could not load the audit log.');
@@ -68,8 +71,7 @@ export default function AuditLogScreen() {
 
   useEffect(() => {
     load();
-    api
-      .get('/staff-profiles')
+    cachedGet({ group: 'audit-people', key: 'staff-profiles', path: '/staff-profiles' })
       .then((r) => setStaff(r.staff || []))
       .catch(() => setStaff([]));
     // Load once when the screen opens. Later loads run from the Apply button.
@@ -94,8 +96,9 @@ export default function AuditLogScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
+      <OfflineCacheNote group="audit" />
       <Text style={[styles.note, { color: colors.textMuted }]}>
-        Read only. Shows what was done in the app, by whom and when. Needs an internet connection.
+        Read only. Shows what was done in the app, by whom and when. Needs an internet connection to refresh; the last saved copy opens offline.
       </Text>
 
       <Text style={[styles.label, { color: colors.textMuted }]}>PERSON</Text>

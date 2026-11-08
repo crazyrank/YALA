@@ -4,6 +4,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 import { useTheme } from '../theme/ThemeContext';
 
 // ----- Input cleaning -----
@@ -97,7 +99,7 @@ export default function GuestAccountsScreen() {
 
   const loadGuests = useCallback(async () => {
     setLoading(true);
-    try { const data = await api.get('/guest-accounts'); setGuests(data.guests || []); }
+    try { const data = await cachedGet({ group: 'guest-accounts', key: 'guest-accounts', path: '/guest-accounts' }); setGuests(data.guests || []); }
     catch (err) { Alert.alert('Could not load Guest accounts', err.message || 'Please try again.'); }
     finally { setLoading(false); }
   }, []);
@@ -200,6 +202,7 @@ export default function GuestAccountsScreen() {
       </Pressable>
     </View>
     <View style={styles.listHeader}><Text style={[styles.subheading, { color: colors.textPrimary }]}>Created by you</Text><Pressable onPress={loadGuests}><Ionicons name="refresh" size={20} color={colors.brand} /></Pressable></View>
+    <OfflineCacheNote group="guest-accounts" />
     {loading && <ActivityIndicator color={colors.brand} />}
     {!loading && guests.map((guest) => <View key={guest.id} style={[styles.guestRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={{ flex: 1 }}><Text style={[styles.studentName, { color: colors.textPrimary }]}>{guest.fullName}</Text><Text style={[styles.note, { color: colors.textMuted }]}>{guest.email} · {guest.studentCount} students</Text><Text style={[styles.note, { color: guest.expired ? colors.error : colors.textMuted }]}>Expires: {new Date(guest.expiresAt).toLocaleDateString()} · {guest.expired ? 'Expired' : guest.status}</Text></View>

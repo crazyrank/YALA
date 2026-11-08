@@ -2,6 +2,8 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 import { useAuth } from '../context/AuthContext';
 import { CLASS_ORDER } from '../utils/classProgression';
 import { armRuleFor, armChoicesFor, divisionOfClass } from '../utils/studentRules';
@@ -28,7 +30,7 @@ export default function ClassTeachersScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/users/class-teachers');
+      const res = await cachedGet({ group: 'class-teachers', key: 'class-teachers', path: '/users/class-teachers' });
       setRows(res?.classTeachers || []);
     } catch (err) {
       Alert.alert(
@@ -83,6 +85,7 @@ export default function ClassTeachersScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <OfflineCacheNote group="class-teachers" />
       {loading && <ActivityIndicator style={styles.spinner} />}
 
       {!loading && rows.length === 0 && (

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, FlatList, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 import { useTheme } from '../theme/ThemeContext';
 
 function formatWhen(value) {
@@ -21,7 +23,7 @@ export default function NotificationsScreen() {
     else setLoading(true);
     setError('');
     try {
-      const res = await api.get('/notifications');
+      const res = await cachedGet({ group: 'notifications', key: 'notifications', path: '/notifications' });
       setItems(res.notifications || []);
     } catch (err) {
       setError(
@@ -73,6 +75,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
+      <OfflineCacheNote group="notifications" />
       {!!error && <Text style={styles.error}>{error}</Text>}
       <FlatList
         data={items}

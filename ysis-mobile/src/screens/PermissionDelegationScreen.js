@@ -14,6 +14,8 @@ import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius } from '../theme/spacing';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 
 const ONE_WEEK_HOURS = 168;
 const PERMISSION_CODE = 'PROMOTE_STUDENT';
@@ -38,8 +40,8 @@ export default function PermissionDelegationScreen() {
     setError('');
     try {
       const [users, granted] = await Promise.all([
-        api.get('/users'),
-        api.get('/permissions/delegate'),
+        cachedGet({ group: 'permissions', key: 'users', path: '/users' }),
+        cachedGet({ group: 'permissions', key: 'permissions-delegate', path: '/permissions/delegate' }),
       ]);
       setHeadTeachers(
         (users.users || []).filter((u) => u.role === 'head_teacher' && u.status === 'active')
@@ -108,6 +110,7 @@ export default function PermissionDelegationScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
+      <OfflineCacheNote group="permissions" />
       <Text style={[styles.note, { color: colors.textMuted }]}>
         Give a Head Teacher the right to promote students in their own scope for one week. The right ends automatically. You can end it early below.
       </Text>

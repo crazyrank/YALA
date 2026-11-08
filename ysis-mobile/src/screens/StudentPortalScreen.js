@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, BackHandler } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../theme/ThemeContext';
 import { YALAPREP_STUDENT_LOGIN_URL, YALAPREP_QUIZ_URL } from '../config/links';
@@ -113,7 +112,7 @@ export default function StudentPortalScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <View style={styles.bar}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={[styles.back, { color: colors.textPrimary }]}>{'\u2190'} Back</Text>
@@ -122,7 +121,7 @@ export default function StudentPortalScreen({ navigation }) {
         <View style={styles.spacer} />
       </View>
       {body}
-    </SafeAreaView>
+    </View>
   );
 }
 

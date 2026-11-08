@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 import { useTheme } from '../theme/ThemeContext';
 
 const STATUS_RANK = { pending_verification: 0, trusted: 1 };
@@ -30,7 +32,7 @@ export default function DeviceReviewScreen() {
     else setLoading(true);
     setError('');
     try {
-      const res = await api.get('/devices');
+      const res = await cachedGet({ group: 'devices', key: 'devices', path: '/devices' });
       const list = (res.devices || []).filter((d) => d.status !== 'revoked');
       list.sort((a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9));
       setDevices(list);
@@ -45,7 +47,7 @@ export default function DeviceReviewScreen() {
     // Blocked networks are for directors and principals only. Other roles
     // get a refusal, and the section stays hidden for them.
     try {
-      const res = await api.get('/login-blocks');
+      const res = await cachedGet({ group: 'devices-blocks', key: 'login-blocks', path: '/login-blocks' });
       setBlocks(res.blocks || []);
       setBlocksAvailable(true);
     } catch (err) {
@@ -209,6 +211,7 @@ export default function DeviceReviewScreen() {
 
   return (
     <View style={styles.screen}>
+      <OfflineCacheNote group="devices" />
       {!!error && <Text style={styles.error}>{error}</Text>}
 
       {loading ? (

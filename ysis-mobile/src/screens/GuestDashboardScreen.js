@@ -51,7 +51,7 @@ export default function GuestDashboardScreen({ navigation }) {
       <Pressable onPress={() => navigation.getParent()?.navigate('MoreTab')} accessibilityRole="button" accessibilityLabel="More options"><Ionicons name="settings-sharp" size={25} color="#FFFFFF" /></Pressable>
     </View>
     <View style={[styles.welcome, { backgroundColor: colors.surfaceSecondary || '#DCE9FF' }]}>
-      <View style={{ flex: 1 }}><Text style={[styles.welcomeLabel, { color: colors.brand }]}>Welcome,</Text><Text style={[styles.guestName, { color: colors.textPrimary }]} numberOfLines={2}>{user?.fullName || user?.full_name || 'Guest'}</Text><Text style={[styles.accessText, { color: colors.brand }]}>Your access is limited to approved features.</Text></View>
+      <View style={{ flex: 1 }}><Text style={[styles.welcomeLabel, { color: colors.brand }]}>Welcome,</Text><Text style={[styles.guestName, { color: '#101C30' }]} numberOfLines={2}>{user?.fullName || user?.full_name || 'Guest'}</Text></View>
       <View style={[styles.guestAvatar, { backgroundColor: colors.brand }]}><Ionicons name="person" size={35} color="#FFFFFF" /><Text style={styles.guestBadge}>GUEST</Text></View>
     </View>
     <View style={styles.statsGrid}>

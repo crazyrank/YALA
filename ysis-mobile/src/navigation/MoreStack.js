@@ -19,6 +19,7 @@ import LeaversScreen from '../screens/LeaversScreen';
 import ClassTeachersScreen from '../screens/ClassTeachersScreen';
 import CreateClassTeacherScreen from '../screens/CreateClassTeacherScreen';
 import LogBookScreen from '../screens/LogBookScreen';
+import PersonalLogScreen from '../screens/PersonalLogScreen';
 import BlackBookScreen from '../screens/BlackBookScreen';
 import AlumniScreen from '../screens/AlumniScreen';
 import StaffReportsScreen from '../screens/StaffReportsScreen';
@@ -47,6 +48,7 @@ const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
 const ClassTeachersWrapped = withScreenHeader(ClassTeachersScreen, 'Class Teachers');
 const CreateClassTeacherWrapped = withScreenHeader(CreateClassTeacherScreen, 'Add Class Teacher');
 const LogBookWrapped = withScreenHeader(LogBookScreen, 'Log Book');
+const PersonalLogWrapped = withScreenHeader(PersonalLogScreen, 'My Log');
 const BlackBookWrapped = withScreenHeader(BlackBookScreen, 'Black Book');
 const AlumniWrapped = withScreenHeader(AlumniScreen, 'Alumni');
 const StaffReportsWrapped = withScreenHeader(StaffReportsScreen, 'Staff Reports');
@@ -139,6 +141,11 @@ export default function MoreStack() {
         name="LogBook"
         component={LogBookWrapped}
         options={{ title: 'Log Book' }}
+      />
+      <Stack.Screen
+        name="PersonalLog"
+        component={PersonalLogWrapped}
+        options={{ title: 'My Log' }}
       />
       <Stack.Screen
         name="StaffReports"

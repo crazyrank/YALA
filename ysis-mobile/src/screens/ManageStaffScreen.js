@@ -14,6 +14,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import { cachedGet } from '../services/offlineCache';
+import OfflineCacheNote from '../components/OfflineCacheNote';
 import { useTheme } from '../theme/ThemeContext';
 import { fontFamily } from '../theme/typography';
 import { radius, shadow } from '../theme/spacing';
@@ -32,7 +34,7 @@ export default function ManageStaffScreen({ navigation }) {
   const loadStaff = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const result = await api.get('/users');
+      const result = await cachedGet({ group: 'staff', key: 'users', path: '/users' });
       setStaff(result.users || []);
     } catch (err) {
       if (!err.isNetworkError) {
@@ -216,6 +218,8 @@ export default function ManageStaffScreen({ navigation }) {
           Accounts you created and manage
         </Text>
       </View>
+
+      <OfflineCacheNote group="staff" />
 
       {isDirector ? (
         <View style={styles.createGroup}>
