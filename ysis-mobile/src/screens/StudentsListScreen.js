@@ -103,6 +103,8 @@ const QUICK_ACTIONS = {
   leavers: { label: 'Leavers', icon: 'exit-outline', iconColor: 'goldDark', border: 'border' },
   studentsByStatus: { label: 'Students by Status', icon: 'people-outline', iconColor: 'textPrimary', border: 'border' },
   biodataApproval: { label: 'Biodata Approval', icon: 'document-text-outline', iconColor: 'goldDark', border: 'border' },
+  passwordReset: { label: 'Password Reset', icon: 'key-outline', iconColor: 'goldDark', border: 'border' },
+  passwordReset: { label: 'Password Reset', icon: 'key-outline', iconColor: 'goldDark', border: 'border' },
   logBook: { label: 'Log Book', icon: 'book-outline', iconColor: 'goldDark', border: 'border' },
   personalLog: { label: 'My Log', icon: 'journal-outline', iconColor: 'goldDark', border: 'border' },
   classBiodata: { label: 'Class Biodata', icon: 'create-outline', iconColor: 'goldDark', border: 'border' },
@@ -111,7 +113,7 @@ const QUICK_ACTIONS = {
 
 // Which quick actions each account sees, in display order.
 const ADMIN_ACTIONS = [
-  'register', 'export', 'results', 'studentsByStatus', 'biodataApproval', 'leavers', 'ss3Quiz', 'website', 'import', 'promote', 'devices',
+  'register', 'export', 'results', 'passwordReset', 'passwordReset', 'studentsByStatus', 'biodataApproval', 'leavers', 'ss3Quiz', 'website', 'import', 'promote', 'devices',
   'blackBook', 'staffReports', 'alumni', 'permissions', 'manageStaff',
   'guests', 'classTeachers', 'auditLog',
 ];
@@ -156,6 +158,8 @@ function QuickAction({ actionKey, navigation, colors, exporting, pendingDevices,
     leavers: () => openMore('Leavers'),
     studentsByStatus: () => openMore('StudentsByStatus'),
     biodataApproval: () => openMore('BiodataApproval'),
+    passwordReset: () => openMore('PasswordReset'),
+    passwordReset: () => openMore('PasswordReset'),
     logBook: () => openMore('LogBook'),
     personalLog: () => openMore('PersonalLog'),
     ss3Quiz: () => navigation.navigate('Ss3QuizView'),
