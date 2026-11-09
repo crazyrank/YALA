@@ -17,7 +17,6 @@ import PromoteClassScreen from '../screens/PromoteClassScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import LeaversScreen from '../screens/LeaversScreen';
 import PasswordResetScreen from '../screens/PasswordResetScreen';
-import PasswordResetScreen from '../screens/PasswordResetScreen';
 import StudentsByStatusScreen from '../screens/StudentsByStatusScreen';
 import BiodataApprovalScreen from '../screens/BiodataApprovalScreen';
 import ClassTeachersScreen from '../screens/ClassTeachersScreen';
@@ -49,7 +48,6 @@ const GuestAccountsWrapped = withScreenHeader(GuestAccountsScreen, 'Guest Accoun
 const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
-const PasswordResetWrapped = withScreenHeader(PasswordResetScreen, 'Password Reset');
 const PasswordResetWrapped = withScreenHeader(PasswordResetScreen, 'Password Reset');
 const StudentsByStatusWrapped = withScreenHeader(StudentsByStatusScreen, 'Students by Status');
 const BiodataApprovalWrapped = withScreenHeader(BiodataApprovalScreen, 'Biodata Approval');
@@ -189,11 +187,6 @@ export default function MoreStack() {
         name="BiodataApproval"
         component={BiodataApprovalWrapped}
         options={{ title: 'Biodata Approval' }}
-      />
-      <Stack.Screen
-        name="PasswordReset"
-        component={PasswordResetWrapped}
-        options={{ title: 'Password Reset' }}
       />
       <Stack.Screen
         name="PasswordReset"

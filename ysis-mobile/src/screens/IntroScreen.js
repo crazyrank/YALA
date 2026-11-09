@@ -126,7 +126,17 @@ export default function IntroScreen({ navigation, route }) {
   const isReplay = Boolean(route?.params?.replay);
   const [page, setPage] = useState(0);
 
+  // Stop any spoken text as soon as the intro is left, including Skip.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => Speech.stop());
+    return () => {
+      unsubscribe();
+      Speech.stop();
+    };
+  }, [navigation]);
+
   const finish = () => {
+    Speech.stop();
     if (isReplay) {
       navigation.goBack();
     } else {

@@ -5,7 +5,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { YALAPREP_STUDENT_LOGIN_URL, YALAPREP_QUIZ_URL } from '../config/links';
 import { saveStudentLogin, getStudentSession, isSessionFresh } from '../lib/studentSession';
 
-const ALLOWED = /^https:\/\/yalaprep\.netlify\.app(\/|$|\?|#)/;
+const ALLOWED = /^https:\/\/yalaprep\.netlify\.app(\/|$|\?|#)/i;
 const QUIZ_PAGE = /^https:\/\/yalaprep\.netlify\.app\/student(\/|$|\?|#)/;
 
 const LOCK_DOWN_JS = `
