@@ -16,6 +16,8 @@ import GuestAccountsScreen from '../screens/GuestAccountsScreen';
 import PromoteClassScreen from '../screens/PromoteClassScreen';
 import StudentDetailScreen from '../screens/StudentDetailScreen';
 import LeaversScreen from '../screens/LeaversScreen';
+import StudentsByStatusScreen from '../screens/StudentsByStatusScreen';
+import BiodataApprovalScreen from '../screens/BiodataApprovalScreen';
 import ClassTeachersScreen from '../screens/ClassTeachersScreen';
 import CreateClassTeacherScreen from '../screens/CreateClassTeacherScreen';
 import LogBookScreen from '../screens/LogBookScreen';
@@ -45,6 +47,8 @@ const GuestAccountsWrapped = withScreenHeader(GuestAccountsScreen, 'Guest Accoun
 const PromoteClassWrapped = withScreenHeader(PromoteClassScreen, 'Promote a class');
 const StudentDetailWrapped = withScreenHeader(StudentDetailScreen, 'Student');
 const LeaversWrapped = withScreenHeader(LeaversScreen, 'Leavers');
+const StudentsByStatusWrapped = withScreenHeader(StudentsByStatusScreen, 'Students by Status');
+const BiodataApprovalWrapped = withScreenHeader(BiodataApprovalScreen, 'Biodata Approval');
 const ClassTeachersWrapped = withScreenHeader(ClassTeachersScreen, 'Class Teachers');
 const CreateClassTeacherWrapped = withScreenHeader(CreateClassTeacherScreen, 'Add Class Teacher');
 const LogBookWrapped = withScreenHeader(LogBookScreen, 'Log Book');
@@ -171,6 +175,16 @@ export default function MoreStack() {
         name="AuditLog"
         component={AuditLogWrapped}
         options={{ title: 'Audit Log' }}
+      />
+      <Stack.Screen
+        name="StudentsByStatus"
+        component={StudentsByStatusWrapped}
+        options={{ title: 'Students by Status' }}
+      />
+      <Stack.Screen
+        name="BiodataApproval"
+        component={BiodataApprovalWrapped}
+        options={{ title: 'Biodata Approval' }}
       />
       <Stack.Screen
         name="Leavers"

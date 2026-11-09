@@ -100,6 +100,9 @@ const QUICK_ACTIONS = {
   guests: { label: 'Guest Accounts', icon: 'person-outline', iconColor: 'textPrimary', border: 'border' },
   classTeachers: { label: 'Class Teachers', icon: 'easel-outline', iconColor: 'textPrimary', border: 'border' },
   auditLog: { label: 'Audit Log', icon: 'list-outline', iconColor: 'textPrimary', border: 'border' },
+  leavers: { label: 'Leavers', icon: 'exit-outline', iconColor: 'goldDark', border: 'border' },
+  studentsByStatus: { label: 'Students by Status', icon: 'people-outline', iconColor: 'textPrimary', border: 'border' },
+  biodataApproval: { label: 'Biodata Approval', icon: 'document-text-outline', iconColor: 'goldDark', border: 'border' },
   logBook: { label: 'Log Book', icon: 'book-outline', iconColor: 'goldDark', border: 'border' },
   personalLog: { label: 'My Log', icon: 'journal-outline', iconColor: 'goldDark', border: 'border' },
   classBiodata: { label: 'Class Biodata', icon: 'create-outline', iconColor: 'goldDark', border: 'border' },
@@ -108,7 +111,7 @@ const QUICK_ACTIONS = {
 
 // Which quick actions each account sees, in display order.
 const ADMIN_ACTIONS = [
-  'register', 'export', 'results', 'ss3Quiz', 'website', 'import', 'promote', 'devices',
+  'register', 'export', 'results', 'studentsByStatus', 'biodataApproval', 'leavers', 'ss3Quiz', 'website', 'import', 'promote', 'devices',
   'blackBook', 'staffReports', 'alumni', 'permissions', 'manageStaff',
   'guests', 'classTeachers', 'auditLog',
 ];
@@ -123,8 +126,8 @@ const ADMIN_PANELS = [
 const ROLE_QUICK_ACTIONS = {
   director: ADMIN_ACTIONS,
   principal: [...ADMIN_ACTIONS, 'personalLog'],
-  head_teacher: ['register', 'export', 'results', 'ss3Quiz', 'website', 'import', 'logBook'],
-  class_teacher: ['register', 'website', 'classBiodata', 'ss3Quiz'],
+  head_teacher: ['register', 'export', 'results', 'ss3Quiz', 'website', 'import', 'logBook', 'leavers', 'classTeachers', 'studentsByStatus', 'biodataApproval'],
+  class_teacher: ['register', 'website', 'classBiodata', 'ss3Quiz', 'logBook'],
   guest: ['website'],
 };
 
@@ -150,6 +153,9 @@ function QuickAction({ actionKey, navigation, colors, exporting, pendingDevices,
     guests: () => openMore('GuestAccounts'),
     classTeachers: () => openMore('ClassTeachers'),
     auditLog: () => openMore('AuditLog'),
+    leavers: () => openMore('Leavers'),
+    studentsByStatus: () => openMore('StudentsByStatus'),
+    biodataApproval: () => openMore('BiodataApproval'),
     logBook: () => openMore('LogBook'),
     personalLog: () => openMore('PersonalLog'),
     ss3Quiz: () => navigation.navigate('Ss3QuizView'),
