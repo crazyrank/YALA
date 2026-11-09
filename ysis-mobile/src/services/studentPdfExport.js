@@ -398,11 +398,21 @@ export async function exportStudentToPdf(studentId) {
     height: 842,
   });
 
-  const safeName = (student.admission_no || studentId)
-    .replace(/[^a-zA-Z0-9_-]/g, '_');
-  const finalUri = `${cacheDir}yala-student-${studentId}-${safeName}.pdf`;
+  // The file is named after the student. It sits in its own folder, so only the
+  // latest export stays on the phone.
+  const nameForFile =
+    String(student.full_name || '')
+      .replace(/[^A-Za-z0-9 _-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80) ||
+    String(student.admission_no || 'student').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const exportDir = `${cacheDir}yala-exports/`;
+  const finalUri = `${exportDir}${nameForFile}.pdf`;
 
   try {
+    await FileSystem.deleteAsync(exportDir, { idempotent: true });
+    await FileSystem.makeDirectoryAsync(exportDir, { intermediates: true });
     await FileSystem.moveAsync({ from: uri, to: finalUri });
   } catch {
     // if move fails, just use the original uri
