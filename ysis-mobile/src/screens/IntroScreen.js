@@ -152,7 +152,6 @@ export default function IntroScreen({ navigation, route }) {
           <Text style={styles.brand}>YSIS</Text>
           <Text style={styles.brandSub}>STUDENT INFORMATION SYSTEM</Text>
         </View>
-        {page !== 2 && (
         <Pressable
           onPress={finish}
           style={styles.skip}
@@ -160,7 +159,6 @@ export default function IntroScreen({ navigation, route }) {
         >
           <Text style={styles.skipText}>Skip</Text>
         </Pressable>
-        )}
       </View>
       )}
 
@@ -183,7 +181,6 @@ export default function IntroScreen({ navigation, route }) {
             />
           ))}
         </View>
-        {page !== 2 && (
         <Pressable
           onPress={next}
           style={styles.nextButton}
@@ -193,7 +190,6 @@ export default function IntroScreen({ navigation, route }) {
             {page === PAGE_COUNT - 1 ? 'Continue to login' : 'Continue'}
           </Text>
         </Pressable>
-        )}
       </View>
     </SafeAreaView>
   );
