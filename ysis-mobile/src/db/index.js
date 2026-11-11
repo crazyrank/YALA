@@ -70,6 +70,7 @@ async function runColumnMigrations(db) {
     `ALTER TABLE students ADD COLUMN entrance_outcome TEXT`,
     `ALTER TABLE students ADD COLUMN approval_status TEXT`,
     `ALTER TABLE students ADD COLUMN return_reason TEXT`,
+    `ALTER TABLE students ADD COLUMN registered_term TEXT`,
   ];
   for (const statement of columnMigrations) {
     try {

@@ -88,8 +88,8 @@ async function savePage(db, students, nextCursor) {
     for (const s of students) {
       await db.runAsync(
         `INSERT INTO students
-           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at, academic_session, current_session, date_of_birth, gender, entrance_outcome, approval_status, return_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, admission_no, full_name, division, class_level, arm, status, sync_version, created_at, updated_at, academic_session, current_session, date_of_birth, gender, entrance_outcome, approval_status, return_reason, registered_term)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            admission_no = excluded.admission_no,
            full_name    = excluded.full_name,
@@ -104,6 +104,7 @@ async function savePage(db, students, nextCursor) {
            entrance_outcome = excluded.entrance_outcome,
            approval_status  = excluded.approval_status,
            return_reason    = excluded.return_reason,
+           registered_term  = excluded.registered_term,
            date_of_birth    = COALESCE(excluded.date_of_birth, students.date_of_birth),
            gender           = COALESCE(excluded.gender, students.gender)
          WHERE students.local_dirty = 0`,
@@ -112,7 +113,7 @@ async function savePage(db, students, nextCursor) {
           s.class_level, s.arm, s.status, s.sync_version, s.created_at || stamp, stamp,
           s.academic_session || null, s.current_session || s.academic_session || null,
           s.date_of_birth || null, s.gender || null, s.entrance_outcome || null,
-          s.approval_status || 'approved', s.return_reason || null,
+          s.approval_status || 'approved', s.return_reason || null, s.registered_term || null,
         ]
       );
     }
