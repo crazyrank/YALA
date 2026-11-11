@@ -65,7 +65,10 @@ router.get(
                 class_level,
                 arm,
                 academic_session,
-                current_session,
+                CASE WHEN status IN ('registered','active','promoted','inactive')
+                  THEN COALESCE((SELECT current_session FROM school_settings WHERE id = 1), current_session)
+                  ELSE current_session
+                END AS current_session,
                 to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
                 gender,
                 created_at,

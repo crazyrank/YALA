@@ -96,20 +96,12 @@ function planPromotion(currentRow, { newClassLevel, arm }) {
     return { ok: false, code: 'RECORD_INVALID', message: `This record fails validation: ${candidate.errors[0]}` };
   }
 
-  // Session: registered stays put; current advances one year.
-  // Fall back to academic_session when current_session is still null (legacy rows).
-  const baseSession = currentRow.current_session || currentRow.academic_session || null;
-  const advancedSession = baseSession ? nextSession(baseSession) : null;
-
   const changes = {
     class_level: expected,
     division: divisionOfClass(expected),
     arm: nextArm,
     status: 'promoted',
   };
-  if (advancedSession) {
-    changes.current_session = advancedSession;
-  }
 
   return {
     ok: true,
@@ -125,6 +117,8 @@ function planPromotion(currentRow, { newClassLevel, arm }) {
  * Returns { ok, changes, code, message }.
  */
 function planUndoPromotion(currentRow) {
+  // Undo is switched off until it can be limited safely without the session data.
+  return { ok: false, code: 'UNDO_DISABLED', message: 'Undoing a promotion is not available right now. Ask the Principal or Director.' };
   const registered = currentRow.academic_session || null;
   const current = currentRow.current_session || registered;
 
@@ -139,10 +133,6 @@ function planUndoPromotion(currentRow) {
     return { ok: false, code: 'ALREADY_AT_MIN_CLASS', message: 'This student is already at the earliest class. Nothing to undo.' };
   }
 
-  // Prefer session guard: only undo if current is after registered.
-  if (registered && current && !sessionIsAfter(current, registered)) {
-    return { ok: false, code: 'NOTHING_TO_UNDO', message: 'This student has not been promoted beyond their registered session.' };
-  }
 
   let prevSession = current ? previousSession(current) : null;
   // Never go below the registered session.
@@ -167,11 +157,6 @@ function planUndoPromotion(currentRow) {
     arm: prevArm,
   };
 
-  if (prevSession) {
-    changes.current_session = prevSession;
-  } else if (registered) {
-    changes.current_session = registered;
-  }
 
   return { ok: true, changes };
 }
