@@ -23,12 +23,13 @@ const DB_TO_API = {
   guardian_phone: 'guardianPhone',
   date_of_birth: 'dateOfBirth',
   academic_session: 'academicSession',
+  registered_term: 'registeredTerm',
 };
 const API_TO_DB = Object.fromEntries(Object.entries(DB_TO_API).map(([k, v]) => [v, k]));
 
 // Profile fields a normal edit may change. Division and class are never edited
 // directly; they change only through promotion.
-const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone', 'academicSession'];
+const EDITABLE_API_FIELDS = ['admissionNo', 'fullName', 'arm', 'gender', 'dateOfBirth', 'guardianName', 'guardianPhone', 'academicSession', 'registeredTerm'];
 
 // Status may be changed by edit only to these two values (archive and restore).
 // Promotion sets 'promoted' through planPromotion, never through edit.
@@ -215,10 +216,17 @@ function validateEdit(currentRow, changes) {
   }
 
   for (const key of profileKeys) {
-    if (key === 'academic_session') continue;
+    if (key === 'academic_session' || key === 'registered_term') continue;
     clean[key] = check.value[DB_TO_API[key]];
   }
   if ('academic_session' in changes) clean.academic_session = sessionClean;
+  if ('registered_term' in changes) {
+    const t = changes.registered_term;
+    if (t !== null && !['First', 'Second', 'Third'].includes(t)) {
+      return { ok: false, code: 'RECORD_INVALID', message: 'Registered term must be First, Second or Third.' };
+    }
+    clean.registered_term = t;
+  }
   return { ok: true, changes: clean };
 }
 

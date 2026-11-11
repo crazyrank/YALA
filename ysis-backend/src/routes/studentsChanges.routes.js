@@ -69,6 +69,7 @@ router.get(
                   THEN COALESCE((SELECT current_session FROM school_settings WHERE id = 1), current_session)
                   ELSE current_session
                 END AS current_session,
+                registered_term,
                 to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
                 gender,
                 created_at,

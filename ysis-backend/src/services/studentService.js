@@ -3,7 +3,7 @@ const db = require('../db');
 const EDITABLE_FIELDS = [
   'full_name', 'gender', 'division', 'class_level',
   'arm', 'guardian_name', 'guardian_phone', 'status',
-  'admission_no', 'date_of_birth', 'academic_session',
+  'admission_no', 'date_of_birth', 'academic_session', 'registered_term',
 ];
 
 /**

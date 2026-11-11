@@ -222,6 +222,11 @@ async function processOperation({
           }
         }
 
+        if ('registered_term' in changes && !['director', 'principal'].includes(userRole)) {
+          await markOpStatus(syncOpRowId, 'failed', 'Only the Principal or Director can change the registered term.');
+          return { operationId, status: 'failed', error: 'FORBIDDEN' };
+        }
+
         const touchesClassFields = [
           'division',
           'class_level',
