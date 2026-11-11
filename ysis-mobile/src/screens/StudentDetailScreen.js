@@ -68,6 +68,7 @@ export default function StudentDetailScreen({ route, navigation }) {
   const [editDob, setEditDob] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editSession, setEditSession] = useState('');
+  const [editTerm, setEditTerm] = useState(null);
   const [editPhone, setEditPhone] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
 
@@ -556,6 +557,7 @@ export default function StudentDetailScreen({ route, navigation }) {
     setEditDob(isoToDob(student.date_of_birth));
     setEditGender(student.gender || '');
     setEditSession(student.academic_session || '');
+    setEditTerm(student.registered_term || null);
     setEditing(true);
   };
 
@@ -625,6 +627,7 @@ export default function StudentDetailScreen({ route, navigation }) {
         gender: v.gender || null,
         date_of_birth: v.dateOfBirth || null,
         academic_session: sessionValue,
+        ...(isAdmin ? { registered_term: editTerm } : {}),
         guardian_name: v.guardianName || null,
         guardian_phone: v.guardianPhone || null,
         arm: nextArm,
@@ -632,7 +635,7 @@ export default function StudentDetailScreen({ route, navigation }) {
 
       await db.runAsync(
         `UPDATE students
-         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?, academic_session = ?,
+         SET admission_no = ?, full_name = ?, gender = ?, date_of_birth = ?, academic_session = ?, registered_term = ?,
              arm = ?, guardian_name = ?, guardian_phone = ?,
              sync_version = sync_version + 1, updated_at = ?, local_dirty = 1
          WHERE id = ?`,
@@ -642,6 +645,7 @@ export default function StudentDetailScreen({ route, navigation }) {
           changes.gender,
           changes.date_of_birth,
           changes.academic_session,
+          changes.registered_term !== undefined ? changes.registered_term : student.registered_term,
           changes.arm,
           changes.guardian_name,
           changes.guardian_phone,
@@ -911,6 +915,30 @@ export default function StudentDetailScreen({ route, navigation }) {
               keyboardType="numbers-and-punctuation"
             />
 
+            {isAdmin && (
+              <>
+                <Text style={styles.fieldLabel}>Registered term</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {['First', 'Second', 'Third'].map((t) => (
+                    <Pressable
+                      key={t}
+                      onPress={() => setEditTerm(t)}
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: editTerm === t ? '#1B9AAA' : '#D0D5DD',
+                        backgroundColor: editTerm === t ? '#E6F6F8' : 'transparent',
+                      }}
+                    >
+                      <Text style={{ fontWeight: '600', color: '#101828' }}>{t}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+
             {editNeedsArm && (
               <>
                 <Text style={styles.fieldLabel}>Arm *</Text>
@@ -944,6 +972,7 @@ export default function StudentDetailScreen({ route, navigation }) {
             <InfoRow label="Arm" value={student.arm || 'None'} />
             <InfoRow label="Division" value={student.division || 'Secondary'} />
             <InfoRow label="Registered session" value={student.academic_session || 'Not recorded'} />
+            <InfoRow label="Registered term" value={student.registered_term || 'Not recorded'} />
             <InfoRow label="Current session" value={student.current_session || student.academic_session || 'Not recorded'} last />
           </View>
         </View>
