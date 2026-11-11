@@ -160,7 +160,7 @@ function QuickAction({ actionKey, navigation, colors, exporting, pendingDevices,
     passwordReset: () => openMore('PasswordReset'),
     logBook: () => openMore('LogBook'),
     personalLog: () => openMore('PersonalLog'),
-    ss3Quiz: () => navigation.navigate('Ss3QuizView'),
+    ss3Quiz: () => navigation.navigate('StudentPortal'),
     classBiodata: () => navigation.navigate('ClassesTab'),
   };
 
