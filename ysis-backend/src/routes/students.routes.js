@@ -1,6 +1,7 @@
 const { planPromotion, validateEdit } = require('../utils/studentChangeRules');
 const { normalizeStudent } = require('../utils/studentRules');
 const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
+const { registeredTermFor } = require('../utils/academicTerm');
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../db');
@@ -306,11 +307,12 @@ router.post(
                registered_by,
                registered_device_id,
                academic_session,
-               approval_status
+               approval_status,
+               registered_term
              )
            VALUES
              (
-               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
              )
            RETURNING *`,
           [
@@ -328,6 +330,7 @@ router.post(
             req.auth.deviceId,
             sessionValue,
             approvalStatusForRegistration(req.auth.role),
+            registeredTermFor(new Date()),
           ]
         );
 

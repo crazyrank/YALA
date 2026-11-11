@@ -15,6 +15,7 @@ const { userHasPermission } = require('./permissionService');
 const { isAtMaxClass } = require('../utils/classProgression');
 const { approvalStatusForRegistration, classTeacherMayEdit } = require('../utils/approvalRules');
 const { academicSessionFor, normalizeSession } = require('../utils/academicSession');
+const { registeredTermFor } = require('../utils/academicTerm');
 const { handleBiodataOperation } = require('./biodataService');
 const { handleLogBookOperation } = require('./logBookService');
 const { handleStudentActionOperation } = require('./studentActionService');
@@ -521,10 +522,11 @@ async function processOperation({
                academic_session,
                current_session,
                created_at,
-               approval_status
+               approval_status,
+               registered_term
              )
            VALUES
-             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
           [
             id,
             admissionNo,
@@ -542,6 +544,7 @@ async function processOperation({
             sessionValue,
             createdAtClient,
             approvalStatusForRegistration(userRole),
+            registeredTermFor(createdAtClient),
           ]
         );
 
